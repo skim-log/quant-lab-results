@@ -26,6 +26,7 @@ const state = {
   colToMetric: {},   // 표시컬럼 -> metrics_raw 키 (재계산 가능 컬럼 식별)
   globalStart: '',   // 데이터셋 전체 최소 날짜 (ISO)
   globalEnd: '',     // 데이터셋 전체 최대 날짜 (ISO)
+  nav: { category: '', group: '', currency: '' },  // 3축 네비 상태
 };
 
 // ---------------------------------------------------------------------------
@@ -521,6 +522,74 @@ function clearPresetActive() {
   document.querySelectorAll('#presets button').forEach(b => b.classList.remove('active'));
 }
 
+// ---------------------------------------------------------------------------
+// 3축 네비 (카테고리 → 그룹 → 통화 토글)
+// ---------------------------------------------------------------------------
+const CAT_ORDER = { dynamic: 0, static: 1, momentum: 2 };
+const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀' };
+
+function catsPresent() {
+  return [...new Set(state.manifest.map(m => m.category))]
+    .sort((a, b) => (CAT_ORDER[a] ?? 9) - (CAT_ORDER[b] ?? 9));
+}
+function groupsIn(cat) {
+  const out = [];
+  state.manifest.forEach(m => { if (m.category === cat && !out.includes(m.group)) out.push(m.group); });
+  return out;
+}
+function currenciesFor(cat, g) {
+  return state.manifest.filter(m => m.category === cat && m.group === g).map(m => m.currency);
+}
+function pickCurrency(cat, g) {
+  const cs = currenciesFor(cat, g);
+  for (const p of ['krw', 'usd', '']) if (cs.includes(p)) return p;
+  return cs[0] || '';
+}
+function resolveEntry(cat, g, cur) {
+  const c = state.manifest.filter(m => m.category === cat && m.group === g);
+  return c.find(m => m.currency === cur) || c[0];
+}
+
+function buildNav() {
+  if (!state.manifest.length) {
+    setStatus('표시할 데이터셋이 없습니다. build_dashboard.py 를 먼저 실행하세요.', true);
+    return;
+  }
+  const cats = catsPresent();
+  document.getElementById('cat-tabs').innerHTML =
+    cats.map(c => `<button type="button" data-cat="${c}">${CAT_LABEL_NAV[c] || c}</button>`).join('');
+  document.querySelectorAll('#cat-tabs button').forEach(
+    b => b.addEventListener('click', () => setCategory(b.dataset.cat)));
+  document.getElementById('group').addEventListener('change', e => setGroup(e.target.value));
+  document.querySelectorAll('#cur-toggle button').forEach(
+    b => b.addEventListener('click', () => setCurrency(b.dataset.cur)));
+  setCategory(cats[0]);
+}
+function setCategory(cat) {
+  state.nav.category = cat;
+  document.querySelectorAll('#cat-tabs button').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
+  const groups = groupsIn(cat);
+  document.getElementById('group').innerHTML =
+    groups.map(g => `<option value="${g}">${g}</option>`).join('');
+  setGroup(groups[0]);
+}
+function setGroup(g) {
+  state.nav.group = g;
+  document.getElementById('group').value = g;
+  setCurrency(pickCurrency(state.nav.category, g));
+}
+function setCurrency(cur) {
+  const avail = currenciesFor(state.nav.category, state.nav.group);
+  if (!avail.includes(cur)) cur = pickCurrency(state.nav.category, state.nav.group);
+  state.nav.currency = cur;
+  document.querySelectorAll('#cur-toggle button').forEach(b => {
+    b.classList.toggle('active', b.dataset.cur === cur);
+    b.disabled = !avail.includes(b.dataset.cur);
+  });
+  const entry = resolveEntry(state.nav.category, state.nav.group, cur);
+  if (entry) loadDataset(entry.file);
+}
+
 async function init() {
   wireControls();
   try {
@@ -531,11 +600,7 @@ async function init() {
     setStatus('manifest.json 로딩 실패: ' + err.message + ' (http 서버로 열어야 합니다)', true);
     return;
   }
-  const sel = document.getElementById('dataset');
-  sel.innerHTML = state.manifest.map(m => `<option value="${m.file}">${m.label}</option>`).join('');
-  sel.addEventListener('change', () => loadDataset(sel.value));
-  if (state.manifest.length) loadDataset(state.manifest[0].file);
-  else setStatus('표시할 데이터셋이 없습니다. build_dashboard.py 를 먼저 실행하세요.', true);
+  buildNav();
 }
 
 document.addEventListener('DOMContentLoaded', init);

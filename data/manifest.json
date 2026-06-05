@@ -1,117 +1,218 @@
 [
   {
-    "id": "kr_all",
-    "label": "한국 모멘텀 — 전체 전략",
-    "file": "kr_all.json"
-  },
-  {
-    "id": "us_real",
-    "label": "미국 TQQQ — 실제 TQQQ (2010~)",
-    "file": "us_real.json"
-  },
-  {
-    "id": "us_synth",
-    "label": "미국 TQQQ — 합성 TQQQ (1999~)",
-    "file": "us_synth.json"
-  },
-  {
-    "id": "multi_allocation_allweather_krw",
-    "label": "글로벌 자산배분 — 정적·올웨더풍 (KRW)",
-    "file": "multi_allocation_allweather_krw.json"
-  },
-  {
-    "id": "multi_allocation_allweather_usd",
-    "label": "글로벌 자산배분 — 정적·올웨더풍 (USD)",
-    "file": "multi_allocation_allweather_usd.json"
-  },
-  {
-    "id": "multi_allocation_balanced_krw",
-    "label": "글로벌 자산배분 — 정적·균형 (KRW)",
-    "file": "multi_allocation_balanced_krw.json"
-  },
-  {
-    "id": "multi_allocation_balanced_usd",
-    "label": "글로벌 자산배분 — 정적·균형 (USD)",
-    "file": "multi_allocation_balanced_usd.json"
-  },
-  {
-    "id": "multi_allocation_defensive_krw",
-    "label": "글로벌 자산배분 — 정적·방어적 (KRW)",
-    "file": "multi_allocation_defensive_krw.json"
-  },
-  {
-    "id": "multi_allocation_defensive_usd",
-    "label": "글로벌 자산배분 — 정적·방어적 (USD)",
-    "file": "multi_allocation_defensive_usd.json"
-  },
-  {
-    "id": "multi_allocation_equity_krw",
-    "label": "글로벌 자산배분 — 정적·주식중심 (KRW)",
-    "file": "multi_allocation_equity_krw.json"
-  },
-  {
-    "id": "multi_allocation_equity_usd",
-    "label": "글로벌 자산배분 — 정적·주식중심 (USD)",
-    "file": "multi_allocation_equity_usd.json"
-  },
-  {
-    "id": "multi_dynamic_absmom_krw",
-    "label": "글로벌 자산배분 — 동적·절대듀얼 (KRW)",
-    "file": "multi_dynamic_absmom_krw.json"
-  },
-  {
-    "id": "multi_dynamic_absmom_usd",
-    "label": "글로벌 자산배분 — 동적·절대듀얼 (USD)",
-    "file": "multi_dynamic_absmom_usd.json"
-  },
-  {
-    "id": "multi_dynamic_all_krw",
-    "label": "글로벌 자산배분 — 동적·전체 (KRW)",
-    "file": "multi_dynamic_all_krw.json"
-  },
-  {
-    "id": "multi_dynamic_all_usd",
-    "label": "글로벌 자산배분 — 동적·전체 (USD)",
-    "file": "multi_dynamic_all_usd.json"
-  },
-  {
-    "id": "multi_dynamic_baa_b_krw",
-    "label": "글로벌 자산배분 — 동적·BAA균형 (KRW)",
-    "file": "multi_dynamic_baa_b_krw.json"
-  },
-  {
-    "id": "multi_dynamic_baa_b_usd",
-    "label": "글로벌 자산배분 — 동적·BAA균형 (USD)",
-    "file": "multi_dynamic_baa_b_usd.json"
-  },
-  {
     "id": "multi_dynamic_baa_g_krw",
-    "label": "글로벌 자산배분 — 동적·BAA공격 (KRW)",
+    "category": "dynamic",
+    "group": "BAA공격",
+    "currency": "krw",
+    "label": "동적 자산배분 · BAA공격 (KRW)",
     "file": "multi_dynamic_baa_g_krw.json"
   },
   {
     "id": "multi_dynamic_baa_g_usd",
-    "label": "글로벌 자산배분 — 동적·BAA공격 (USD)",
+    "category": "dynamic",
+    "group": "BAA공격",
+    "currency": "usd",
+    "label": "동적 자산배분 · BAA공격 (USD)",
     "file": "multi_dynamic_baa_g_usd.json"
   },
   {
+    "id": "multi_dynamic_baa_b_krw",
+    "category": "dynamic",
+    "group": "BAA균형",
+    "currency": "krw",
+    "label": "동적 자산배분 · BAA균형 (KRW)",
+    "file": "multi_dynamic_baa_b_krw.json"
+  },
+  {
+    "id": "multi_dynamic_baa_b_usd",
+    "category": "dynamic",
+    "group": "BAA균형",
+    "currency": "usd",
+    "label": "동적 자산배분 · BAA균형 (USD)",
+    "file": "multi_dynamic_baa_b_usd.json"
+  },
+  {
     "id": "multi_dynamic_gem_krw",
-    "label": "글로벌 자산배분 — 동적·GEM (KRW)",
+    "category": "dynamic",
+    "group": "GEM",
+    "currency": "krw",
+    "label": "동적 자산배분 · GEM (KRW)",
     "file": "multi_dynamic_gem_krw.json"
   },
   {
     "id": "multi_dynamic_gem_usd",
-    "label": "글로벌 자산배분 — 동적·GEM (USD)",
+    "category": "dynamic",
+    "group": "GEM",
+    "currency": "usd",
+    "label": "동적 자산배분 · GEM (USD)",
     "file": "multi_dynamic_gem_usd.json"
   },
   {
+    "id": "multi_dynamic_all_krw",
+    "category": "dynamic",
+    "group": "전체",
+    "currency": "krw",
+    "label": "동적 자산배분 · 전체 (KRW)",
+    "file": "multi_dynamic_all_krw.json"
+  },
+  {
+    "id": "multi_dynamic_all_usd",
+    "category": "dynamic",
+    "group": "전체",
+    "currency": "usd",
+    "label": "동적 자산배분 · 전체 (USD)",
+    "file": "multi_dynamic_all_usd.json"
+  },
+  {
+    "id": "multi_dynamic_absmom_krw",
+    "category": "dynamic",
+    "group": "절대듀얼",
+    "currency": "krw",
+    "label": "동적 자산배분 · 절대듀얼 (KRW)",
+    "file": "multi_dynamic_absmom_krw.json"
+  },
+  {
+    "id": "multi_dynamic_absmom_usd",
+    "category": "dynamic",
+    "group": "절대듀얼",
+    "currency": "usd",
+    "label": "동적 자산배분 · 절대듀얼 (USD)",
+    "file": "multi_dynamic_absmom_usd.json"
+  },
+  {
     "id": "multi_dynamic_trend_krw",
-    "label": "글로벌 자산배분 — 동적·추세추종 (KRW)",
+    "category": "dynamic",
+    "group": "추세추종",
+    "currency": "krw",
+    "label": "동적 자산배분 · 추세추종 (KRW)",
     "file": "multi_dynamic_trend_krw.json"
   },
   {
     "id": "multi_dynamic_trend_usd",
-    "label": "글로벌 자산배분 — 동적·추세추종 (USD)",
+    "category": "dynamic",
+    "group": "추세추종",
+    "currency": "usd",
+    "label": "동적 자산배분 · 추세추종 (USD)",
     "file": "multi_dynamic_trend_usd.json"
+  },
+  {
+    "id": "multi_allocation_us6040_krw",
+    "category": "static",
+    "group": "US 60/40",
+    "currency": "krw",
+    "label": "정적 자산배분 · US 60/40 (KRW)",
+    "file": "multi_allocation_us6040_krw.json"
+  },
+  {
+    "id": "multi_allocation_us6040_usd",
+    "category": "static",
+    "group": "US 60/40",
+    "currency": "usd",
+    "label": "정적 자산배분 · US 60/40 (USD)",
+    "file": "multi_allocation_us6040_usd.json"
+  },
+  {
+    "id": "multi_allocation_balanced_krw",
+    "category": "static",
+    "group": "균형",
+    "currency": "krw",
+    "label": "정적 자산배분 · 균형 (KRW)",
+    "file": "multi_allocation_balanced_krw.json"
+  },
+  {
+    "id": "multi_allocation_balanced_usd",
+    "category": "static",
+    "group": "균형",
+    "currency": "usd",
+    "label": "정적 자산배분 · 균형 (USD)",
+    "file": "multi_allocation_balanced_usd.json"
+  },
+  {
+    "id": "multi_allocation_defensive_krw",
+    "category": "static",
+    "group": "방어적",
+    "currency": "krw",
+    "label": "정적 자산배분 · 방어적 (KRW)",
+    "file": "multi_allocation_defensive_krw.json"
+  },
+  {
+    "id": "multi_allocation_defensive_usd",
+    "category": "static",
+    "group": "방어적",
+    "currency": "usd",
+    "label": "정적 자산배분 · 방어적 (USD)",
+    "file": "multi_allocation_defensive_usd.json"
+  },
+  {
+    "id": "multi_allocation_allweather_krw",
+    "category": "static",
+    "group": "올웨더풍",
+    "currency": "krw",
+    "label": "정적 자산배분 · 올웨더풍 (KRW)",
+    "file": "multi_allocation_allweather_krw.json"
+  },
+  {
+    "id": "multi_allocation_allweather_usd",
+    "category": "static",
+    "group": "올웨더풍",
+    "currency": "usd",
+    "label": "정적 자산배분 · 올웨더풍 (USD)",
+    "file": "multi_allocation_allweather_usd.json"
+  },
+  {
+    "id": "multi_allocation_equity_krw",
+    "category": "static",
+    "group": "주식중심",
+    "currency": "krw",
+    "label": "정적 자산배분 · 주식중심 (KRW)",
+    "file": "multi_allocation_equity_krw.json"
+  },
+  {
+    "id": "multi_allocation_equity_usd",
+    "category": "static",
+    "group": "주식중심",
+    "currency": "usd",
+    "label": "정적 자산배분 · 주식중심 (USD)",
+    "file": "multi_allocation_equity_usd.json"
+  },
+  {
+    "id": "us_real_krw",
+    "category": "momentum",
+    "group": "미국 TQQQ (실제)",
+    "currency": "krw",
+    "label": "모멘텀 · 미국 TQQQ (실제) (KRW)",
+    "file": "us_real_krw.json"
+  },
+  {
+    "id": "us_real_usd",
+    "category": "momentum",
+    "group": "미국 TQQQ (실제)",
+    "currency": "usd",
+    "label": "모멘텀 · 미국 TQQQ (실제) (USD)",
+    "file": "us_real_usd.json"
+  },
+  {
+    "id": "us_synth_krw",
+    "category": "momentum",
+    "group": "미국 TQQQ (합성)",
+    "currency": "krw",
+    "label": "모멘텀 · 미국 TQQQ (합성) (KRW)",
+    "file": "us_synth_krw.json"
+  },
+  {
+    "id": "us_synth_usd",
+    "category": "momentum",
+    "group": "미국 TQQQ (합성)",
+    "currency": "usd",
+    "label": "모멘텀 · 미국 TQQQ (합성) (USD)",
+    "file": "us_synth_usd.json"
+  },
+  {
+    "id": "kr_all",
+    "category": "momentum",
+    "group": "한국 대형주 모멘텀 (전체 전략)",
+    "currency": "krw",
+    "label": "모멘텀 · 한국 대형주 모멘텀 (전체 전략) (KRW)",
+    "file": "kr_all.json"
   }
 ]

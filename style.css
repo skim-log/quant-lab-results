@@ -66,6 +66,19 @@ main { max-width: 1100px; margin: 0 auto; padding: 0 1.2rem 2rem; }
 }
 .presets button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+/* 3축 네비: 카테고리 탭 + 통화 토글 */
+.ctl-nav, .ctl-cur { display: inline-flex; align-items: center; gap: 0.5rem; }
+.ctl-nav .label, .ctl-cur .label { font-weight: 600; font-size: 0.9rem; }
+.cat-tabs, .cur-toggle { display: inline-flex; gap: 0.25rem; }
+.cat-tabs button, .cur-toggle button {
+  font-size: 0.85rem; padding: 0.3rem 0.8rem; border: 1px solid var(--border);
+  background: #fff; border-radius: 6px; cursor: pointer;
+}
+.cat-tabs button.active, .cur-toggle button.active {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+.cur-toggle button:disabled { opacity: 0.4; cursor: not-allowed; }
+
 fieldset#strategies {
   border: 1px solid var(--border);
   border-radius: 8px;

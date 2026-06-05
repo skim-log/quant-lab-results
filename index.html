@@ -17,11 +17,22 @@
   <main>
     <section class="controls">
       <div class="control-row">
-        <label class="ctl">데이터셋
-          <select id="dataset"></select>
+        <div class="ctl ctl-nav">
+          <span class="label">분류</span>
+          <div class="cat-tabs" id="cat-tabs"></div>
+        </div>
+        <label class="ctl">전략 / 프리셋
+          <select id="group"></select>
         </label>
+        <div class="ctl ctl-cur">
+          <span class="label">통화</span>
+          <div class="cur-toggle" id="cur-toggle">
+            <button type="button" data-cur="krw">원화</button>
+            <button type="button" data-cur="usd">달러</button>
+          </div>
+        </div>
         <label class="ctl ctl-check">
-          <input type="checkbox" id="logscale" checked /> 로그 스케일 (수익곡선)
+          <input type="checkbox" id="logscale" checked /> 로그 스케일
         </label>
       </div>
 
