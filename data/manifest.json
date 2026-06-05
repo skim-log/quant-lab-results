@@ -13,5 +13,25 @@
     "id": "us_synth",
     "label": "미국 TQQQ — 합성 TQQQ (1999~)",
     "file": "us_synth.json"
+  },
+  {
+    "id": "multi_allocation_quarterly_krw",
+    "label": "글로벌 자산배분 — 정적·분기 (KRW)",
+    "file": "multi_allocation_quarterly_krw.json"
+  },
+  {
+    "id": "multi_allocation_quarterly_usd",
+    "label": "글로벌 자산배분 — 정적·분기 (USD)",
+    "file": "multi_allocation_quarterly_usd.json"
+  },
+  {
+    "id": "multi_dynamic_all_krw",
+    "label": "글로벌 자산배분 — 동적·전체 (KRW)",
+    "file": "multi_dynamic_all_krw.json"
+  },
+  {
+    "id": "multi_dynamic_all_usd",
+    "label": "글로벌 자산배분 — 동적·전체 (USD)",
+    "file": "multi_dynamic_all_usd.json"
   }
 ]
