@@ -143,6 +143,7 @@ function render() {
   renderDrawdown(rows);
   renderAnnual(rows);
   renderTable(rows, isFullPeriod(s, e));
+  renderExtras(rows, s, e);   // 글로벌 자산배분 전용 패널(데이터셋에 해당 필드가 있을 때만)
 
   const note = isFullPeriod(s, e)
     ? `전체 기간 (${state.globalStart} ~ ${state.globalEnd})`
@@ -250,6 +251,187 @@ function renderTable(rows, fullPeriod) {
   }).join('');
 
   document.getElementById('metrics-table').innerHTML = thead + '<tbody>' + body + '</tbody>';
+}
+
+// ---------------------------------------------------------------------------
+// 글로벌 자산배분 전용 패널 (allocation·regimes·current·extended·band_ab·events·diagnostics)
+// ---------------------------------------------------------------------------
+const CAT_LABEL = { us_stock: '미국주식', kr_stock: '한국주식', cn_stock: '중국주식',
+  in_stock: '인도주식', gold: '금', silver: '은', us_bond: '미국채', kr_bond: '한국채', cash: '현금' };
+const GRADE_LABEL = { high: '높음', medium: '보통', low: '낮음' };
+
+function setHidden(id, hidden) { document.getElementById(id).classList.toggle('hidden', hidden); }
+function allocColor(key, j) { return key === 'cash' ? '#9ca3af' : PALETTE[j % PALETTE.length]; }
+
+function renderExtras(rows, s, e) {
+  const d = state.data;
+  renderAllocation(s, e);
+  renderCurrent();
+  renderExtCards(rows, s, e);
+  renderBandAB();
+  renderEvents(s, e);
+  renderDiag();
+  // 자산배분 데이터셋이 아니면(KR/US 등) 모든 전용 패널 숨김은 각 함수가 처리.
+  void d;
+}
+
+function renderAllocation(s, e) {
+  const a = state.data.allocation;
+  if (!a || !a.dates || !a.dates.length) { setHidden('alloc-section', true); return; }
+  setHidden('alloc-section', false);
+  const idx = [];
+  for (let i = 0; i < a.dates.length; i++) if (a.dates[i] >= s && a.dates[i] <= e) idx.push(i);
+  const x = idx.map(i => a.dates[i]);
+  const series = a.assets.map(k => ({ key: k, vals: a.weights[k] || [] }));
+  series.push({ key: 'cash', vals: a.cash || [] });
+  const traces = series.map((so, j) => ({
+    type: 'scatter', mode: 'lines', name: CAT_LABEL[so.key] || so.key, x,
+    y: idx.map(i => (so.vals[i] || 0) * 100), stackgroup: 'one',
+    line: { width: 0.5, color: allocColor(so.key, j) }, fillcolor: allocColor(so.key, j),
+    hovertemplate: '%{y:.1f}%<extra>' + (CAT_LABEL[so.key] || so.key) + '</extra>',
+  }));
+  const title = state.data.kind === 'dynamic'
+    ? '포지션 추이 — 매달 보유 비중 % (색 전환 = 자산 교체)'
+    : '자산배분 추이 — 보유 비중 % (드리프트 + 리밸런싱 스냅)';
+  const layout = baseLayout(title, '비중 %');
+  layout.yaxis.range = [0, 100];
+  layout.hovermode = 'x unified';
+  Plotly.react('chart-alloc', traces, layout, PLOTCFG);
+}
+
+function renderCurrent() {
+  const c = state.data.current;
+  if (!c) { setHidden('current-section', true); return; }
+  setHidden('current-section', false);
+  document.getElementById('current-meta').textContent = `${c.date} 기준 · ${c.regime}`;
+  const w = c.weights || {};
+  const pills = Object.keys(w).map((k, j) => {
+    const col = PALETTE[j % PALETTE.length];
+    return `<span class="pill" style="border-color:${col}"><span class="swatch" style="background:${col}"></span>` +
+           `${k} ${(w[k] * 100).toFixed(1)}%</span>`;
+  }).join('');
+  document.getElementById('current-pos').innerHTML = pills || '<span class="muted">—</span>';
+}
+
+function bestWorstMonth(dates, rebased) {
+  let best = null, worst = null;
+  for (let i = 1; i < rebased.length; i++) {
+    const v = rebased[i] / rebased[i - 1] - 1;
+    if (best === null || v > best.v) best = { v, d: dates[i].slice(0, 7) };
+    if (worst === null || v < worst.v) worst = { v, d: dates[i].slice(0, 7) };
+  }
+  return { best, worst };
+}
+function bestWorstYear(dates, rebased) {
+  const ar = annualReturns(dates, rebased);
+  if (!ar.length) return { best: null, worst: null };
+  let best = ar[0], worst = ar[0];
+  for (const a of ar) { if (a.ret > best.ret) best = a; if (a.ret < worst.ret) worst = a; }
+  return { best: { v: best.ret, d: best.year }, worst: { v: worst.ret, d: worst.year } };
+}
+function mddEpisodeJS(dates, nav) {
+  let peak = nav[0], peakI = 0, maxdd = 0, mp = 0, mt = 0;
+  for (let i = 0; i < nav.length; i++) {
+    const v = nav[i]; if (v > peak) { peak = v; peakI = i; }
+    const dd = peak > 0 ? (peak - v) / peak : 0;
+    if (dd > maxdd) { maxdd = dd; mp = peakI; mt = i; }
+  }
+  const pv = nav[mp]; let rec = false, ri = nav.length - 1;
+  for (let i = mt + 1; i < nav.length; i++) if (nav[i] >= pv) { rec = true; ri = i; break; }
+  const uw = rec ? ri - mp : nav.length - 1 - mp;
+  return { peak: dates[mp].slice(0, 7), trough: dates[mt].slice(0, 7),
+           recovery: rec ? dates[ri].slice(0, 7) : '', underwater: uw, recovered: rec };
+}
+function renderExtCards(rows, s, e) {
+  const em = state.data.extended_metrics;
+  if (!em) { setHidden('ext-section', true); return; }
+  const pname = Object.keys(em)[0];
+  const row = rows.find(r => r.name === pname);
+  if (!row) { setHidden('ext-section', true); return; }
+  setHidden('ext-section', false);
+  document.getElementById('ext-for').textContent = `— ${pname} (선택 구간 재계산)`;
+  const bm = bestWorstMonth(row.dates, row.rebased);
+  const by = bestWorstYear(row.dates, row.rebased);
+  const ep = mddEpisodeJS(row.dates, row.rebased);
+  const card = (lab, val, sub) => `<div class="ext-card"><div class="lab">${lab}</div>` +
+    `<div class="val">${val}</div><div class="sub">${sub}</div></div>`;
+  const sign = v => (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  const html =
+    card('최고 월', bm.best ? sign(bm.best.v) : '—', bm.best ? bm.best.d : '') +
+    card('최악 월', bm.worst ? sign(bm.worst.v) : '—', bm.worst ? bm.worst.d : '') +
+    card('최고 연도', by.best ? sign(by.best.v) : '—', by.best ? by.best.d : '') +
+    card('최악 연도', by.worst ? sign(by.worst.v) : '—', by.worst ? by.worst.d : '') +
+    card('MDD 회복', ep.recovered ? `${ep.underwater}개월` : `${ep.underwater}개월+ 미회복`,
+         `${ep.peak} → ${ep.trough}${ep.recovery ? ' → ' + ep.recovery : ''}`);
+  document.getElementById('ext-cards').innerHTML = html;
+}
+
+function renderBandAB() {
+  const ab = state.data.band_ab;
+  if (!ab || !ab.on || !ab.off) { setHidden('bandab-section', true); return; }
+  setHidden('bandab-section', false);
+  const defs = [
+    ['CAGR', 'CAGR', 'pct', 1], ['MDD', 'MDD', 'pct', 1], ['연변동성', 'ann_vol', 'pct', -1],
+    ['Sharpe', 'sharpe', 'ratio', 1], ['Sortino', 'sortino', 'ratio', 1],
+    ['Calmar', 'calmar', 'ratio', 1], ['월승률', 'win_rate', 'pct', 1],
+  ];
+  const f = (k, v) => k === 'pct' ? fmtPct(v) : fmtRatio(v);
+  const rowsH = defs.map(([lab, key, kind, better]) => {
+    const on = ab.on[key], off = ab.off[key];
+    const diff = (on - off) * better;   // >0 → 밴드 ON 이 더 나음
+    const cls = Math.abs(on - off) < 1e-9 ? '' : (diff > 0 ? 'pos' : 'neg');
+    const diffTxt = kind === 'pct' ? fmtPct(on - off) : fmtRatio(on - off);
+    return `<tr><td class="name">${lab}</td><td>${f(kind, on)}</td><td>${f(kind, off)}</td>` +
+           `<td class="${cls}">${diffTxt}</td></tr>`;
+  }).join('');
+  document.getElementById('bandab-table').innerHTML =
+    '<thead><tr><th class="name">지표</th><th>밴드 ON</th><th>밴드 OFF</th><th>차이</th></tr></thead>' +
+    '<tbody>' + rowsH + '</tbody>';
+}
+
+function renderEvents(s, e) {
+  const ev = state.data.rebalance_events;
+  if (!ev) { setHidden('events-section', true); return; }
+  setHidden('events-section', false);
+  const sm = s.slice(0, 7), em = e.slice(0, 7);
+  const inWin = ev.filter(x => x.date >= sm && x.date <= em);
+  document.getElementById('events-count').textContent = inWin.length;
+  document.getElementById('events').innerHTML = inWin.map(x => {
+    const cls = x.trigger === 'band' ? 'badge band' : 'badge';
+    const lab = x.trigger === 'band' ? '밴드' : '정기';
+    return `<span class="${cls}">${x.date} ${lab} ${(x.turnover * 100).toFixed(0)}%</span>`;
+  }).join('') || '<span class="muted">구간 내 리밸런싱 없음</span>';
+}
+
+function renderDiag() {
+  const dg = state.data.diagnostics;
+  if (!dg) { setHidden('diag-section', true); return; }
+  setHidden('diag-section', false);
+  const assetRows = (dg.assets || []).map(a => {
+    const grade = a.grade ? `<span class="grade ${a.grade}">${GRADE_LABEL[a.grade] || a.grade}</span>` : '';
+    const proxy = (a.proxy || []).join(' + ');
+    return `<tr><td class="name">${a.label || a.asset}</td><td>${grade}</td>` +
+           `<td>${a.range || ''}</td><td class="muted">${proxy}</td><td class="muted">${a.note || ''}</td></tr>`;
+  }).join('');
+  const assetTable = assetRows
+    ? '<table class="diag-table"><thead><tr><th class="name">자산</th><th>신뢰도</th><th>실제 범위</th>' +
+      '<th>프록시</th><th>비고</th></tr></thead><tbody>' + assetRows + '</tbody></table>'
+    : '';
+  const fx = (dg.fx_labels && dg.fx_labels.length)
+    ? `<p class="diag-fx">USD/KRW 환율: <span class="muted">${dg.fx_labels.join(' + ')}</span></p>` : '';
+  const errRows = (dg.error_rows || []).map(r =>
+    `<tr><td class="name">${CAT_LABEL[r.asset] || r.asset}</td><td class="muted">${r.cause}</td>` +
+    `<td>${r.cagr_err}</td><td class="muted">${r.note || ''}</td></tr>`).join('');
+  const errTable = errRows
+    ? '<h3>오차 추정</h3><table class="diag-table"><thead><tr><th class="name">자산</th><th>주된 오차 원인</th>' +
+      '<th>CAGR 오차</th><th>비고</th></tr></thead><tbody>' + errRows + '</tbody></table>' : '';
+  const impact = (dg.error_impact || []).map(t => `<li>${t}</li>`).join('');
+  const impactBlock = impact ? `<ul class="diag-impact">${impact}</ul>` : '';
+  const warns = (dg.warnings || []).filter(Boolean);
+  const warnBlock = warns.length
+    ? `<details class="diag-warn"><summary>경고 (${warns.length})</summary><ul>` +
+      warns.map(w => `<li>${w}</li>`).join('') + '</ul></details>' : '';
+  document.getElementById('diag').innerHTML = assetTable + fx + errTable + impactBlock + warnBlock;
 }
 
 // ---------------------------------------------------------------------------

@@ -90,6 +90,53 @@ fieldset#strategies legend { font-size: 0.85rem; color: var(--muted); padding: 0
 #chart-equity { height: 460px; }
 #chart-dd { height: 280px; }
 #chart-annual { height: 320px; }
+#chart-alloc { height: 340px; }
+
+/* ---- 글로벌 자산배분 전용 패널 ---- */
+.hidden { display: none !important; }
+.panel {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 0.9rem 1rem; margin-top: 1.2rem;
+}
+.panel h2 { font-size: 1.1rem; margin: 0 0 0.5rem; }
+.panel h3 { font-size: 0.95rem; margin: 1rem 0 0.4rem; }
+.panel .muted { color: var(--muted); }
+.panel details > summary { cursor: pointer; font-weight: 600; font-size: 0.95rem; }
+
+.pills { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.pill {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.85rem; padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border); border-radius: 999px; background: #fff;
+}
+
+.ext-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.6rem; }
+.ext-card { border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.7rem; background: #fcfcfd; }
+.ext-card .lab { font-size: 0.78rem; color: var(--muted); }
+.ext-card .val { font-size: 1.15rem; font-weight: 700; }
+.ext-card .sub { font-size: 0.75rem; color: var(--muted); }
+
+#bandab-table, .diag-table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+#bandab-table th, #bandab-table td, .diag-table th, .diag-table td {
+  border: 1px solid var(--border); padding: 0.35rem 0.6rem; text-align: right; white-space: nowrap;
+}
+#bandab-table th, .diag-table th { background: #f2f4f7; font-weight: 600; }
+#bandab-table td.name, #bandab-table th.name, .diag-table td.name, .diag-table th.name { text-align: left; }
+#bandab-table td.pos { color: #15803d; font-weight: 600; }
+#bandab-table td.neg { color: #b91c1c; font-weight: 600; }
+.diag-table td.muted { color: var(--muted); white-space: normal; text-align: left; }
+
+.grade { padding: 0.05rem 0.4rem; border-radius: 4px; font-size: 0.78rem; }
+.grade.high { background: #dcfce7; color: #166534; }
+.grade.medium { background: #fef3c7; color: #92400e; }
+.grade.low { background: #fee2e2; color: #991b1b; }
+
+.events { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
+.badge { font-size: 0.78rem; padding: 0.15rem 0.45rem; border-radius: 4px; background: #eef2ff; color: #3730a3; }
+.badge.band { background: #ffedd5; color: #9a3412; }
+.diag-fx { font-size: 0.85rem; margin: 0.5rem 0; }
+.diag-impact { font-size: 0.82rem; color: #555; margin: 0.6rem 0; }
+.diag-warn { margin-top: 0.6rem; font-size: 0.82rem; }
 
 /* ---- table ---- */
 .metrics { margin-top: 1.6rem; }

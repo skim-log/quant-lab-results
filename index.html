@@ -11,7 +11,7 @@
 <body>
   <header>
     <h1>quant-lab 백테스트 대시보드</h1>
-    <p class="subtitle">한국 대형주 모멘텀 · 미국 레버리지(TQQQ) 전략 비교 — 미리 계산된 결과를 인터랙티브하게 탐색</p>
+    <p class="subtitle">한국 대형주 모멘텀 · 미국 레버리지(TQQQ) · 글로벌 자산배분(정적·동적) — 미리 계산된 결과를 인터랙티브하게 탐색</p>
   </header>
 
   <main>
@@ -51,6 +51,42 @@
       <div id="chart-equity" class="chart"></div>
       <div id="chart-dd" class="chart"></div>
       <div id="chart-annual" class="chart"></div>
+    </section>
+
+    <!-- 글로벌 자산배분 전용 패널 (해당 데이터셋에만 표시) -->
+    <section id="alloc-section" class="charts hidden">
+      <div id="chart-alloc" class="chart chart-wide"></div>
+    </section>
+
+    <section id="current-section" class="panel hidden">
+      <h2>현재 포지션</h2>
+      <p id="current-meta" class="period-note"></p>
+      <div id="current-pos" class="pills"></div>
+    </section>
+
+    <section id="ext-section" class="panel hidden">
+      <h2>확장 지표 <span class="muted" id="ext-for"></span></h2>
+      <div id="ext-cards" class="ext-cards"></div>
+    </section>
+
+    <section id="bandab-section" class="panel hidden">
+      <h2>밴드 트리거 A/B</h2>
+      <p class="period-note">같은 비중에 밴드 트리거만 토글한 전체기간 비교 (초록 = 밴드가 더 나음)</p>
+      <div class="table-wrap"><table id="bandab-table"></table></div>
+    </section>
+
+    <section id="events-section" class="panel hidden">
+      <details>
+        <summary>리밸런싱 이벤트 (<span id="events-count">0</span>)</summary>
+        <div id="events" class="events"></div>
+      </details>
+    </section>
+
+    <section id="diag-section" class="panel hidden">
+      <details>
+        <summary>데이터 신뢰도 · 프록시 출처 · 오차추정</summary>
+        <div id="diag"></div>
+      </details>
     </section>
 
     <section class="metrics">
