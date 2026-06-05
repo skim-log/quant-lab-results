@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>quant-lab 백테스트 대시보드</title>
+  <meta name="description" content="한국 대형주 모멘텀 · 미국 레버리지(TQQQ) 전략 백테스트 결과" />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+</head>
+<body>
+  <header>
+    <h1>quant-lab 백테스트 대시보드</h1>
+    <p class="subtitle">한국 대형주 모멘텀 · 미국 레버리지(TQQQ) 전략 비교 — 미리 계산된 결과를 인터랙티브하게 탐색</p>
+  </header>
+
+  <main>
+    <section class="controls">
+      <div class="control-row">
+        <label class="ctl">데이터셋
+          <select id="dataset"></select>
+        </label>
+        <label class="ctl ctl-check">
+          <input type="checkbox" id="logscale" checked /> 로그 스케일 (수익곡선)
+        </label>
+      </div>
+
+      <div class="control-row">
+        <div class="ctl ctl-period">
+          <span class="label">기간</span>
+          <div class="presets" id="presets">
+            <button type="button" data-years="3">3년</button>
+            <button type="button" data-years="5">5년</button>
+            <button type="button" data-years="10">10년</button>
+            <button type="button" data-years="0" class="active">전체</button>
+          </div>
+          <label>시작 <input type="date" id="start" /></label>
+          <label>종료 <input type="date" id="end" /></label>
+        </div>
+      </div>
+
+      <fieldset id="strategies" class="ctl">
+        <legend>전략 선택</legend>
+        <div id="strategy-list" class="strategy-list"></div>
+      </fieldset>
+    </section>
+
+    <div id="status" class="status"></div>
+
+    <section class="charts">
+      <div id="chart-equity" class="chart"></div>
+      <div id="chart-dd" class="chart"></div>
+      <div id="chart-annual" class="chart"></div>
+    </section>
+
+    <section class="metrics">
+      <h2>성과 지표</h2>
+      <p id="period-note" class="period-note"></p>
+      <div class="table-wrap">
+        <table id="metrics-table"></table>
+      </div>
+      <p class="disclaimer">
+        ⚠️ <strong>해석 주의</strong> — 선택 구간 지표는 전체 백테스트 NAV를 해당 시점 기준으로
+        재정규화해 계산한 "뷰"이며, 그 시점부터 전략을 새로 돌린 결과가 아닙니다. 비용·세금·신호는
+        전체기간 가정에 종속됩니다. <strong>XIRR·양도세·회전율 등은 전체기간 전용</strong>이라
+        구간을 좁히면 "—"로 표시됩니다. 짧은 구간의 CAGR는 연율화 특성상 과대·과소될 수 있습니다.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <span id="meta"></span>
+    <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
+  </footer>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

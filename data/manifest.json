@@ -1,0 +1,22 @@
+[
+  {
+    "id": "kr_all",
+    "label": "한국 모멘텀 — 전체 전략",
+    "file": "kr_all.json"
+  },
+  {
+    "id": "kr_index_trend",
+    "label": "한국 모멘텀 — 지수추세(v2)",
+    "file": "kr_index_trend.json"
+  },
+  {
+    "id": "us_real",
+    "label": "미국 TQQQ — 실제 TQQQ (2010~)",
+    "file": "us_real.json"
+  },
+  {
+    "id": "us_synth",
+    "label": "미국 TQQQ — 합성 TQQQ (1999~)",
+    "file": "us_synth.json"
+  }
+]
