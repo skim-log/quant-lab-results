@@ -116,6 +116,24 @@ fieldset#strategies legend { font-size: 0.85rem; color: var(--muted); padding: 0
 .panel .muted { color: var(--muted); }
 .panel details > summary { cursor: pointer; font-weight: 600; font-size: 0.95rem; }
 
+/* 플레이그라운드 */
+.pg-weights { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.4rem 0.8rem; margin: 0.6rem 0; }
+.pg-w { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; }
+.pg-w input { width: 4rem; margin-left: auto; padding: 0.2rem 0.3rem; border: 1px solid var(--border); border-radius: 5px; text-align: right; }
+.pg-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; font-size: 0.85rem; }
+.pg-controls select, .pg-controls input { border: 1px solid var(--border); border-radius: 5px; padding: 0.2rem 0.3rem; }
+.pg-controls button { font-size: 0.85rem; padding: 0.3rem 0.7rem; border: 1px solid var(--border); background: #fff; border-radius: 6px; cursor: pointer; }
+.pg-sum { font-weight: 600; }
+.pg-sum.ok { color: #15803d; }
+.pg-sum.warn { color: #b45309; }
+
+.comp-bars { display: flex; flex-direction: column; gap: 0.3rem; }
+.comp-row { display: grid; grid-template-columns: 90px 1fr 56px; align-items: center; gap: 0.5rem; font-size: 0.85rem; }
+.comp-lab { color: var(--fg); }
+.comp-bar { background: #f0f0f0; border-radius: 4px; height: 14px; overflow: hidden; }
+.comp-fill { display: block; height: 100%; border-radius: 4px; }
+.comp-pct { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+
 .pills { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .pill {
   display: inline-flex; align-items: center; gap: 0.35rem;

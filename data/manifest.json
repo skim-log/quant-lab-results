@@ -128,6 +128,22 @@
     "file": "multi_allocation_balanced_usd.json"
   },
   {
+    "id": "multi_allocation_rebal_krw",
+    "category": "static",
+    "group": "리밸런서 기본",
+    "currency": "krw",
+    "label": "정적 자산배분 · 리밸런서 기본 (KRW)",
+    "file": "multi_allocation_rebal_krw.json"
+  },
+  {
+    "id": "multi_allocation_rebal_usd",
+    "category": "static",
+    "group": "리밸런서 기본",
+    "currency": "usd",
+    "label": "정적 자산배분 · 리밸런서 기본 (USD)",
+    "file": "multi_allocation_rebal_usd.json"
+  },
+  {
     "id": "multi_allocation_defensive_krw",
     "category": "static",
     "group": "방어적",
@@ -214,5 +230,67 @@
     "currency": "krw",
     "label": "모멘텀 · 한국 대형주 모멘텀 (전체 전략) (KRW)",
     "file": "kr_all.json"
+  },
+  {
+    "id": "compare_usd",
+    "category": "compare",
+    "group": "전체 전략 비교",
+    "currency": "usd",
+    "label": "전략 비교 — 전체 (USD)",
+    "file": "",
+    "files": [
+      "multi_dynamic_baa_g_usd.json",
+      "multi_dynamic_baa_b_usd.json",
+      "multi_dynamic_gem_usd.json",
+      "multi_dynamic_all_usd.json",
+      "multi_dynamic_absmom_usd.json",
+      "multi_dynamic_trend_usd.json",
+      "multi_allocation_us6040_usd.json",
+      "multi_allocation_balanced_usd.json",
+      "multi_allocation_rebal_usd.json",
+      "multi_allocation_defensive_usd.json",
+      "multi_allocation_allweather_usd.json",
+      "multi_allocation_equity_usd.json"
+    ]
+  },
+  {
+    "id": "compare_krw",
+    "category": "compare",
+    "group": "전체 전략 비교",
+    "currency": "krw",
+    "label": "전략 비교 — 전체 (KRW)",
+    "file": "",
+    "files": [
+      "multi_dynamic_baa_g_krw.json",
+      "multi_dynamic_baa_b_krw.json",
+      "multi_dynamic_gem_krw.json",
+      "multi_dynamic_all_krw.json",
+      "multi_dynamic_absmom_krw.json",
+      "multi_dynamic_trend_krw.json",
+      "multi_allocation_us6040_krw.json",
+      "multi_allocation_balanced_krw.json",
+      "multi_allocation_rebal_krw.json",
+      "multi_allocation_defensive_krw.json",
+      "multi_allocation_allweather_krw.json",
+      "multi_allocation_equity_krw.json"
+    ]
+  },
+  {
+    "id": "playground_krw",
+    "category": "static",
+    "group": "사용자 입력(실험)",
+    "currency": "krw",
+    "mode": "playground",
+    "label": "정적 자산배분 · 사용자 입력 (KRW)",
+    "file": "panel.json"
+  },
+  {
+    "id": "playground_usd",
+    "category": "static",
+    "group": "사용자 입력(실험)",
+    "currency": "usd",
+    "mode": "playground",
+    "label": "정적 자산배분 · 사용자 입력 (USD)",
+    "file": "panel.json"
   }
 ]

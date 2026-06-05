@@ -27,6 +27,7 @@ const state = {
   globalStart: '',   // 데이터셋 전체 최소 날짜 (ISO)
   globalEnd: '',     // 데이터셋 전체 최대 날짜 (ISO)
   nav: { category: '', group: '', currency: '' },  // 3축 네비 상태
+  playground: false, panel: null, _pgWired: false,  // 플레이그라운드 상태
 };
 
 // ---------------------------------------------------------------------------
@@ -266,6 +267,7 @@ function allocColor(key, j) { return key === 'cash' ? '#9ca3af' : PALETTE[j % PA
 
 function renderExtras(rows, s, e) {
   const d = state.data;
+  renderTargetComposition();
   renderAllocation(s, e);
   renderCurrent();
   renderExtCards(rows, s, e);
@@ -274,6 +276,24 @@ function renderExtras(rows, s, e) {
   renderDiag();
   // 자산배분 데이터셋이 아니면(KR/US 등) 모든 전용 패널 숨김은 각 함수가 처리.
   void d;
+}
+
+function renderTargetComposition() {
+  const tw = state.data.target_weights;
+  if (!tw || !Object.keys(tw).length) { setHidden('target-comp-section', true); return; }
+  setHidden('target-comp-section', false);
+  const entries = Object.entries(tw).filter(([, v]) => v > 1e-9).sort((a, b) => b[1] - a[1]);
+  const max = entries.length ? entries[0][1] : 1;
+  const rows = entries.map(([asset, w], j) => {
+    const label = CAT_LABEL[asset] || asset;
+    const col = PALETTE[j % PALETTE.length];
+    const pct = (w * 100).toFixed(1);
+    const barw = Math.max(2, (w / max) * 100);
+    return `<div class="comp-row"><span class="comp-lab">${label}</span>` +
+           `<span class="comp-bar"><span class="comp-fill" style="width:${barw}%;background:${col}"></span></span>` +
+           `<span class="comp-pct">${pct}%</span></div>`;
+  }).join('');
+  document.getElementById('target-comp').innerHTML = rows;
 }
 
 function renderAllocation(s, e) {
@@ -477,6 +497,9 @@ async function loadDataset(file) {
     const resp = await fetch('data/' + file, { cache: 'no-cache' });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const d = await resp.json();
+    if (d.mode === 'playground') { setStatus(''); return enterPlayground(d); }
+    state.playground = false;
+    setHidden('playground', true);
     state.data = d;
     state.colToMetric = buildColToMetric(d);
     buildStrategyList(d);
@@ -525,8 +548,8 @@ function clearPresetActive() {
 // ---------------------------------------------------------------------------
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
-const CAT_ORDER = { dynamic: 0, static: 1, momentum: 2 };
-const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀' };
+const CAT_ORDER = { dynamic: 0, static: 1, momentum: 2, compare: 3 };
+const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀', compare: '전략 비교' };
 
 function catsPresent() {
   return [...new Set(state.manifest.map(m => m.category))]
@@ -587,7 +610,157 @@ function setCurrency(cur) {
     b.disabled = !avail.includes(b.dataset.cur);
   });
   const entry = resolveEntry(state.nav.category, state.nav.group, cur);
-  if (entry) loadDataset(entry.file);
+  if (!entry) return;
+  // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
+  if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
+  else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
+  else loadDataset(entry.file);
+}
+
+async function loadMultiDatasets(files, title) {
+  setStatus('여러 데이터셋 불러오는 중…');
+  state.playground = false; setHidden('playground', true);
+  try {
+    const ds = await Promise.all(files.map(f =>
+      fetch('data/' + f, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })));
+    const base = ds[0];
+    const merged = {
+      schema_version: 1, title: title || '전략 비교', freq: base.freq,
+      periods_per_year: base.periods_per_year, generated_at: base.generated_at,
+      full_period_only_cols: base.full_period_only_cols || [], table_columns: base.table_columns,
+      pct_cols: base.pct_cols, ratio_cols: base.ratio_cols, metric_to_col: base.metric_to_col,
+      series: [], table_display: {}, metrics_raw: {},
+    };
+    for (const d of ds) {
+      for (const s of (d.series || [])) {
+        if (merged.series.some(x => x.name === s.name)) continue;   // 이름 중복(벤치마크) 1회만
+        merged.series.push(s);
+      }
+      Object.assign(merged.table_display, d.table_display || {});
+      Object.assign(merged.metrics_raw, d.metrics_raw || {});
+    }
+    state.data = merged;
+    state.colToMetric = buildColToMetric(merged);
+    buildStrategyList(merged);
+    setGlobalRange(merged);
+    setActivePreset(0);
+    document.getElementById('meta').textContent = `${merged.title} · ${merged.series.length}개 시리즈 오버레이`;
+    setStatus('');
+    render();
+  } catch (err) {
+    setStatus('전략 비교 로딩 실패: ' + err.message, true);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 플레이그라운드 (임의 비중 즉석 백테스트 — web/alloc.js 엔진)
+// ---------------------------------------------------------------------------
+const STD_COLS = ['기간', 'CAGR', '연변동성', 'Sharpe', 'Sortino', 'MDD', 'Calmar', '월승률', '총수익'];
+const STD_PCT = ['CAGR', '연변동성', 'MDD', '월승률', '총수익'];
+const STD_RATIO = ['Sharpe', 'Sortino', 'Calmar'];
+const STD_M2C = { CAGR: 'CAGR', ann_vol: '연변동성', sharpe: 'Sharpe', sortino: 'Sortino',
+                  mdd: 'MDD', calmar: 'Calmar', win_rate: '월승률', total: '총수익' };
+
+function _synthDataset(curves, title) {
+  // curves: [{name, dates, nav}] → app.js 표준 데이터셋(table_display/metrics_raw 계산).
+  const series = [], table_display = {}, metrics_raw = {};
+  for (const c of curves) {
+    const nav = c.nav, dates = c.dates;
+    series.push({ name: c.name, period: `${dates[0]}~${dates[dates.length - 1]}`, dates, nav });
+    const mm = computeMetrics(dates, nav, 12);
+    metrics_raw[c.name] = mm;
+    table_display[c.name] = {
+      '기간': `${dates[0]}~${dates[dates.length - 1]}`,
+      'CAGR': mm.CAGR * 100, '연변동성': mm.ann_vol * 100, 'Sharpe': mm.sharpe,
+      'Sortino': mm.sortino, 'MDD': mm.mdd * 100, 'Calmar': mm.calmar,
+      '월승률': mm.win_rate * 100, '총수익': mm.total * 100,
+    };
+  }
+  return {
+    schema_version: 1, title, freq: 'M', periods_per_year: 12,
+    generated_at: '', full_period_only_cols: [], table_columns: STD_COLS,
+    pct_cols: STD_PCT, ratio_cols: STD_RATIO, metric_to_col: STD_M2C,
+    series, table_display, metrics_raw,
+  };
+}
+
+function enterPlayground(panel) {
+  state.playground = true;
+  state.panel = panel;
+  setHidden('playground', false);
+  // 프리셋 버튼
+  document.getElementById('pg-presets').innerHTML = Object.entries(panel.presets || {})
+    .map(([k, p]) => `<button type="button" data-preset="${k}">${p.label}</button>`).join('');
+  // 비중 입력 (기본값 = default_weights)
+  const dw = panel.default_weights || {};
+  document.getElementById('pg-weights').innerHTML = panel.assets.map((a, j) => {
+    const col = PALETTE[j % PALETTE.length];
+    const v = ((dw[a.id] || 0) * 100).toFixed(1);
+    return `<label class="pg-w"><span class="swatch" style="background:${col}"></span>${a.label}` +
+           `<input type="number" data-asset="${a.id}" min="0" max="100" step="0.5" value="${v}" /></label>`;
+  }).join('');
+  // 리밸런싱 옵션
+  const RMODE = { never: '없음(Buy&Hold)', monthly: '월', quarterly: '분기', semiannual: '반기', yearly: '연' };
+  document.getElementById('pg-rebalance').innerHTML = (panel.rebalance_modes || ['quarterly'])
+    .map(r => `<option value="${r}"${r === 'quarterly' ? ' selected' : ''}>${RMODE[r] || r}</option>`).join('');
+  // 글로벌 기간 범위
+  state.globalStart = panel.dates[0]; state.globalEnd = panel.dates[panel.dates.length - 1];
+  const sEl = document.getElementById('start'), eEl = document.getElementById('end');
+  sEl.min = state.globalStart; sEl.max = state.globalEnd; eEl.min = state.globalStart; eEl.max = state.globalEnd;
+  sEl.value = state.globalStart; eEl.value = state.globalEnd;
+  setActivePreset(0);
+  // 핸들러 (1회 바인딩)
+  if (!state._pgWired) {
+    document.getElementById('pg-weights').addEventListener('input', runPlayground);
+    document.getElementById('pg-rebalance').addEventListener('change', runPlayground);
+    document.getElementById('pg-band').addEventListener('input', runPlayground);
+    document.getElementById('pg-normalize').addEventListener('click', () => { _pgNormalize(); runPlayground(); });
+    document.getElementById('pg-presets').addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b) return;
+      const p = state.panel.presets[b.dataset.preset]; if (!p) return;
+      _pgSetWeights(p.weights); runPlayground();
+    });
+    state._pgWired = true;
+  }
+  document.getElementById('meta').textContent =
+    `${panel.title || ''} · 생성일 ${panel.generated_at || '-'} · 사용자 입력 백테스트`;
+  runPlayground();
+}
+
+function _pgWeightInputs() { return Array.from(document.querySelectorAll('#pg-weights input')); }
+function _pgSetWeights(w) {
+  _pgWeightInputs().forEach(inp => { inp.value = ((w[inp.dataset.asset] || 0) * 100).toFixed(1); });
+}
+function _pgNormalize() {
+  const inps = _pgWeightInputs();
+  let sum = 0; inps.forEach(i => { sum += parseFloat(i.value) || 0; });
+  if (sum > 0) inps.forEach(i => { i.value = ((parseFloat(i.value) || 0) / sum * 100).toFixed(1); });
+}
+function runPlayground() {
+  const panel = state.panel; if (!panel) return;
+  const w = {}; let sum = 0;
+  _pgWeightInputs().forEach(i => { const v = (parseFloat(i.value) || 0) / 100; w[i.dataset.asset] = v; sum += v; });
+  document.getElementById('pg-sum').textContent = `합계 ${(sum * 100).toFixed(1)}%`;
+  document.getElementById('pg-sum').className = 'pg-sum' + (Math.abs(sum - 1) <= 0.001 ? ' ok' : ' warn');
+  const ids = panel.assets.map(a => a.id);
+  const rebalance = document.getElementById('pg-rebalance').value;
+  const band = (parseFloat(document.getElementById('pg-band').value) || 0) / 100;
+  const res = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, w,
+    { rebalance, bandRatio: band, costs: panel.costs });
+  if (!res) { setStatus('선택한 자산의 공통 데이터가 부족합니다(비중>0 자산을 확인하세요).', true); return; }
+  setStatus('');
+  const ccy = state.nav.currency || 'krw';
+  const fxWin = res.win.map(t => panel.fx[t]);
+  const curves = [{ name: '내 배분', dates: res.dates, nav: ALLOC.navToCcy(res.navKrw, fxWin, ccy) }];
+  for (const [name, b] of Object.entries(panel.benchmarks || {})) {
+    const bc = ALLOC.benchCurve(b.price, b.ccy, panel.fx, ccy, res.win);
+    curves.push({ name, dates: res.dates, nav: bc });
+  }
+  state.data = _synthDataset(curves, '사용자 배분');
+  state.data.target_weights = res.weights;   // 정규화 비중 → 구성 표
+  state.colToMetric = buildColToMetric(state.data);
+  buildStrategyList(state.data);
+  render();
 }
 
 async function init() {

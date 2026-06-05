@@ -58,6 +58,20 @@
 
     <div id="status" class="status"></div>
 
+    <!-- 플레이그라운드: 임의 비중 즉석 백테스트 (panel.json 데이터셋에서만 표시) -->
+    <section id="playground" class="panel hidden">
+      <h2>사용자 입력 — 임의 비중 백테스트 <span class="muted">(브라우저에서 즉석 실행)</span></h2>
+      <div id="pg-presets" class="presets"></div>
+      <div id="pg-weights" class="pg-weights"></div>
+      <div class="pg-controls">
+        <span id="pg-sum" class="pg-sum"></span>
+        <button type="button" id="pg-normalize">합계 100%로 정규화</button>
+        <label>리밸런싱 <select id="pg-rebalance"></select></label>
+        <label>밴드 ±<input type="number" id="pg-band" min="0" max="100" step="1" value="0" style="width:3.5rem" />%</label>
+      </div>
+      <p class="period-note">비중·주기·밴드·기간·통화를 바꾸면 <strong>엔진을 새로 돌려</strong> 곡선·지표를 다시 계산합니다(진짜 재백테스트).</p>
+    </section>
+
     <section class="charts">
       <div id="chart-equity" class="chart"></div>
       <div id="chart-dd" class="chart"></div>
@@ -65,6 +79,12 @@
     </section>
 
     <!-- 글로벌 자산배분 전용 패널 (해당 데이터셋에만 표시) -->
+    <section id="target-comp-section" class="panel hidden">
+      <h2>목표 자산배분 구성</h2>
+      <p class="period-note">고정 비중(리밸런싱 목표). 자산군별 목표 %.</p>
+      <div id="target-comp" class="comp-bars"></div>
+    </section>
+
     <section id="alloc-section" class="charts hidden">
       <div id="chart-alloc" class="chart chart-wide"></div>
     </section>
@@ -120,6 +140,7 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
+  <script src="alloc.js" defer></script>
   <script src="app.js" defer></script>
 </body>
 </html>
