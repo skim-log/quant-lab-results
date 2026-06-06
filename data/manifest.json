@@ -1,5 +1,21 @@
 [
   {
+    "id": "multi_dynamic_adm_krw",
+    "category": "dynamic",
+    "group": "ADM 가속듀얼",
+    "currency": "krw",
+    "label": "동적 자산배분 · ADM 가속듀얼 (KRW)",
+    "file": "multi_dynamic_adm_krw.json"
+  },
+  {
+    "id": "multi_dynamic_adm_usd",
+    "category": "dynamic",
+    "group": "ADM 가속듀얼",
+    "currency": "usd",
+    "label": "동적 자산배분 · ADM 가속듀얼 (USD)",
+    "file": "multi_dynamic_adm_usd.json"
+  },
+  {
     "id": "multi_dynamic_baa_g_krw",
     "category": "dynamic",
     "group": "BAA공격",
@@ -32,6 +48,38 @@
     "file": "multi_dynamic_baa_b_usd.json"
   },
   {
+    "id": "multi_dynamic_daa_g12_krw",
+    "category": "dynamic",
+    "group": "DAA-G12",
+    "currency": "krw",
+    "label": "동적 자산배분 · DAA-G12 (KRW)",
+    "file": "multi_dynamic_daa_g12_krw.json"
+  },
+  {
+    "id": "multi_dynamic_daa_g12_usd",
+    "category": "dynamic",
+    "group": "DAA-G12",
+    "currency": "usd",
+    "label": "동적 자산배분 · DAA-G12 (USD)",
+    "file": "multi_dynamic_daa_g12_usd.json"
+  },
+  {
+    "id": "multi_dynamic_faber_gtaa5_krw",
+    "category": "dynamic",
+    "group": "Faber GTAA5",
+    "currency": "krw",
+    "label": "동적 자산배분 · Faber GTAA5 (KRW)",
+    "file": "multi_dynamic_faber_gtaa5_krw.json"
+  },
+  {
+    "id": "multi_dynamic_faber_gtaa5_usd",
+    "category": "dynamic",
+    "group": "Faber GTAA5",
+    "currency": "usd",
+    "label": "동적 자산배분 · Faber GTAA5 (USD)",
+    "file": "multi_dynamic_faber_gtaa5_usd.json"
+  },
+  {
     "id": "multi_dynamic_gem_krw",
     "category": "dynamic",
     "group": "GEM",
@@ -46,6 +94,22 @@
     "currency": "usd",
     "label": "동적 자산배분 · GEM (USD)",
     "file": "multi_dynamic_gem_usd.json"
+  },
+  {
+    "id": "multi_dynamic_vaa_g4_krw",
+    "category": "dynamic",
+    "group": "VAA-G4",
+    "currency": "krw",
+    "label": "동적 자산배분 · VAA-G4 (KRW)",
+    "file": "multi_dynamic_vaa_g4_krw.json"
+  },
+  {
+    "id": "multi_dynamic_vaa_g4_usd",
+    "category": "dynamic",
+    "group": "VAA-G4",
+    "currency": "usd",
+    "label": "동적 자산배분 · VAA-G4 (USD)",
+    "file": "multi_dynamic_vaa_g4_usd.json"
   },
   {
     "id": "multi_dynamic_all_krw",
@@ -94,6 +158,86 @@
     "currency": "usd",
     "label": "동적 자산배분 · 추세추종 (USD)",
     "file": "multi_dynamic_trend_usd.json"
+  },
+  {
+    "id": "multi_dynamic_kr_us_mom6_krw",
+    "category": "dynamic",
+    "group": "한미 6M",
+    "currency": "krw",
+    "label": "동적 자산배분 · 한미 6M (KRW)",
+    "file": "multi_dynamic_kr_us_mom6_krw.json"
+  },
+  {
+    "id": "multi_dynamic_kr_us_mom6_usd",
+    "category": "dynamic",
+    "group": "한미 6M",
+    "currency": "usd",
+    "label": "동적 자산배분 · 한미 6M (USD)",
+    "file": "multi_dynamic_kr_us_mom6_usd.json"
+  },
+  {
+    "id": "multi_dynamic_kr_us_golddef6_krw",
+    "category": "dynamic",
+    "group": "한미 6M+금방어",
+    "currency": "krw",
+    "label": "동적 자산배분 · 한미 6M+금방어 (KRW)",
+    "file": "multi_dynamic_kr_us_golddef6_krw.json"
+  },
+  {
+    "id": "multi_dynamic_kr_us_golddef6_usd",
+    "category": "dynamic",
+    "group": "한미 6M+금방어",
+    "currency": "usd",
+    "label": "동적 자산배분 · 한미 6M+금방어 (USD)",
+    "file": "multi_dynamic_kr_us_golddef6_usd.json"
+  },
+  {
+    "id": "multi_dynamic_kr_us_gold_core6_krw",
+    "category": "dynamic",
+    "group": "한미 6M+금위성",
+    "currency": "krw",
+    "label": "동적 자산배분 · 한미 6M+금위성 (KRW)",
+    "file": "multi_dynamic_kr_us_gold_core6_krw.json"
+  },
+  {
+    "id": "multi_dynamic_kr_us_gold_core6_usd",
+    "category": "dynamic",
+    "group": "한미 6M+금위성",
+    "currency": "usd",
+    "label": "동적 자산배분 · 한미 6M+금위성 (USD)",
+    "file": "multi_dynamic_kr_us_gold_core6_usd.json"
+  },
+  {
+    "id": "multi_dynamic_kr_us_gold_mom6_krw",
+    "category": "dynamic",
+    "group": "한미금 6M",
+    "currency": "krw",
+    "label": "동적 자산배분 · 한미금 6M (KRW)",
+    "file": "multi_dynamic_kr_us_gold_mom6_krw.json"
+  },
+  {
+    "id": "multi_dynamic_kr_us_gold_mom6_usd",
+    "category": "dynamic",
+    "group": "한미금 6M",
+    "currency": "usd",
+    "label": "동적 자산배분 · 한미금 6M (USD)",
+    "file": "multi_dynamic_kr_us_gold_mom6_usd.json"
+  },
+  {
+    "id": "multi_dynamic_kr_us_gold_gtaa6_krw",
+    "category": "dynamic",
+    "group": "한미금채 GTAA",
+    "currency": "krw",
+    "label": "동적 자산배분 · 한미금채 GTAA (KRW)",
+    "file": "multi_dynamic_kr_us_gold_gtaa6_krw.json"
+  },
+  {
+    "id": "multi_dynamic_kr_us_gold_gtaa6_usd",
+    "category": "dynamic",
+    "group": "한미금채 GTAA",
+    "currency": "usd",
+    "label": "동적 자산배분 · 한미금채 GTAA (USD)",
+    "file": "multi_dynamic_kr_us_gold_gtaa6_usd.json"
   },
   {
     "id": "multi_allocation_us6040_krw",
@@ -239,12 +383,21 @@
     "label": "전략 비교 — 전체 (USD)",
     "file": "",
     "files": [
+      "multi_dynamic_adm_usd.json",
       "multi_dynamic_baa_g_usd.json",
       "multi_dynamic_baa_b_usd.json",
+      "multi_dynamic_daa_g12_usd.json",
+      "multi_dynamic_faber_gtaa5_usd.json",
       "multi_dynamic_gem_usd.json",
+      "multi_dynamic_vaa_g4_usd.json",
       "multi_dynamic_all_usd.json",
       "multi_dynamic_absmom_usd.json",
       "multi_dynamic_trend_usd.json",
+      "multi_dynamic_kr_us_mom6_usd.json",
+      "multi_dynamic_kr_us_golddef6_usd.json",
+      "multi_dynamic_kr_us_gold_core6_usd.json",
+      "multi_dynamic_kr_us_gold_mom6_usd.json",
+      "multi_dynamic_kr_us_gold_gtaa6_usd.json",
       "multi_allocation_us6040_usd.json",
       "multi_allocation_balanced_usd.json",
       "multi_allocation_rebal_usd.json",
@@ -261,12 +414,21 @@
     "label": "전략 비교 — 전체 (KRW)",
     "file": "",
     "files": [
+      "multi_dynamic_adm_krw.json",
       "multi_dynamic_baa_g_krw.json",
       "multi_dynamic_baa_b_krw.json",
+      "multi_dynamic_daa_g12_krw.json",
+      "multi_dynamic_faber_gtaa5_krw.json",
       "multi_dynamic_gem_krw.json",
+      "multi_dynamic_vaa_g4_krw.json",
       "multi_dynamic_all_krw.json",
       "multi_dynamic_absmom_krw.json",
       "multi_dynamic_trend_krw.json",
+      "multi_dynamic_kr_us_mom6_krw.json",
+      "multi_dynamic_kr_us_golddef6_krw.json",
+      "multi_dynamic_kr_us_gold_core6_krw.json",
+      "multi_dynamic_kr_us_gold_mom6_krw.json",
+      "multi_dynamic_kr_us_gold_gtaa6_krw.json",
       "multi_allocation_us6040_krw.json",
       "multi_allocation_balanced_krw.json",
       "multi_allocation_rebal_krw.json",
