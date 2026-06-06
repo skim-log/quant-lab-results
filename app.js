@@ -590,7 +590,7 @@ async function loadDataset(file) {
     const d = await resp.json();
     if (d.kind === 'analytics') { setStatus(''); return enterAnalytics(d); }
     if (d.mode === 'playground') { setStatus(''); return enterPlayground(d); }
-    setAnalyticsMode(false);
+    setAnalyticsMode(false); setToolsMode(false);
     state.playground = false;
     setHidden('playground', true);
     state.data = d;
@@ -638,8 +638,13 @@ function applyTheme(theme, persist) {
   document.documentElement.dataset.theme = theme;
   if (persist) { try { localStorage.setItem('ql-theme', theme); } catch (e) { /* ignore */ } }
   syncThemeButton();
-  // 차트 색은 CSS 토큰 기반 → 재렌더로 새 테마 반영(분석 뷰는 전용 렌더 경로).
-  if (state.data) {
+  // 차트 색은 CSS 토큰 기반 → 재렌더로 새 테마 반영(분석·도구 뷰는 전용 렌더 경로).
+  if (document.body.classList.contains('tools-mode')) {
+    const t = state.tool || {};
+    if (t.kind === 'paradise') renderParadise();
+    else if (t.kind === 'sentiment') renderSentiment(t.data);
+    else if (t.kind === 'trend') renderTrend(t.data);
+  } else if (state.data) {
     if (state.data.kind === 'analytics') renderAnalytics(state.data);
     else render();
   }
@@ -679,14 +684,17 @@ function clearPresetActive() {
 // ---------------------------------------------------------------------------
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
-const CAT_ORDER = { dynamic: 0, static: 1, momentum: 2, crypto: 3, analytics: 4, compare: 5 };
+const CAT_ORDER = { dynamic: 0, static: 1, momentum: 2, crypto: 3, analytics: 4, compare: 5,
+  paradise: 6, sentiment: 7, trend: 8 };
 const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
-  crypto: '코인', analytics: '정량분석', compare: '전략 비교' };
-// 2단 대분류: 자산배분(8자산 세계) vs 개별전략(개별자산 모멘텀·레버리지·코인).
+  crypto: '코인', analytics: '정량분석', compare: '전략 비교',
+  paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보' };
+// 2단 대분류: 자산배분(8자산) / 개별전략(코인·모멘텀) / 도구·지표(계산기·심리·경보).
 const SUPER_OF = { dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc',
-  momentum: 'strat', crypto: 'strat' };
-const SUPER_ORDER = { alloc: 0, strat: 1 };
-const SUPER_LABEL = { alloc: '자산배분', strat: '개별전략' };
+  momentum: 'strat', crypto: 'strat',
+  paradise: 'tools', sentiment: 'tools', trend: 'tools' };
+const SUPER_ORDER = { alloc: 0, strat: 1, tools: 2 };
+const SUPER_LABEL = { alloc: '자산배분', strat: '개별전략', tools: '도구·지표' };
 
 function catsPresent() {
   return [...new Set(state.manifest.map(m => m.category))]
@@ -765,6 +773,9 @@ function setCurrency(cur) {
   });
   const entry = resolveEntry(state.nav.category, state.nav.group, cur);
   if (!entry) return;
+  // 도구·지표: 낙원계산기(클라이언트)·시장심리/추세경보(JSON 로드) — mode 분기.
+  if (entry.mode === 'paradise') return enterParadise();
+  if (entry.mode === 'sentiment' || entry.mode === 'trend') return loadTool(entry, entry.mode);
   // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
   if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
   else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
@@ -776,9 +787,146 @@ function setCurrency(cur) {
 // rebalancer AnalyticsPage 이식. 8자산 월수익(빌드타임 계산) JSON 로드 → Plotly.
 // body.analytics-mode 토글로 백테스트 섹션을 숨기고 분석 섹션만 표시한다.
 // ---------------------------------------------------------------------------
-function setAnalyticsMode(on) { document.body.classList.toggle('analytics-mode', !!on); }
+function setAnalyticsMode(on) {
+  document.body.classList.toggle('analytics-mode', !!on);
+  if (on) setToolsMode(false);
+}
+function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
+  document.body.classList.toggle('tools-mode', !!on);
+  if (on) document.body.classList.remove('analytics-mode');
+  ['paradise', 'sentiment', 'trend'].forEach(t => {
+    const el = document.getElementById(t + '-section');
+    if (el) el.classList.toggle('hidden', !(on && t === tool));
+  });
+}
 function _apct(x, dp = 1) { return (x === null || x === undefined || isNaN(x)) ? '–' : (x * 100).toFixed(dp) + '%'; }
 function _anum(x, dp = 2) { return (x === null || x === undefined || isNaN(x)) ? '–' : (+x).toFixed(dp); }
+
+// ---------------------------------------------------------------------------
+// 도구·지표: 낙원계산기 / 시장 심리 / 추세 경보
+// ---------------------------------------------------------------------------
+function _krwCompact(n) {
+  if (n === null || n === undefined || isNaN(n)) return '–';
+  const a = Math.abs(n), s = n < 0 ? '-' : '';
+  if (a >= 1e8) return s + (a / 1e8).toFixed(a >= 1e9 ? 0 : 1) + '억';
+  if (a >= 1e4) return s + Math.round(a / 1e4).toLocaleString('ko-KR') + '만';
+  return Math.round(n).toLocaleString('ko-KR') + '원';
+}
+function _pgv(id, def) { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? def : v; }
+
+// 낙원계산기 — ParadisePage.tsx compute 이식 (keep-ones.me/#/paradise-calculator2 참고).
+function enterParadise() {
+  state.playground = false; state.data = null; state.tool = { kind: 'paradise' };
+  setToolsMode(true, 'paradise');
+  document.getElementById('meta').textContent = '낙원계산기 · keep-ones.me 참고';
+  setStatus('');
+  if (!state._paraWired) {
+    ['para-asset', 'para-save', 'para-years', 'para-nom', 'para-infl'].forEach(id =>
+      document.getElementById(id).addEventListener('input', renderParadise));
+    state._paraWired = true;
+  }
+  renderParadise();
+}
+function renderParadise() {
+  const start = _pgv('para-asset', 0), save = _pgv('para-save', 18000000);
+  const years = Math.max(1, Math.round(_pgv('para-years', 20)));
+  const r = 1 + _pgv('para-nom', 10) / 100, g = 1 + _pgv('para-infl', 2.5) / 100;
+  const realRate = g > 0 ? r / g - 1 : r - g;
+  const xs = [], assetSeq = [], saveSeq = [];
+  for (let n = 1; n <= years; n++) {
+    xs.push(n);
+    assetSeq.push(start * Math.pow(r, n));
+    saveSeq.push(Math.abs(r - g) < 1e-9 ? save * n * Math.pow(r, n - 1)
+      : save * (Math.pow(r, n) - Math.pow(g, n)) / (r - g));
+  }
+  const endAsset = (assetSeq[years - 1] || start) + (saveSeq[years - 1] || 0);
+  const todayPP = endAsset / Math.pow(g, years);
+  const monthly = todayPP * realRate / 12;
+  document.getElementById('para-results').innerHTML =
+    [['은퇴 후 자산 (명목)', _krwCompact(endAsset)], ['오늘 가치 환산', _krwCompact(todayPP)],
+     ['월 수입 (오늘 가치)', _krwCompact(monthly)], ['실질 수익률', (realRate * 100).toFixed(2) + '%']]
+    .map(([k, v]) => `<div class="ext-card"><div class="lab">${k}</div><div class="val">${v}</div></div>`).join('');
+  const muted = cssVar('--chart-muted');
+  const layout = baseLayout('총 자산 증가 추이', '자산 (원)');
+  layout.barmode = 'stack';
+  layout.xaxis = { title: { text: '연차', font: { color: muted } }, gridcolor: cssVar('--chart-grid'), tickfont: { color: muted } };
+  Plotly.react('para-chart', [
+    { type: 'bar', name: '자산 성장', x: xs, y: assetSeq, marker: { color: '#2563eb' } },
+    { type: 'bar', name: '저축 누적', x: xs, y: saveSeq, marker: { color: '#10b981' } },
+  ], layout, PLOTCFG);
+}
+
+async function loadTool(entry, kind) {
+  setToolsMode(true, kind);
+  state.playground = false; state.data = null;
+  setStatus('불러오는 중…');
+  try {
+    const d = await fetch('data/' + entry.file, { cache: 'no-cache' })
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    state.tool = { kind, data: d };
+    setStatus('');
+    document.getElementById('meta').textContent = `${entry.group} · 생성일 ${d.generated_at || '-'}`;
+    if (kind === 'sentiment') renderSentiment(d); else renderTrend(d);
+  } catch (e) { setStatus(entry.group + ' 로딩 실패: ' + e.message, true); }
+}
+
+function _fgClass(v) { if (v == null) return null; return v <= 24 ? ['극단적 공포', '#dc2626'] : v <= 44 ? ['공포', '#ea580c'] : v <= 55 ? ['중립', '#6b7280'] : v <= 74 ? ['탐욕', '#84cc16'] : ['극단적 탐욕', '#10b981']; }
+function _vixClass(v) { if (v == null) return null; return v < 15 ? ['평온', '#10b981'] : v < 20 ? ['정상', '#84cc16'] : v < 30 ? ['불안', '#ea580c'] : v < 40 ? ['공포', '#dc2626'] : ['패닉', '#991b1b']; }
+function _kimchiClass(p) { if (p == null) return null; return p >= 20 ? ['극단적 과열', '#991b1b'] : p >= 15 ? ['과열', '#dc2626'] : p >= 10 ? ['약간 높음', '#ea580c'] : p > -10 ? ['정상', '#6b7280'] : p > -15 ? ['약간 낮음', '#84cc16'] : p > -20 ? ['역김프', '#10b981'] : ['극단적 역김프', '#14b8a6']; }
+const SIG_COLOR = { red: '#dc2626', yellow: '#eab308', green: '#16a34a', na: '#9ca3af' };
+
+function renderSentiment(d) {
+  const cards = [];
+  const gauge = (title, val, cls, sub) => {
+    const col = cls ? cls[1] : 'var(--fg)', lab = cls ? cls[0] : '';
+    cards.push(`<div class="senti-card"><div class="senti-t">${title}</div>` +
+      `<div class="senti-v" style="color:${col}">${val}</div>` +
+      `<div class="senti-l" style="color:${col}">${lab}</div>` +
+      (sub ? `<div class="senti-s">${sub}</div>` : '') + `</div>`);
+  };
+  if (d.cnn_fg) gauge('CNN 공포·탐욕', _anum(d.cnn_fg.score, 0), _fgClass(d.cnn_fg.score),
+    `${d.cnn_fg.rating || ''} · 1달전 ${_anum(d.cnn_fg.previous_1_month, 0)}`);
+  if (d.crypto_fg) gauge('크립토 공포·탐욕', d.crypto_fg.value, _fgClass(d.crypto_fg.value), d.crypto_fg.classification);
+  gauge('VIX 변동성', _anum(d.vix), _vixClass(d.vix), 'S&P500 내재변동성');
+  gauge('달러 인덱스 (DXY)', _anum(d.dxy), null, '6통화 대비 달러');
+  gauge('금/은 비율', _anum(d.gold_silver_ratio), null, `금 $${_anum(d.gold, 0)} · 은 $${_anum(d.silver)}`);
+  if (d.btc_kimchi) gauge('비트코인 김프', _apct(d.btc_kimchi.premium_pct / 100), _kimchiClass(d.btc_kimchi.premium_pct),
+    `업비트 ${_krwCompact(d.btc_kimchi.upbit_krw)}`);
+  if (d.gold_kimchi) gauge('금 김프', _apct(d.gold_kimchi.premium_pct / 100), _kimchiClass(d.gold_kimchi.premium_pct), 'KRX 금 vs 국제');
+  document.getElementById('senti-cards').innerHTML = cards.join('');
+  const cf = d.crypto_fg;
+  if (cf && cf.history && cf.history.length) {
+    const h = [...cf.history].reverse();
+    const x = h.map(p => new Date(p.timestamp * 1000).toISOString().slice(0, 10)), y = h.map(p => p.value);
+    const layout = baseLayout('크립토 공포·탐욕 30일', '지수'); layout.yaxis.range = [0, 100];
+    Plotly.react('senti-chart', [{ type: 'scatter', mode: 'lines', x, y, line: { color: '#9333ea', width: 2 } }], layout, PLOTCFG);
+    setHidden('senti-chart', false);
+  } else setHidden('senti-chart', true);
+  const errs = Object.keys(d.errors || {});
+  document.getElementById('senti-note').textContent = errs.length
+    ? `미수신 지표: ${errs.join(', ')} (소스 일시 차단/지역제한 가능)` : '';
+}
+
+function renderTrend(d) {
+  const SIGN = [['surge', '급등'], ['volume', '거래량'], ['consecutive', '연속상승'],
+    ['gap_reversal', '갭반전'], ['ma200_distance', 'MA200이격'], ['ma30week', '30주선']];
+  const order = d.order || Object.keys(d.assets || {});
+  const head = '<thead><tr><th class="name">자산</th>' + SIGN.map(s => `<th>${s[1]}</th>`).join('') +
+    '<th>경보</th><th>재진입</th></tr></thead>';
+  const dot = sig => `<td style="text-align:center"><span class="sig-dot" style="background:${SIG_COLOR[sig] || SIG_COLOR.na}" title="${sig}"></span></td>`;
+  const badge = (cls, txt) => `<td style="text-align:center"><span class="grade ${cls}">${txt}</span></td>`;
+  const rows = order.filter(s => d.assets[s]).map(sym => {
+    const a = d.assets[sym];
+    const comp = a.composite === 'red' ? badge('low', '경보') : a.composite === 'yellow' ? badge('medium', '주의') : badge('high', '안전');
+    const re = a.reentry === 'green' ? badge('high', '양호') : a.reentry === 'yellow' ? badge('medium', '중립') : badge('low', '미흡');
+    return `<tr><td class="name">${a.label || sym}</td>` + SIGN.map(s => dot(a.signals[s[0]])).join('') + comp + re + '</tr>';
+  }).join('');
+  document.getElementById('trend-table').innerHTML = head + '<tbody>' + rows + '</tbody>';
+  const errs = Object.keys(d.errors || {});
+  document.getElementById('trend-meta').textContent =
+    `기준일 ${d.as_of || '-'} · 6신호(급등·거래량·연속상승·갭반전·MA200이격·30주선) climax-top 분석. 정보용(투자권유 아님).`
+    + (errs.length ? ` · 미수신: ${errs.join(', ')}` : '');
+}
 
 function enterAnalytics(d) {
   state.playground = false;
@@ -890,7 +1038,7 @@ function renderRiskParity(d) {
 
 async function loadMultiDatasets(files, title) {
   setStatus('여러 데이터셋 불러오는 중…');
-  setAnalyticsMode(false);
+  setAnalyticsMode(false); setToolsMode(false);
   state.playground = false; setHidden('playground', true);
   try {
     const ds = await Promise.all(files.map(f =>
@@ -957,7 +1105,7 @@ function _synthDataset(curves, title) {
 }
 
 function enterPlayground(panel) {
-  setAnalyticsMode(false);
+  setAnalyticsMode(false); setToolsMode(false);
   state.playground = true;
   state.panel = panel;
   setHidden('playground', false);

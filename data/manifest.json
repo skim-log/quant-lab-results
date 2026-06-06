@@ -518,5 +518,32 @@
     "mode": "playground",
     "label": "정적 자산배분 · 사용자 입력 (USD)",
     "file": "panel.json"
+  },
+  {
+    "id": "tool_paradise",
+    "category": "paradise",
+    "group": "낙원계산기",
+    "currency": "",
+    "mode": "paradise",
+    "label": "도구 · 낙원계산기",
+    "file": ""
+  },
+  {
+    "id": "tool_sentiment",
+    "category": "sentiment",
+    "group": "시장 심리",
+    "currency": "",
+    "mode": "sentiment",
+    "label": "도구 · 시장 심리",
+    "file": "sentiment.json"
+  },
+  {
+    "id": "tool_trend",
+    "category": "trend",
+    "group": "추세 경보",
+    "currency": "",
+    "mode": "trend",
+    "label": "도구 · 추세 경보",
+    "file": "trend_alert.json"
   }
 ]

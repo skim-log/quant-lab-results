@@ -358,6 +358,22 @@ body.analytics-mode main > section:not(.controls) { display: none !important; }
 body.analytics-mode .ctl-period,
 body.analytics-mode #strategies,
 body.analytics-mode .ctl-check { display: none !important; }
+
+/* ---- 도구·지표 전용 뷰 (낙원계산기·시장심리·추세경보) ---- */
+body:not(.tools-mode) #paradise-section,
+body:not(.tools-mode) #sentiment-section,
+body:not(.tools-mode) #trend-section { display: none; }
+body.tools-mode main > section:not(.controls) { display: none !important; }
+body.tools-mode .ctl-period, body.tools-mode #strategies,
+body.tools-mode .ctl-check, body.tools-mode .ctl-cur,
+body.tools-mode #strategy-desc { display: none !important; }
+.senti-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.7rem; }
+.senti-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.7rem 0.85rem; background: var(--surface-2); }
+.senti-card .senti-t { font-size: 0.8rem; color: var(--muted); }
+.senti-card .senti-v { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.senti-card .senti-l { font-size: 0.85rem; font-weight: 600; }
+.senti-card .senti-s { font-size: 0.74rem; color: var(--muted); margin-top: 0.15rem; }
+.sig-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; }
 .chart-corr { height: 440px; }
 .chart-frontier { height: 480px; }
 .rp-rows { display: flex; flex-direction: column; gap: 0.45rem; }

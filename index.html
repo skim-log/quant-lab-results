@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=0f3c1350" />
+  <link rel="stylesheet" href="style.css?v=e666d84f" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -109,6 +109,44 @@
       </section>
     </div>
 
+    <!-- 도구·지표: 낙원계산기 (순수 클라이언트 — keep-ones.me 참고) -->
+    <div id="paradise-section" class="hidden">
+      <section class="panel">
+        <h2>낙원계산기 <span class="muted">(은퇴·경제적 자유)</span></h2>
+        <p class="period-note">복리 성장 + 인플레이션 반영 모델.
+          <a href="https://keep-ones.me/#/paradise-calculator2" target="_blank" rel="noopener">keep-ones.me 낙원계산기</a>를 참고했습니다.</p>
+        <div class="pg-controls">
+          <label>보유 자산(원) <input type="number" id="para-asset" value="0" step="1000000" /></label>
+          <label>연간 저축(원) <input type="number" id="para-save" value="18000000" step="1000000" /></label>
+          <label>은퇴까지(년) <input type="number" id="para-years" value="20" min="1" /></label>
+          <label>명목 수익률(%) <input type="number" id="para-nom" value="10" step="0.5" /></label>
+          <label>인플레이션(%) <input type="number" id="para-infl" value="2.5" step="0.5" /></label>
+        </div>
+        <div id="para-results" class="ext-cards"></div>
+        <div id="para-chart" class="chart" style="height:360px;margin-top:0.8rem"></div>
+      </section>
+    </div>
+
+    <!-- 도구·지표: 시장 심리 (일일 갱신) -->
+    <div id="sentiment-section" class="hidden">
+      <section class="panel">
+        <h2>시장 심리 <span class="muted">(공포·탐욕·변동성·김프)</span></h2>
+        <p class="period-note">CNN·크립토 공포탐욕 지수, VIX, 달러 인덱스, 금/은 비율, 김치프리미엄. 매일 갱신(빌드타임).</p>
+        <div id="senti-cards" class="senti-cards"></div>
+        <div id="senti-chart" class="chart hidden" style="height:260px;margin-top:0.8rem"></div>
+        <p id="senti-note" class="period-note"></p>
+      </section>
+    </div>
+
+    <!-- 도구·지표: 추세 경보 (일일 갱신) -->
+    <div id="trend-section" class="hidden">
+      <section class="panel">
+        <h2>추세 경보 <span class="muted">(climax-top 6신호)</span></h2>
+        <p id="trend-meta" class="period-note"></p>
+        <div class="table-wrap"><table id="trend-table" class="diag-table"></table></div>
+      </section>
+    </div>
+
     <!-- 플레이그라운드: 임의 비중 즉석 백테스트 (panel.json 데이터셋에서만 표시) -->
     <section id="playground" class="panel hidden">
       <h2>사용자 입력 — 임의 비중 백테스트 <span class="muted">(브라우저에서 즉석 실행)</span></h2>
@@ -191,7 +229,7 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=0f3c1350" defer></script>
-  <script src="app.js?v=0f3c1350" defer></script>
+  <script src="alloc.js?v=e666d84f" defer></script>
+  <script src="app.js?v=e666d84f" defer></script>
 </body>
 </html>
