@@ -80,6 +80,30 @@
 
     <div id="status" class="status"></div>
 
+    <!-- 정량분석 전용 뷰 (kind=analytics 데이터셋에서만; body.analytics-mode 로 그 외 섹션 숨김) -->
+    <div id="analytics-section">
+      <section class="panel">
+        <h2>자산군 위험·수익 <span class="muted" id="an-period"></span></h2>
+        <p class="period-note">8자산 월별 수익 기준 · 무위험 2% 가정(리밸런서 정합). 프록시 한계는 정적배분의 데이터 신뢰도 참고.</p>
+        <div id="an-riskreturn" class="ext-cards"></div>
+      </section>
+      <section class="panel">
+        <h2>상관관계 히트맵</h2>
+        <p class="period-note">자산군 월수익 Pearson 상관(파랑 +1 ~ 빨강 −1). 상관이 낮을수록 분산 효과가 큽니다.</p>
+        <div id="an-corr" class="chart chart-corr"></div>
+      </section>
+      <section class="panel">
+        <h2>효율적 프론티어 <span class="muted">(몬테카를로)</span></h2>
+        <p class="period-note" id="an-frontier-note">long-only 랜덤 비중 시뮬 · ★ Max Sharpe · ◆ Min Variance · ● 단일자산 · ◇ 프리셋.</p>
+        <div id="an-frontier" class="chart chart-frontier"></div>
+      </section>
+      <section class="panel">
+        <h2>리스크 패리티 <span class="muted">(역변동성 비중)</span></h2>
+        <p class="period-note">변동성 역가중 추천 비중 vs 리밸런서 기본 목표비중. 변동성 큰 자산일수록 비중↓.</p>
+        <div id="an-riskparity" class="rp-rows"></div>
+      </section>
+    </div>
+
     <!-- 플레이그라운드: 임의 비중 즉석 백테스트 (panel.json 데이터셋에서만 표시) -->
     <section id="playground" class="panel hidden">
       <h2>사용자 입력 — 임의 비중 백테스트 <span class="muted">(브라우저에서 즉석 실행)</span></h2>

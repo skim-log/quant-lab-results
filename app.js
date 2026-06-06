@@ -35,6 +35,7 @@ const state = {
   globalEnd: '',     // 데이터셋 전체 최대 날짜 (ISO)
   nav: { category: '', group: '', currency: '' },  // 3축 네비 상태
   playground: false, panel: null, _pgWired: false,  // 플레이그라운드 상태
+  sort: { col: null, dir: -1 },  // 성과표 리더보드 정렬(열 클릭). dir: -1=내림차순
 };
 
 // ---------------------------------------------------------------------------
@@ -239,12 +240,38 @@ function renderTable(rows, fullPeriod) {
   const pct = new Set(d.pct_cols);
   const ratio = new Set(d.ratio_cols);
 
-  const thead = '<thead><tr><th class="name">전략</th>' +
-    cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead>';
+  const arrow = c => (state.sort.col === c ? (state.sort.dir < 0 ? ' ▾' : ' ▴') : '');
+  const thead = '<thead><tr><th class="name sortable" data-col="이름">전략' + arrow('이름') + '</th>' +
+    cols.map(c => `<th class="sortable" data-col="${c}">${c}${arrow(c)}</th>`).join('') + '</tr></thead>';
 
   const fmtDisplay = (col, v) => pct.has(col) ? fmtPctScaled(v) : ratio.has(col) ? fmtRatio(v) : fmtPlain(v);
 
-  const body = rows.map(r => {
+  // 리더보드 정렬: 선택 열의 값으로 행 정렬(전략 비교 탭에서 순위 비교). 결측은 항상 맨 뒤.
+  const sortVal = (r, col) => {
+    if (col === '이름') return r.name;
+    if (col === '기간') return r.period;
+    if (fullPeriod) { const v = (d.table_display[r.name] || {})[col]; return (v == null) ? null : +v; }
+    const mkey = state.colToMetric[col];
+    if (!mkey) return null;
+    const v = r.metrics[mkey];
+    return (v == null || isNaN(v)) ? null : +v;
+  };
+  let trows = rows;
+  if (state.sort.col && (state.sort.col === '이름' || cols.includes(state.sort.col))) {
+    const col = state.sort.col, dir = state.sort.dir;
+    trows = [...rows].sort((a, b) => {
+      const va = sortVal(a, col), vb = sortVal(b, col);
+      const na = (va == null || (typeof va === 'number' && isNaN(va)));
+      const nb = (vb == null || (typeof vb === 'number' && isNaN(vb)));
+      if (na && nb) return 0;
+      if (na) return 1;          // 결측은 방향 무관 맨 뒤
+      if (nb) return -1;
+      if (typeof va === 'string') return dir * va.localeCompare(vb, 'ko');
+      return dir * (va - vb);
+    });
+  }
+
+  const body = trows.map(r => {
     const disp = d.table_display[r.name] || {};
     const tds = cols.map(col => {
       // 기간: 항상 현재 윈도우에서 도출
@@ -514,7 +541,9 @@ async function loadDataset(file) {
     const resp = await fetch('data/' + file, { cache: 'no-cache' });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const d = await resp.json();
+    if (d.kind === 'analytics') { setStatus(''); return enterAnalytics(d); }
     if (d.mode === 'playground') { setStatus(''); return enterPlayground(d); }
+    setAnalyticsMode(false);
     state.playground = false;
     setHidden('playground', true);
     state.data = d;
@@ -562,7 +591,11 @@ function applyTheme(theme, persist) {
   document.documentElement.dataset.theme = theme;
   if (persist) { try { localStorage.setItem('ql-theme', theme); } catch (e) { /* ignore */ } }
   syncThemeButton();
-  if (state.data) render();   // 차트 색은 CSS 토큰 기반 → 재렌더로 새 테마 반영
+  // 차트 색은 CSS 토큰 기반 → 재렌더로 새 테마 반영(분석 뷰는 전용 렌더 경로).
+  if (state.data) {
+    if (state.data.kind === 'analytics') renderAnalytics(state.data);
+    else render();
+  }
 }
 function setupTheme() {
   syncThemeButton();
@@ -581,6 +614,15 @@ function wireControls() {
   document.getElementById('end').addEventListener('change', () => { clearPresetActive(); render(); });
   document.querySelectorAll('#presets button').forEach(b => {
     b.addEventListener('click', () => { setActivePreset(Number(b.dataset.years)); render(); });
+  });
+  // 성과표 리더보드 정렬 — 열 헤더 클릭(같은 열 재클릭 시 방향 토글).
+  document.getElementById('metrics-table').addEventListener('click', e => {
+    const th = e.target.closest('th[data-col]');
+    if (!th || !state.data || state.data.kind === 'analytics') return;
+    const col = th.dataset.col;
+    if (state.sort.col === col) state.sort.dir *= -1;
+    else state.sort = { col, dir: (col === '이름' ? 1 : -1) };
+    render();
   });
 }
 function clearPresetActive() {
@@ -659,8 +701,125 @@ function setCurrency(cur) {
   else loadDataset(entry.file);
 }
 
+// ---------------------------------------------------------------------------
+// 정량분석 뷰 (kind=analytics) — 위험수익 카드·상관 히트맵·효율적 프론티어·리스크패리티.
+// rebalancer AnalyticsPage 이식. 8자산 월수익(빌드타임 계산) JSON 로드 → Plotly.
+// body.analytics-mode 토글로 백테스트 섹션을 숨기고 분석 섹션만 표시한다.
+// ---------------------------------------------------------------------------
+function setAnalyticsMode(on) { document.body.classList.toggle('analytics-mode', !!on); }
+function _apct(x, dp = 1) { return (x === null || x === undefined || isNaN(x)) ? '–' : (x * 100).toFixed(dp) + '%'; }
+function _anum(x, dp = 2) { return (x === null || x === undefined || isNaN(x)) ? '–' : (+x).toFixed(dp); }
+
+function enterAnalytics(d) {
+  state.playground = false;
+  state.data = d;
+  setAnalyticsMode(true);
+  document.getElementById('meta').textContent =
+    `${d.title || '정량분석'} · 생성일 ${d.generated_at || '-'} · ${d.n_months || 0}개월`;
+  renderAnalytics(d);
+}
+
+function renderAnalytics(d) {
+  document.getElementById('an-period').textContent = d.period ? `· ${d.period}` : '';
+  const note = document.getElementById('an-frontier-note');
+  if (note && d.frontier) note.textContent =
+    `long-only 랜덤 비중 ${(d.frontier.n_sims || 0).toLocaleString()}회 · ★ Max Sharpe · ◆ Min Variance · ● 단일자산 · ◇ 프리셋 (무위험 ${_apct(d.rf, 0)}).`;
+  renderRiskReturn(d);
+  renderCorrelation(d);
+  renderFrontier(d);
+  renderRiskParity(d);
+}
+
+function renderRiskReturn(d) {
+  const html = (d.risk_return || []).map(r => {
+    const col = r.color || 'var(--accent)';
+    return `<div class="ext-card"><div class="lab"><span class="swatch" style="background:${col}"></span>${r.label}</div>` +
+           `<div class="val">${_apct(r.ann_return)}</div>` +
+           `<div class="sub">변동성 ${_apct(r.ann_vol)} · Sharpe ${_anum(r.sharpe)}</div>` +
+           `<div class="sub">Sortino ${_anum(r.sortino)} · MDD ${_apct(-r.mdd)}</div></div>`;
+  }).join('');
+  document.getElementById('an-riskreturn').innerHTML = html;
+}
+
+function renderCorrelation(d) {
+  const c = d.correlation || {}; const keys = c.assets || [];
+  const labelOf = k => ((d.assets || []).find(a => a.key === k) || {}).label || k;
+  const labels = keys.map(labelOf);
+  const z = c.matrix || [];
+  const text = z.map(row => row.map(v => (v === null || v === undefined) ? '' : v.toFixed(2)));
+  const muted = cssVar('--chart-muted');
+  const trace = {
+    type: 'heatmap', z, x: labels, y: labels, text, texttemplate: '%{text}',
+    textfont: { size: 11, color: '#0f172a' }, zmin: -1, zmax: 1, zmid: 0,
+    colorscale: [[0, '#dc2626'], [0.25, '#fca5a5'], [0.5, '#f1f5f9'], [0.75, '#93c5fd'], [1, '#2563eb']],
+    xgap: 2, ygap: 2, colorbar: { tickfont: { color: muted }, outlinewidth: 0, len: 0.92, thickness: 12 },
+    hovertemplate: '%{y} · %{x}<br>상관 %{z:.2f}<extra></extra>',
+  };
+  const layout = baseLayout('', '');
+  layout.margin = { l: 110, r: 10, t: 8, b: 100 };
+  layout.xaxis = { tickfont: { color: muted, size: 10 }, tickangle: -40, automargin: true };
+  layout.yaxis = { tickfont: { color: muted, size: 10 }, automargin: true, autorange: 'reversed' };
+  delete layout.legend; layout.hovermode = 'closest';
+  Plotly.react('an-corr', [trace], layout, PLOTCFG);
+}
+
+function renderFrontier(d) {
+  const f = d.frontier || {}; const pts = f.points || [];
+  const muted = cssVar('--chart-muted'), fg = cssVar('--chart-fg'), grid = cssVar('--chart-grid');
+  const traces = [];
+  traces.push({ type: 'scattergl', mode: 'markers', name: '시뮬', showlegend: false,
+    x: pts.map(p => p[0] * 100), y: pts.map(p => p[1] * 100),
+    marker: { size: 3, color: grid, opacity: 0.55 }, hoverinfo: 'skip' });
+  const cv = f.curve || [];
+  traces.push({ type: 'scatter', mode: 'lines', name: '효율적 경계',
+    x: cv.map(p => p[0] * 100), y: cv.map(p => p[1] * 100),
+    line: { color: muted, width: 1.5, dash: 'dot' }, hoverinfo: 'skip' });
+  const sa = f.single_asset || [];
+  traces.push({ type: 'scatter', mode: 'markers+text', name: '단일자산',
+    x: sa.map(s => s.vol * 100), y: sa.map(s => s.ret * 100), text: sa.map(s => s.label),
+    textposition: 'top center', textfont: { size: 9, color: muted },
+    marker: { size: 9, color: sa.map(s => s.color || muted), line: { width: 1, color: cssVar('--chart-paper') } },
+    hovertemplate: '%{text}<br>수익 %{y:.1f}% · 변동성 %{x:.1f}%<extra></extra>' });
+  const pr = f.presets || [];
+  traces.push({ type: 'scatter', mode: 'markers', name: '프리셋',
+    x: pr.map(p => p.vol * 100), y: pr.map(p => p.ret * 100), text: pr.map(p => p.label),
+    customdata: pr.map(p => p.sharpe),
+    marker: { size: 11, symbol: 'diamond-open', color: cssVar('--accent'), line: { width: 1.5 } },
+    hovertemplate: '%{text}<br>수익 %{y:.1f}% · 변동성 %{x:.1f}% · Sharpe %{customdata:.2f}<extra></extra>' });
+  const ms = f.max_sharpe, mv = f.min_var;
+  if (ms) traces.push({ type: 'scatter', mode: 'markers', name: 'Max Sharpe', x: [ms.vol * 100], y: [ms.ret * 100],
+    marker: { size: 17, symbol: 'star', color: '#f59e0b', line: { width: 1, color: cssVar('--chart-paper') } },
+    hovertemplate: 'Max Sharpe<br>수익 %{y:.1f}% · 변동성 %{x:.1f}%<extra></extra>' });
+  if (mv) traces.push({ type: 'scatter', mode: 'markers', name: 'Min Variance', x: [mv.vol * 100], y: [mv.ret * 100],
+    marker: { size: 13, symbol: 'diamond', color: '#10b981', line: { width: 1, color: cssVar('--chart-paper') } },
+    hovertemplate: 'Min Variance<br>수익 %{y:.1f}% · 변동성 %{x:.1f}%<extra></extra>' });
+  const layout = baseLayout('', '');
+  layout.xaxis = { title: { text: '연환산 변동성 %', font: { color: muted } }, gridcolor: grid, zerolinecolor: grid, tickfont: { color: muted }, zeroline: false };
+  layout.yaxis = { title: { text: '연환산 수익률 %', font: { color: muted } }, gridcolor: grid, zerolinecolor: grid, tickfont: { color: muted } };
+  layout.hovermode = 'closest';
+  layout.legend = { orientation: 'h', y: -0.16, font: { size: 10, color: fg } };
+  Plotly.react('an-frontier', traces, layout, PLOTCFG);
+}
+
+function renderRiskParity(d) {
+  const rows = d.risk_parity || [];
+  let maxw = 0.01;
+  for (const r of rows) maxw = Math.max(maxw, r.weight || 0, r.target || 0);
+  const html = rows.map(r => {
+    const col = r.color || 'var(--accent)';
+    const w = (r.weight || 0) * 100, t = (r.target || 0) * 100;
+    return `<div class="rp-row">` +
+      `<span class="rp-lab"><span class="swatch" style="background:${col}"></span><span class="txt">${r.label}</span></span>` +
+      `<span class="rp-track"><span class="rp-fill" style="width:${(r.weight / maxw * 100).toFixed(1)}%;background:${col}"></span>` +
+      `<span class="rp-target" style="left:${Math.min(100, r.target / maxw * 100).toFixed(1)}%" title="목표 ${t.toFixed(1)}%"></span></span>` +
+      `<span class="rp-nums"><b>${w.toFixed(1)}%</b> vs ${t.toFixed(1)}%</span></div>`;
+  }).join('');
+  document.getElementById('an-riskparity').innerHTML = html;
+}
+
 async function loadMultiDatasets(files, title) {
   setStatus('여러 데이터셋 불러오는 중…');
+  setAnalyticsMode(false);
   state.playground = false; setHidden('playground', true);
   try {
     const ds = await Promise.all(files.map(f =>
@@ -727,6 +886,7 @@ function _synthDataset(curves, title) {
 }
 
 function enterPlayground(panel) {
+  setAnalyticsMode(false);
   state.playground = true;
   state.panel = panel;
   setHidden('playground', false);

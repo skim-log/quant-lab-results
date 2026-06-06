@@ -301,6 +301,8 @@ table#metrics-table, #bandab-table, .diag-table {
   text-align: left; position: sticky; left: 0; background: var(--card); z-index: 1;
 }
 #metrics-table th.name, #bandab-table th.name, .diag-table th.name { background: var(--surface-2); z-index: 3; }
+#metrics-table th.sortable { cursor: pointer; user-select: none; }
+#metrics-table th.sortable:hover { color: var(--fg); }
 #metrics-table td.name .swatch { margin-right: 0.4rem; }
 #metrics-table td.muted { color: var(--faint); }
 #metrics-table tr:nth-child(even) td { background: var(--surface-2); }
@@ -342,8 +344,28 @@ footer {
 }
 footer code { background: var(--surface-2); padding: 0.05rem 0.35rem; border-radius: var(--radius-sm); }
 
+/* ---- 정량분석 전용 뷰 (body.analytics-mode 일 때 그 외 섹션 숨김) ---- */
+#analytics-section > .panel:first-child { margin-top: 1.1rem; }
+body:not(.analytics-mode) #analytics-section { display: none; }
+body.analytics-mode main > section:not(.controls) { display: none !important; }
+body.analytics-mode .ctl-period,
+body.analytics-mode #strategies,
+body.analytics-mode .ctl-check { display: none !important; }
+.chart-corr { height: 440px; }
+.chart-frontier { height: 480px; }
+.rp-rows { display: flex; flex-direction: column; gap: 0.45rem; }
+.rp-row { display: grid; grid-template-columns: 116px 1fr 132px; align-items: center; gap: 0.6rem; font-size: 0.85rem; }
+.rp-lab { display: inline-flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.rp-lab span.txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-track { position: relative; background: var(--surface-2); border-radius: 999px; height: 16px; }
+.rp-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; opacity: 0.9; }
+.rp-target { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--fg); border-radius: 1px; }
+.rp-nums { font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; text-align: right; }
+.rp-nums b { color: var(--fg); }
+
 /* ---- 모바일 ---- */
 @media (max-width: 640px) {
+  .rp-row { grid-template-columns: 92px 1fr 112px; }
   header { padding-top: 1.1rem; }
   header h1 { font-size: 1.25rem; }
   main { padding: 0 0.9rem 2rem; }

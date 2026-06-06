@@ -376,6 +376,22 @@
     "file": "kr_all.json"
   },
   {
+    "id": "multi_analytics_krw",
+    "category": "analytics",
+    "group": "8자산 정량분석",
+    "currency": "krw",
+    "label": "정량분석 · 8자산 정량분석 (KRW)",
+    "file": "multi_analytics_krw.json"
+  },
+  {
+    "id": "multi_analytics_usd",
+    "category": "analytics",
+    "group": "8자산 정량분석",
+    "currency": "usd",
+    "label": "정량분석 · 8자산 정량분석 (USD)",
+    "file": "multi_analytics_usd.json"
+  },
+  {
     "id": "compare_usd",
     "category": "compare",
     "group": "전체 전략 비교",
