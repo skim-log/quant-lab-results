@@ -15,9 +15,16 @@
  */
 'use strict';
 
-const PALETTE = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
-                 '#8c564b', '#e377c2', '#17becf', '#bcbd22', '#7f7f7f'];
-const FONT = '"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif';
+// 전략 곡선 팔레트 — 라이트/다크 양쪽에서 식별 가능한 채도(Tailwind 500–600 계열).
+// 비교 오버레이(최대 17개)에서 색 충돌을 줄이려 18색으로 확장.
+const PALETTE = ['#2563eb', '#10b981', '#dc2626', '#ea580c', '#9333ea', '#0891b2',
+                 '#ca8a04', '#db2777', '#65a30d', '#0d9488', '#7c3aed', '#e11d48',
+                 '#0284c7', '#d97706', '#4f46e5', '#059669', '#c026d3', '#84cc16'];
+// 자산군 색 — 리밸런서 팔레트 정합(static 8자산 + 현금). 동적 전략의 계기자산(티커)은 PALETTE 폴백.
+const CAT_COLOR = { us_stock: '#2563eb', kr_stock: '#10b981', cn_stock: '#dc2626',
+  in_stock: '#ea580c', gold: '#ca8a04', silver: '#94a3b8', us_bond: '#0891b2',
+  kr_bond: '#9333ea', cash: '#9ca3af' };
+const FONT = '"Pretendard Variable",Pretendard,"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif';
 
 const state = {
   manifest: [],
@@ -153,16 +160,26 @@ function render() {
   document.getElementById('period-note').textContent = note;
 }
 
-const baseLayout = (title, yTitle) => ({
-  title: { text: title, font: { size: 14 } },
-  font: { family: FONT, size: 11 },
-  margin: { l: 56, r: 16, t: 36, b: 40 },
-  legend: { orientation: 'h', y: -0.18, font: { size: 10 } },
-  xaxis: { type: 'date', gridcolor: '#eee' },
-  yaxis: { title: yTitle, gridcolor: '#eee' },
-  hovermode: 'x unified',
-  plot_bgcolor: '#fff', paper_bgcolor: '#fff',
-});
+// 현재 테마의 CSS 토큰 값을 읽어옴(다크/라이트 전환 시 render() 가 새 값으로 차트를 다시 그림).
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '';
+}
+const baseLayout = (title, yTitle) => {
+  const grid = cssVar('--chart-grid'), fg = cssVar('--chart-fg'),
+        muted = cssVar('--chart-muted'), paper = cssVar('--chart-paper'),
+        plot = cssVar('--chart-plot'), hover = cssVar('--chart-hover-bg');
+  return {
+    title: { text: title, font: { size: 14, color: fg } },
+    font: { family: FONT, size: 11, color: muted },
+    margin: { l: 56, r: 16, t: 36, b: 40 },
+    legend: { orientation: 'h', y: -0.18, font: { size: 10, color: fg } },
+    xaxis: { type: 'date', gridcolor: grid, zerolinecolor: grid, linecolor: grid, tickfont: { color: muted } },
+    yaxis: { title: { text: yTitle, font: { color: muted } }, gridcolor: grid, zerolinecolor: grid, linecolor: grid, tickfont: { color: muted } },
+    hovermode: 'x unified',
+    hoverlabel: { bgcolor: hover, bordercolor: grid, font: { color: fg, family: FONT } },
+    plot_bgcolor: plot, paper_bgcolor: paper,
+  };
+};
 const PLOTCFG = { responsive: true, displaylogo: false,
   modeBarButtonsToRemove: ['lasso2d', 'select2d', 'autoScale2d'] };
 
@@ -212,7 +229,7 @@ function renderAnnual(rows) {
   });
   const layout = baseLayout('연도별 수익률', '연 수익률 %');
   layout.barmode = 'group';
-  layout.xaxis = { type: 'category', gridcolor: '#eee' };
+  layout.xaxis = { type: 'category', gridcolor: cssVar('--chart-grid'), linecolor: cssVar('--chart-grid'), tickfont: { color: cssVar('--chart-muted') } };
   Plotly.react('chart-annual', traces, layout, PLOTCFG);
 }
 
@@ -258,12 +275,12 @@ function renderTable(rows, fullPeriod) {
 // ---------------------------------------------------------------------------
 // 글로벌 자산배분 전용 패널 (allocation·regimes·current·extended·band_ab·events·diagnostics)
 // ---------------------------------------------------------------------------
-const CAT_LABEL = { us_stock: '미국주식', kr_stock: '한국주식', cn_stock: '중국주식',
-  in_stock: '인도주식', gold: '금', silver: '은', us_bond: '미국채', kr_bond: '한국채', cash: '현금' };
+const CAT_LABEL = { us_stock: '미국 주식', kr_stock: '한국 주식', cn_stock: '중국 주식',
+  in_stock: '인도 주식', gold: '금', silver: '은', us_bond: '미국 장기국채', kr_bond: '한국 국채', cash: '현금' };
 const GRADE_LABEL = { high: '높음', medium: '보통', low: '낮음' };
 
 function setHidden(id, hidden) { document.getElementById(id).classList.toggle('hidden', hidden); }
-function allocColor(key, j) { return key === 'cash' ? '#9ca3af' : PALETTE[j % PALETTE.length]; }
+function allocColor(key, j) { return CAT_COLOR[key] || PALETTE[j % PALETTE.length]; }
 
 function renderExtras(rows, s, e) {
   const d = state.data;
@@ -286,7 +303,7 @@ function renderTargetComposition() {
   const max = entries.length ? entries[0][1] : 1;
   const rows = entries.map(([asset, w], j) => {
     const label = CAT_LABEL[asset] || asset;
-    const col = PALETTE[j % PALETTE.length];
+    const col = CAT_COLOR[asset] || PALETTE[j % PALETTE.length];
     const pct = (w * 100).toFixed(1);
     const barw = Math.max(2, (w / max) * 100);
     return `<div class="comp-row"><span class="comp-lab">${label}</span>` +
@@ -533,6 +550,31 @@ function setActivePreset(years) {
   eEl.value = state.globalEnd;
 }
 
+// ---------------------------------------------------------------------------
+// 테마 (라이트/다크) — 무플래시 초기화는 index.html, 여기선 토글·버튼동기화·차트 재렌더.
+// ---------------------------------------------------------------------------
+function currentTheme() { return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'; }
+function syncThemeButton() {
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = currentTheme() === 'dark' ? '☀' : '☾';
+}
+function applyTheme(theme, persist) {
+  document.documentElement.dataset.theme = theme;
+  if (persist) { try { localStorage.setItem('ql-theme', theme); } catch (e) { /* ignore */ } }
+  syncThemeButton();
+  if (state.data) render();   // 차트 색은 CSS 토큰 기반 → 재렌더로 새 테마 반영
+}
+function setupTheme() {
+  syncThemeButton();
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.addEventListener('click', () => applyTheme(currentTheme() === 'dark' ? 'light' : 'dark', true));
+  try {   // 명시적 선택이 없으면 시스템 설정 변경을 따라감
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      if (!localStorage.getItem('ql-theme')) applyTheme(e.matches ? 'dark' : 'light', false);
+    });
+  } catch (e) { /* 구형 브라우저 */ }
+}
+
 function wireControls() {
   document.getElementById('logscale').addEventListener('change', render);
   document.getElementById('start').addEventListener('change', () => { clearPresetActive(); render(); });
@@ -694,7 +736,7 @@ function enterPlayground(panel) {
   // 비중 입력 (기본값 = default_weights)
   const dw = panel.default_weights || {};
   document.getElementById('pg-weights').innerHTML = panel.assets.map((a, j) => {
-    const col = PALETTE[j % PALETTE.length];
+    const col = CAT_COLOR[a.id] || PALETTE[j % PALETTE.length];
     const v = ((dw[a.id] || 0) * 100).toFixed(1);
     return `<label class="pg-w"><span class="swatch" style="background:${col}"></span>${a.label}` +
            `<input type="number" data-asset="${a.id}" min="0" max="100" step="0.5" value="${v}" /></label>`;
@@ -764,6 +806,7 @@ function runPlayground() {
 }
 
 async function init() {
+  setupTheme();
   wireControls();
   try {
     const resp = await fetch('data/manifest.json', { cache: 'no-cache' });

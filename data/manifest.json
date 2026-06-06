@@ -2,49 +2,49 @@
   {
     "id": "multi_dynamic_adm_krw",
     "category": "dynamic",
-    "group": "ADM 가속듀얼",
+    "group": "ADM (가속듀얼)",
     "currency": "krw",
-    "label": "동적 자산배분 · ADM 가속듀얼 (KRW)",
+    "label": "동적 자산배분 · ADM (가속듀얼) (KRW)",
     "file": "multi_dynamic_adm_krw.json"
   },
   {
     "id": "multi_dynamic_adm_usd",
     "category": "dynamic",
-    "group": "ADM 가속듀얼",
+    "group": "ADM (가속듀얼)",
     "currency": "usd",
-    "label": "동적 자산배분 · ADM 가속듀얼 (USD)",
+    "label": "동적 자산배분 · ADM (가속듀얼) (USD)",
     "file": "multi_dynamic_adm_usd.json"
   },
   {
     "id": "multi_dynamic_baa_g_krw",
     "category": "dynamic",
-    "group": "BAA공격",
+    "group": "BAA 공격",
     "currency": "krw",
-    "label": "동적 자산배분 · BAA공격 (KRW)",
+    "label": "동적 자산배분 · BAA 공격 (KRW)",
     "file": "multi_dynamic_baa_g_krw.json"
   },
   {
     "id": "multi_dynamic_baa_g_usd",
     "category": "dynamic",
-    "group": "BAA공격",
+    "group": "BAA 공격",
     "currency": "usd",
-    "label": "동적 자산배분 · BAA공격 (USD)",
+    "label": "동적 자산배분 · BAA 공격 (USD)",
     "file": "multi_dynamic_baa_g_usd.json"
   },
   {
     "id": "multi_dynamic_baa_b_krw",
     "category": "dynamic",
-    "group": "BAA균형",
+    "group": "BAA 균형",
     "currency": "krw",
-    "label": "동적 자산배분 · BAA균형 (KRW)",
+    "label": "동적 자산배분 · BAA 균형 (KRW)",
     "file": "multi_dynamic_baa_b_krw.json"
   },
   {
     "id": "multi_dynamic_baa_b_usd",
     "category": "dynamic",
-    "group": "BAA균형",
+    "group": "BAA 균형",
     "currency": "usd",
-    "label": "동적 자산배분 · BAA균형 (USD)",
+    "label": "동적 자산배분 · BAA 균형 (USD)",
     "file": "multi_dynamic_baa_b_usd.json"
   },
   {
@@ -96,19 +96,35 @@
     "file": "multi_dynamic_gem_usd.json"
   },
   {
+    "id": "multi_dynamic_trend_krw",
+    "category": "dynamic",
+    "group": "S&P 추세추종",
+    "currency": "krw",
+    "label": "동적 자산배분 · S&P 추세추종 (KRW)",
+    "file": "multi_dynamic_trend_krw.json"
+  },
+  {
+    "id": "multi_dynamic_trend_usd",
+    "category": "dynamic",
+    "group": "S&P 추세추종",
+    "currency": "usd",
+    "label": "동적 자산배분 · S&P 추세추종 (USD)",
+    "file": "multi_dynamic_trend_usd.json"
+  },
+  {
     "id": "multi_dynamic_vaa_g4_krw",
     "category": "dynamic",
-    "group": "VAA-G4",
+    "group": "VAA-G4 공격",
     "currency": "krw",
-    "label": "동적 자산배분 · VAA-G4 (KRW)",
+    "label": "동적 자산배분 · VAA-G4 공격 (KRW)",
     "file": "multi_dynamic_vaa_g4_krw.json"
   },
   {
     "id": "multi_dynamic_vaa_g4_usd",
     "category": "dynamic",
-    "group": "VAA-G4",
+    "group": "VAA-G4 공격",
     "currency": "usd",
-    "label": "동적 자산배분 · VAA-G4 (USD)",
+    "label": "동적 자산배분 · VAA-G4 공격 (USD)",
     "file": "multi_dynamic_vaa_g4_usd.json"
   },
   {
@@ -130,34 +146,18 @@
   {
     "id": "multi_dynamic_absmom_krw",
     "category": "dynamic",
-    "group": "절대듀얼",
+    "group": "절대듀얼 (미국)",
     "currency": "krw",
-    "label": "동적 자산배분 · 절대듀얼 (KRW)",
+    "label": "동적 자산배분 · 절대듀얼 (미국) (KRW)",
     "file": "multi_dynamic_absmom_krw.json"
   },
   {
     "id": "multi_dynamic_absmom_usd",
     "category": "dynamic",
-    "group": "절대듀얼",
+    "group": "절대듀얼 (미국)",
     "currency": "usd",
-    "label": "동적 자산배분 · 절대듀얼 (USD)",
+    "label": "동적 자산배분 · 절대듀얼 (미국) (USD)",
     "file": "multi_dynamic_absmom_usd.json"
-  },
-  {
-    "id": "multi_dynamic_trend_krw",
-    "category": "dynamic",
-    "group": "추세추종",
-    "currency": "krw",
-    "label": "동적 자산배분 · 추세추종 (KRW)",
-    "file": "multi_dynamic_trend_krw.json"
-  },
-  {
-    "id": "multi_dynamic_trend_usd",
-    "category": "dynamic",
-    "group": "추세추종",
-    "currency": "usd",
-    "label": "동적 자산배분 · 추세추종 (USD)",
-    "file": "multi_dynamic_trend_usd.json"
   },
   {
     "id": "multi_dynamic_kr_us_mom6_krw",
@@ -389,10 +389,10 @@
       "multi_dynamic_daa_g12_usd.json",
       "multi_dynamic_faber_gtaa5_usd.json",
       "multi_dynamic_gem_usd.json",
+      "multi_dynamic_trend_usd.json",
       "multi_dynamic_vaa_g4_usd.json",
       "multi_dynamic_all_usd.json",
       "multi_dynamic_absmom_usd.json",
-      "multi_dynamic_trend_usd.json",
       "multi_dynamic_kr_us_mom6_usd.json",
       "multi_dynamic_kr_us_golddef6_usd.json",
       "multi_dynamic_kr_us_gold_core6_usd.json",
@@ -420,10 +420,10 @@
       "multi_dynamic_daa_g12_krw.json",
       "multi_dynamic_faber_gtaa5_krw.json",
       "multi_dynamic_gem_krw.json",
+      "multi_dynamic_trend_krw.json",
       "multi_dynamic_vaa_g4_krw.json",
       "multi_dynamic_all_krw.json",
       "multi_dynamic_absmom_krw.json",
-      "multi_dynamic_trend_krw.json",
       "multi_dynamic_kr_us_mom6_krw.json",
       "multi_dynamic_kr_us_golddef6_krw.json",
       "multi_dynamic_kr_us_gold_core6_krw.json",
