@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=bf1e2158" />
+  <link rel="stylesheet" href="style.css?v=0f3c1350" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -39,6 +39,10 @@
   <main>
     <section class="controls">
       <div class="control-row">
+        <div class="ctl ctl-nav">
+          <span class="label">영역</span>
+          <div class="cat-tabs" id="super-tabs"></div>
+        </div>
         <div class="ctl ctl-nav">
           <span class="label">분류</span>
           <div class="cat-tabs" id="cat-tabs"></div>
@@ -79,6 +83,7 @@
     </section>
 
     <div id="status" class="status"></div>
+    <p id="strategy-desc" class="strategy-desc hidden"></p>
 
     <!-- 정량분석 전용 뷰 (kind=analytics 데이터셋에서만; body.analytics-mode 로 그 외 섹션 숨김) -->
     <div id="analytics-section">
@@ -186,7 +191,7 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=bf1e2158" defer></script>
-  <script src="app.js?v=bf1e2158" defer></script>
+  <script src="alloc.js?v=0f3c1350" defer></script>
+  <script src="app.js?v=0f3c1350" defer></script>
 </body>
 </html>

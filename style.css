@@ -337,6 +337,13 @@ table#metrics-table, #bandab-table, .diag-table {
 .status { font-size: 0.9rem; color: var(--muted); min-height: 1.2em; margin: 0.3rem 0; }
 .status.error { color: var(--neg); }
 
+/* 전략 설명 캡션(현재 선택 전략/프리셋) — 항상 표시, 길면 3줄 클램프 */
+.strategy-desc {
+  margin: 0.5rem 0 0; padding: 0.6rem 0.9rem; font-size: 0.88rem; color: var(--muted);
+  background: var(--surface-2); border-left: 3px solid var(--accent); border-radius: var(--radius-sm);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+
 footer {
   max-width: var(--maxw); margin: 0 auto; padding: 1rem 1.2rem 2rem;
   display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;

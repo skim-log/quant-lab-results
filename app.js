@@ -33,7 +33,7 @@ const state = {
   colToMetric: {},   // 표시컬럼 -> metrics_raw 키 (재계산 가능 컬럼 식별)
   globalStart: '',   // 데이터셋 전체 최소 날짜 (ISO)
   globalEnd: '',     // 데이터셋 전체 최대 날짜 (ISO)
-  nav: { category: '', group: '', currency: '' },  // 3축 네비 상태
+  nav: { super: '', category: '', group: '', currency: '' },  // 4축 네비(대분류→소분류→그룹→통화)
   playground: false, panel: null, _pgWired: false,  // 플레이그라운드 상태
   sort: { col: null, dir: -1 },  // 성과표 리더보드 정렬(열 클릭). dir: -1=내림차순
 };
@@ -128,6 +128,50 @@ function currentWindow() {
 }
 function isFullPeriod(s, e) { return s <= state.globalStart && e >= state.globalEnd; }
 
+// ---------------------------------------------------------------------------
+// 전략 설명 (설명 패널 + 체크박스 툴팁). 동적전략은 JSON description(상세) 우선.
+// ---------------------------------------------------------------------------
+const STRAT_DESC = {
+  '매수후보유': '시작 시점에 전액 매수해 끝까지 보유(벤치마크).',
+  'DCA (월적립)': '매월 일정액 분할 매수(정액적립식) — 진입 타이밍 분산.',
+  'TQQQ 매수후보유': 'TQQQ(나스닥100 3배 레버리지) 매수후보유 — 변동성·낙폭 매우 큼.',
+  'QQQ 매수후보유': 'QQQ(나스닥100) 매수후보유.',
+  'S&P500 매수후보유': 'S&P500 매수후보유(저변동 기준선).',
+  'DCA(TQQQ,월적립)': 'TQQQ 월 정액적립.',
+  'LRS(QQQ200일,TQQQ)': 'QQQ가 200일선 위면 TQQQ 100%, 아래면 현금(추세추종 레버리지 로테이션).',
+  '밸류 리밸런싱(VR)': '목표 밸류라인 대비 부족분 매수·초과분 매도(밸류 애버리징).',
+  '라오어 무한매수법 V1': '40분할 정액 매수 + +10% 익절 사이클(라오어 무한매수법 V1).',
+  '라오어 무한매수법 V2': '무한매수법 V2 — 상단 LOC 매수·후반 분할 익절.',
+};
+const CAT_BLURB = {
+  dynamic: '신호(모멘텀·추세)로 매달 비중을 바꾸는 동적 자산배분.',
+  static: '고정 비중 정적 자산배분(주기 리밸런싱 + 표류 밴드).',
+  momentum: '개별 시장 모멘텀·레버리지 전략 비교(위험=TWR, 수익=XIRR).',
+  crypto: '암호화폐 전략: 매수후보유·DCA·이동평균선 추세(20/60/120/200일 × 달러·원화 신호).',
+  analytics: '8자산 월수익 기반 정량분석 — 상관·효율적 프론티어·리스크패리티·위험수익(무위험 2%).',
+  compare: '여러 전략을 한 곡선에 오버레이 비교(통화 토글 + 지표 열 클릭 정렬 리더보드).',
+};
+function stratDesc(name) {
+  if (!name) return '';
+  if (STRAT_DESC[name]) return STRAT_DESC[name];
+  const m = name.match(/^(\d+)일선 · (달러|원화)신호$/);
+  if (m) return `${m[1]}일 이동평균선 추세 — ${m[2]} 가격이 ${m[1]}일선 위면 100% 보유, 아래면 현금(신호는 ${m[2]} 기준).`;
+  if (name.includes('매수후보유')) return '매수 후 보유(벤치마크).';
+  if (name.includes('DCA')) return '정액 분할 매수(DCA).';
+  return '';
+}
+function renderDescription() {
+  const el = document.getElementById('strategy-desc');
+  if (!el) return;
+  const d = state.data;
+  let txt = '';
+  if (d && d.kind === 'analytics') txt = CAT_BLURB.analytics;
+  else if (d && d.description) txt = d.description;        // 동적/정적: JSON 상세 설명
+  else txt = stratDesc(state.nav.group) || CAT_BLURB[state.nav.category] || '';
+  el.textContent = txt;
+  el.classList.toggle('hidden', !txt);
+}
+
 function render() {
   if (!state.data) return;
   const { s, e } = currentWindow();
@@ -159,6 +203,7 @@ function render() {
     ? `전체 기간 (${state.globalStart} ~ ${state.globalEnd})`
     : `선택 구간 (${s} ~ ${e}) · 재정규화된 뷰 — 전체기간 전용 지표는 "—"`;
   document.getElementById('period-note').textContent = note;
+  renderDescription();
 }
 
 // 현재 테마의 CSS 토큰 값을 읽어옴(다크/라이트 전환 시 render() 가 새 값으로 차트를 다시 그림).
@@ -513,7 +558,9 @@ function buildStrategyList(d) {
   d.series.forEach((s, i) => { state.colorOf[s.name] = PALETTE[i % PALETTE.length]; });
   const html = d.series.map(s => {
     const c = state.colorOf[s.name];
-    return `<label><input type="checkbox" value="${s.name}" checked />` +
+    const t = stratDesc(s.name);   // 시리즈별 간략 설명(없으면 툴팁 생략)
+    const tip = t ? ` title="${t.replace(/"/g, '&quot;')}"` : '';
+    return `<label${tip}><input type="checkbox" value="${s.name}" checked />` +
            `<span class="swatch" style="background:${c}"></span>${s.name}</label>`;
   }).join('');
   const list = document.getElementById('strategy-list');
@@ -635,10 +682,22 @@ function clearPresetActive() {
 const CAT_ORDER = { dynamic: 0, static: 1, momentum: 2, crypto: 3, analytics: 4, compare: 5 };
 const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
   crypto: '코인', analytics: '정량분석', compare: '전략 비교' };
+// 2단 대분류: 자산배분(8자산 세계) vs 개별전략(개별자산 모멘텀·레버리지·코인).
+const SUPER_OF = { dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc',
+  momentum: 'strat', crypto: 'strat' };
+const SUPER_ORDER = { alloc: 0, strat: 1 };
+const SUPER_LABEL = { alloc: '자산배분', strat: '개별전략' };
 
 function catsPresent() {
   return [...new Set(state.manifest.map(m => m.category))]
     .sort((a, b) => (CAT_ORDER[a] ?? 9) - (CAT_ORDER[b] ?? 9));
+}
+function supersPresent() {
+  return [...new Set(state.manifest.map(m => SUPER_OF[m.category] || 'etc'))]
+    .sort((a, b) => (SUPER_ORDER[a] ?? 9) - (SUPER_ORDER[b] ?? 9));
+}
+function catsInSuper(sup) {
+  return catsPresent().filter(c => (SUPER_OF[c] || 'etc') === sup);
 }
 function groupsIn(cat) {
   const out = [];
@@ -663,14 +722,24 @@ function buildNav() {
     setStatus('표시할 데이터셋이 없습니다. build_dashboard.py 를 먼저 실행하세요.', true);
     return;
   }
-  const cats = catsPresent();
+  const sups = supersPresent();
+  document.getElementById('super-tabs').innerHTML =
+    sups.map(s => `<button type="button" data-super="${s}">${SUPER_LABEL[s] || s}</button>`).join('');
+  document.querySelectorAll('#super-tabs button').forEach(
+    b => b.addEventListener('click', () => setSuperCategory(b.dataset.super)));
+  document.getElementById('group').addEventListener('change', e => setGroup(e.target.value));
+  document.querySelectorAll('#cur-toggle button').forEach(
+    b => b.addEventListener('click', () => setCurrency(b.dataset.cur)));
+  setSuperCategory(sups[0]);
+}
+function setSuperCategory(sup) {
+  state.nav.super = sup;
+  document.querySelectorAll('#super-tabs button').forEach(b => b.classList.toggle('active', b.dataset.super === sup));
+  const cats = catsInSuper(sup);
   document.getElementById('cat-tabs').innerHTML =
     cats.map(c => `<button type="button" data-cat="${c}">${CAT_LABEL_NAV[c] || c}</button>`).join('');
   document.querySelectorAll('#cat-tabs button').forEach(
     b => b.addEventListener('click', () => setCategory(b.dataset.cat)));
-  document.getElementById('group').addEventListener('change', e => setGroup(e.target.value));
-  document.querySelectorAll('#cur-toggle button').forEach(
-    b => b.addEventListener('click', () => setCurrency(b.dataset.cur)));
   setCategory(cats[0]);
 }
 function setCategory(cat) {
@@ -729,6 +798,7 @@ function renderAnalytics(d) {
   renderCorrelation(d);
   renderFrontier(d);
   renderRiskParity(d);
+  renderDescription();
 }
 
 function renderRiskReturn(d) {
