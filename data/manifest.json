@@ -545,5 +545,14 @@
     "mode": "trend",
     "label": "도구 · 추세 경보",
     "file": "trend_alert.json"
+  },
+  {
+    "id": "tool_reliability",
+    "category": "reliability",
+    "group": "데이터 정확도",
+    "currency": "",
+    "mode": "reliability",
+    "label": "도구 · 데이터 정확도",
+    "file": "reliability.json"
   }
 ]

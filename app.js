@@ -685,14 +685,14 @@ function clearPresetActive() {
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
 const CAT_ORDER = { dynamic: 0, static: 1, momentum: 2, crypto: 3, analytics: 4, compare: 5,
-  paradise: 6, sentiment: 7, trend: 8 };
+  paradise: 6, sentiment: 7, trend: 8, reliability: 9 };
 const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
   crypto: '코인', analytics: '정량분석', compare: '전략 비교',
-  paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보' };
-// 2단 대분류: 자산배분(8자산) / 개별전략(코인·모멘텀) / 도구·지표(계산기·심리·경보).
+  paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도' };
+// 2단 대분류: 자산배분(8자산) / 개별전략(코인·모멘텀) / 도구·지표(계산기·심리·경보·데이터정확도).
 const SUPER_OF = { dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc',
   momentum: 'strat', crypto: 'strat',
-  paradise: 'tools', sentiment: 'tools', trend: 'tools' };
+  paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools' };
 const SUPER_ORDER = { alloc: 0, strat: 1, tools: 2 };
 const SUPER_LABEL = { alloc: '자산배분', strat: '개별전략', tools: '도구·지표' };
 
@@ -773,9 +773,10 @@ function setCurrency(cur) {
   });
   const entry = resolveEntry(state.nav.category, state.nav.group, cur);
   if (!entry) return;
-  // 도구·지표: 낙원계산기(클라이언트)·시장심리/추세경보(JSON 로드) — mode 분기.
+  // 도구·지표: 낙원계산기(클라이언트)·시장심리/추세경보/데이터정확도(JSON 로드) — mode 분기.
   if (entry.mode === 'paradise') return enterParadise();
-  if (entry.mode === 'sentiment' || entry.mode === 'trend') return loadTool(entry, entry.mode);
+  if (entry.mode === 'sentiment' || entry.mode === 'trend' || entry.mode === 'reliability')
+    return loadTool(entry, entry.mode);
   // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
   if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
   else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
@@ -794,7 +795,7 @@ function setAnalyticsMode(on) {
 function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
   document.body.classList.toggle('tools-mode', !!on);
   if (on) document.body.classList.remove('analytics-mode');
-  ['paradise', 'sentiment', 'trend'].forEach(t => {
+  ['paradise', 'sentiment', 'trend', 'reliability'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.classList.toggle('hidden', !(on && t === tool));
   });
@@ -812,7 +813,23 @@ function _krwCompact(n) {
   if (a >= 1e4) return s + Math.round(a / 1e4).toLocaleString('ko-KR') + '만';
   return Math.round(n).toLocaleString('ko-KR') + '원';
 }
-function _pgv(id, def) { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? def : v; }
+function _pgv(id, def) { const v = parseFloat(String(document.getElementById(id).value).replace(/,/g, '')); return isNaN(v) ? def : v; }
+
+// 금액 입력칸: 입력 즉시 천단위 콤마 포맷(정수 won). 캐럿은 좌측 자릿수 기준으로 복원.
+function _attachComma(id, onChange) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', () => {
+    const caret = el.selectionStart || 0;
+    const digitsLeft = el.value.slice(0, caret).replace(/[^\d]/g, '').length;
+    const raw = el.value.replace(/[^\d]/g, '');
+    el.value = raw === '' ? '' : parseInt(raw, 10).toLocaleString('en-US');
+    let pos = 0, seen = 0;
+    while (pos < el.value.length && seen < digitsLeft) { if (/\d/.test(el.value[pos])) seen++; pos++; }
+    el.setSelectionRange(pos, pos);
+    if (onChange) onChange();
+  });
+}
 
 // 낙원계산기 — ParadisePage.tsx compute 이식 (keep-ones.me/#/paradise-calculator2 참고).
 function enterParadise() {
@@ -821,7 +838,9 @@ function enterParadise() {
   document.getElementById('meta').textContent = '낙원계산기 · keep-ones.me 참고';
   setStatus('');
   if (!state._paraWired) {
-    ['para-asset', 'para-save', 'para-years', 'para-nom', 'para-infl'].forEach(id =>
+    _attachComma('para-asset', renderParadise);
+    _attachComma('para-save', renderParadise);
+    ['para-years', 'para-nom', 'para-infl'].forEach(id =>
       document.getElementById(id).addEventListener('input', renderParadise));
     state._paraWired = true;
   }
@@ -830,6 +849,8 @@ function enterParadise() {
 function renderParadise() {
   const start = _pgv('para-asset', 0), save = _pgv('para-save', 18000000);
   const years = Math.max(1, Math.round(_pgv('para-years', 20)));
+  const hint = document.getElementById('para-save-hint');
+  if (hint) hint.textContent = `월 ${_krwCompact(save / 12)} × 12 · 매년 물가만큼 증가 가정`;
   const r = 1 + _pgv('para-nom', 10) / 100, g = 1 + _pgv('para-infl', 2.5) / 100;
   const realRate = g > 0 ? r / g - 1 : r - g;
   const xs = [], assetSeq = [], saveSeq = [];
@@ -866,53 +887,93 @@ async function loadTool(entry, kind) {
     state.tool = { kind, data: d };
     setStatus('');
     document.getElementById('meta').textContent = `${entry.group} · 생성일 ${d.generated_at || '-'}`;
-    if (kind === 'sentiment') renderSentiment(d); else renderTrend(d);
+    if (kind === 'sentiment') renderSentiment(d);
+    else if (kind === 'reliability') renderReliability(d);
+    else renderTrend(d);
   } catch (e) { setStatus(entry.group + ' 로딩 실패: ' + e.message, true); }
 }
 
-function _fgClass(v) { if (v == null) return null; return v <= 24 ? ['극단적 공포', '#dc2626'] : v <= 44 ? ['공포', '#ea580c'] : v <= 55 ? ['중립', '#6b7280'] : v <= 74 ? ['탐욕', '#84cc16'] : ['극단적 탐욕', '#10b981']; }
-function _vixClass(v) { if (v == null) return null; return v < 15 ? ['평온', '#10b981'] : v < 20 ? ['정상', '#84cc16'] : v < 30 ? ['불안', '#ea580c'] : v < 40 ? ['공포', '#dc2626'] : ['패닉', '#991b1b']; }
-function _kimchiClass(p) { if (p == null) return null; return p >= 20 ? ['극단적 과열', '#991b1b'] : p >= 15 ? ['과열', '#dc2626'] : p >= 10 ? ['약간 높음', '#ea580c'] : p > -10 ? ['정상', '#6b7280'] : p > -15 ? ['약간 낮음', '#84cc16'] : p > -20 ? ['역김프', '#10b981'] : ['극단적 역김프', '#14b8a6']; }
+// 시장심리 분류 (signals.py와 동일 임계·설명) — {l:라벨, c:색, d:설명}.
+function _fgClass(v) { if (v == null) return null; return v <= 24 ? { l: '극단적 공포', c: '#dc2626', d: '시장에 강한 공포 — 종종 매수 기회' } : v <= 44 ? { l: '공포', c: '#ea580c', d: '투자자들이 위험을 회피 중' } : v <= 55 ? { l: '중립', c: '#6b7280', d: '균형 잡힌 시장 심리' } : v <= 74 ? { l: '탐욕', c: '#84cc16', d: '강한 매수 심리 — 주의 필요' } : { l: '극단적 탐욕', c: '#10b981', d: '시장 과열 — 종종 매도 기회' }; }
+function _vixClass(v) { if (v == null) return null; return v < 15 ? { l: '평온', c: '#10b981', d: '시장 안정 / 변동성 낮음' } : v < 20 ? { l: '정상', c: '#84cc16', d: '평소 변동성 수준' } : v < 30 ? { l: '불안', c: '#ea580c', d: '변동성 상승 / 투자자 우려' } : v < 40 ? { l: '공포', c: '#dc2626', d: '큰 변동성 / 시장 스트레스' } : { l: '패닉', c: '#991b1b', d: '극단적 변동성 / 위기 상황' }; }
+function _dxyClass(v) { if (v == null) return null; return v < 95 ? { l: '약달러', c: '#10b981', d: '위험자산(주식·코인) 유리' } : v < 105 ? { l: '정상 범위', c: '#6b7280', d: '평소 달러 강도' } : { l: '강달러', c: '#ea580c', d: '위험자산 부담 / Risk-off' }; }
+function _gsrClass(v) { if (v == null) return null; return v < 50 ? { l: 'Silver 강세', c: '#10b981', d: '위험 선호 / 산업 수요 강함' } : v < 80 ? { l: '정상 범위', c: '#6b7280', d: '평소 금/은 비율' } : { l: 'Gold 강세', c: '#ea580c', d: '위험 회피 / 안전자산 선호' }; }
+function _kimchiClass(p) { if (p == null) return null; return p >= 20 ? { l: '극단적 과열', c: '#991b1b', d: '한국 시장 매우 과열 — 매수 주의' } : p >= 15 ? { l: '과열', c: '#dc2626', d: '한국 매수세 강함' } : p >= 10 ? { l: '약간 높음', c: '#ea580c', d: '한국이 글로벌 대비 비쌈' } : p > -10 ? { l: '정상', c: '#6b7280', d: '글로벌과 동조' } : p > -15 ? { l: '약간 낮음', c: '#84cc16', d: '한국이 글로벌 대비 쌈' } : p > -20 ? { l: '역김프', c: '#10b981', d: 'Risk-off / 청산 압박' } : { l: '극단적 역김프', c: '#14b8a6', d: '한국 시장 매우 저평가' }; }
 const SIG_COLOR = { red: '#dc2626', yellow: '#eab308', green: '#16a34a', na: '#9ca3af' };
 
+// 공포·탐욕 게이지 바(0~100 그라디언트 + 현재값 바늘). cls={l,c,d}, subhtml=추가행.
+function _fgGauge(title, value, cls, subhtml) {
+  if (value == null || isNaN(value)) return '';
+  const pct = Math.max(0, Math.min(100, value)), col = cls ? cls.c : 'var(--fg)';
+  return `<div class="fg-gauge"><div class="fg-head"><span class="fg-title">${title}</span>` +
+    `<span class="fg-val" style="color:${col}">${Math.round(value)}</span>` +
+    `<span class="fg-lab" style="color:${col}">${cls ? cls.l : ''}</span></div>` +
+    `<div class="fg-bar"><span class="fg-needle" style="left:${pct}%"></span></div>` +
+    `<div class="fg-scale"><span>0 극공포</span><span>25</span><span>50 중립</span><span>75</span><span>100 극탐욕</span></div>` +
+    (cls && cls.d ? `<div class="fg-desc">${cls.d}</div>` : '') + (subhtml || '') + `</div>`;
+}
+
 function renderSentiment(d) {
-  const cards = [];
-  const gauge = (title, val, cls, sub) => {
-    const col = cls ? cls[1] : 'var(--fg)', lab = cls ? cls[0] : '';
-    cards.push(`<div class="senti-card"><div class="senti-t">${title}</div>` +
-      `<div class="senti-v" style="color:${col}">${val}</div>` +
-      `<div class="senti-l" style="color:${col}">${lab}</div>` +
-      (sub ? `<div class="senti-s">${sub}</div>` : '') + `</div>`);
-  };
-  if (d.cnn_fg) gauge('CNN 공포·탐욕', _anum(d.cnn_fg.score, 0), _fgClass(d.cnn_fg.score),
-    `${d.cnn_fg.rating || ''} · 1달전 ${_anum(d.cnn_fg.previous_1_month, 0)}`);
-  if (d.crypto_fg) gauge('크립토 공포·탐욕', d.crypto_fg.value, _fgClass(d.crypto_fg.value), d.crypto_fg.classification);
-  gauge('VIX 변동성', _anum(d.vix), _vixClass(d.vix), 'S&P500 내재변동성');
-  gauge('달러 인덱스 (DXY)', _anum(d.dxy), null, '6통화 대비 달러');
-  gauge('금/은 비율', _anum(d.gold_silver_ratio), null, `금 $${_anum(d.gold, 0)} · 은 $${_anum(d.silver)}`);
-  if (d.btc_kimchi) gauge('비트코인 김프', _apct(d.btc_kimchi.premium_pct / 100), _kimchiClass(d.btc_kimchi.premium_pct),
-    `업비트 ${_krwCompact(d.btc_kimchi.upbit_krw)}`);
-  if (d.gold_kimchi) gauge('금 김프', _apct(d.gold_kimchi.premium_pct / 100), _kimchiClass(d.gold_kimchi.premium_pct), 'KRX 금 vs 국제');
-  document.getElementById('senti-cards').innerHTML = cards.join('');
+  // ① CNN·크립토 공포탐욕 게이지 바 (+ CNN 이전값 그리드)
+  let fg = '';
+  if (d.cnn_fg && d.cnn_fg.score != null) {
+    const prev = [['전일', d.cnn_fg.previous_close], ['1주전', d.cnn_fg.previous_1_week], ['1달전', d.cnn_fg.previous_1_month]]
+      .filter(([, v]) => v != null).map(([k, v]) => `<span><b>${_anum(v, 0)}</b> ${k}</span>`).join('');
+    fg += _fgGauge('CNN 공포·탐욕', d.cnn_fg.score, _fgClass(d.cnn_fg.score),
+      `<div class="fg-prev">🇺🇸 미국 주식${d.cnn_fg.rating ? ' · ' + d.cnn_fg.rating : ''}${prev ? ' · ' + prev : ''}</div>`);
+  }
+  if (d.crypto_fg && d.crypto_fg.value != null) {
+    fg += _fgGauge('크립토 공포·탐욕', d.crypto_fg.value, _fgClass(d.crypto_fg.value),
+      `<div class="fg-prev">🪙 코인${d.crypto_fg.classification ? ' · ' + d.crypto_fg.classification : ''}</div>`);
+  }
+  document.getElementById('senti-fg').innerHTML = fg;
+
+  // ② 크립토 공포탐욕 30일 추이 (컬러 존 배경)
   const cf = d.crypto_fg;
   if (cf && cf.history && cf.history.length) {
     const h = [...cf.history].reverse();
     const x = h.map(p => new Date(p.timestamp * 1000).toISOString().slice(0, 10)), y = h.map(p => p.value);
     const layout = baseLayout('크립토 공포·탐욕 30일', '지수'); layout.yaxis.range = [0, 100];
-    Plotly.react('senti-chart', [{ type: 'scatter', mode: 'lines', x, y, line: { color: '#9333ea', width: 2 } }], layout, PLOTCFG);
+    const zones = [[0, 25, '#dc2626'], [25, 45, '#ea580c'], [45, 55, '#6b7280'], [55, 75, '#84cc16'], [75, 100, '#10b981']];
+    layout.shapes = zones.map(([y0, y1, c]) => ({ type: 'rect', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0, y1, fillcolor: c, opacity: 0.12, line: { width: 0 }, layer: 'below' }));
+    Plotly.react('senti-chart', [{ type: 'scatter', mode: 'lines', x, y, line: { color: cssVar('--chart-fg'), width: 2 } }], layout, PLOTCFG);
     setHidden('senti-chart', false);
   } else setHidden('senti-chart', true);
+
+  // ③ VIX·DXY·금/은비·김프 카드 (색·라벨·설명·임계)
+  const cards = [];
+  const card = (title, val, cls, hint, thresh) => {
+    const col = cls ? cls.c : 'var(--fg)';
+    cards.push(`<div class="senti-card"><div class="senti-t">${title}</div>` +
+      `<div class="senti-v" style="color:${col}">${val}</div>` +
+      `<div class="senti-l" style="color:${col}">${cls ? cls.l : ''}</div>` +
+      (cls && cls.d ? `<div class="senti-s">${cls.d}</div>` : (hint ? `<div class="senti-s">${hint}</div>` : '')) +
+      (thresh ? `<div class="senti-th">${thresh}</div>` : '') + `</div>`);
+  };
+  card('VIX 변동성', _anum(d.vix), _vixClass(d.vix), 'S&P500 향후 30일 내재변동성', '평온&lt;15 · 정상15-20 · 불안20-30 · 공포30-40 · 패닉≥40');
+  card('달러 인덱스 (DXY)', _anum(d.dxy), _dxyClass(d.dxy), '6통화 대비 달러 강도', '약달러&lt;95 · 정상95-105 · 강달러≥105');
+  card('금/은 비율', _anum(d.gold_silver_ratio), _gsrClass(d.gold_silver_ratio), `금 $${_anum(d.gold, 0)} · 은 $${_anum(d.silver)}`, 'Silver&lt;50 · 정상50-80 · Gold≥80(위험회피)');
+  if (d.btc_kimchi) card('비트코인 김프', _apct(d.btc_kimchi.premium_pct / 100), _kimchiClass(d.btc_kimchi.premium_pct), `업비트 ${_krwCompact(d.btc_kimchi.upbit_krw)}`, '정상|값|&lt;10% · 과열15-20% · 극단≥20%');
+  if (d.gold_kimchi) card('금 김프', _apct(d.gold_kimchi.premium_pct / 100), _kimchiClass(d.gold_kimchi.premium_pct), 'KRX 금 vs 국제(USD 환산)', '양수=한국이 비쌈');
+  document.getElementById('senti-cards').innerHTML = cards.join('');
+
   const errs = Object.keys(d.errors || {});
   document.getElementById('senti-note').textContent = errs.length
-    ? `미수신 지표: ${errs.join(', ')} (소스 일시 차단/지역제한 가능)` : '';
+    ? `미수신 지표: ${errs.join(', ')} (소스 일시 차단/지역제한 가능 — best-effort)` : '';
 }
 
 function renderTrend(d) {
-  const SIGN = [['surge', '급등'], ['volume', '거래량'], ['consecutive', '연속상승'],
-    ['gap_reversal', '갭반전'], ['ma200_distance', 'MA200이격'], ['ma30week', '30주선']];
+  const SIGN = [
+    ['surge', '급등', '3주(15거래일) 종가 변화율 — 15%/25% 임계'],
+    ['volume', '거래량', '최근 5일 평균 / 이전 45일 평균 — 1.5×/2.5× 임계'],
+    ['consecutive', '연속상승', '최근 10거래일 중 상승일 수 — 6/8 임계'],
+    ['gap_reversal', '갭반전', '갭상승 후 전일저가 이탈 횟수(10일) — 1/2회 임계'],
+    ['ma200_distance', 'MA200이격', '200일선 대비 이격도 — +30%/+70% 임계'],
+    ['ma30week', '30주선', '150일선 대비 위치(Stage 분석) — ±2% 임계']];
   const order = d.order || Object.keys(d.assets || {});
-  const head = '<thead><tr><th class="name">자산</th>' + SIGN.map(s => `<th>${s[1]}</th>`).join('') +
-    '<th>경보</th><th>재진입</th></tr></thead>';
+  const head = '<thead><tr><th class="name">자산</th>' + SIGN.map(s => `<th title="${s[2]}">${s[1]}</th>`).join('') +
+    '<th title="빨간 신호 개수: 0개 🟢 안전 / 1~2개 🟡 주의 / 3개+ 🔴 경보">경보</th>' +
+    '<th title="초록 신호 개수 기반 단순 추정 — 정식 Stage-2 재진입 아님">재진입</th></tr></thead>';
   const dot = sig => `<td style="text-align:center"><span class="sig-dot" style="background:${SIG_COLOR[sig] || SIG_COLOR.na}" title="${sig}"></span></td>`;
   const badge = (cls, txt) => `<td style="text-align:center"><span class="grade ${cls}">${txt}</span></td>`;
   const rows = order.filter(s => d.assets[s]).map(sym => {
@@ -940,11 +1001,14 @@ function enterAnalytics(d) {
 function renderAnalytics(d) {
   document.getElementById('an-period').textContent = d.period ? `· ${d.period}` : '';
   const note = document.getElementById('an-frontier-note');
-  if (note && d.frontier) note.textContent =
-    `long-only 랜덤 비중 ${(d.frontier.n_sims || 0).toLocaleString()}회 · ★ Max Sharpe · ◆ Min Variance · ● 단일자산 · ◇ 프리셋 (무위험 ${_apct(d.rf, 0)}).`;
+  const hasMk = d.frontier && d.frontier.markowitz && (d.frontier.markowitz.curve_mv || []).length;
+  if (note && d.frontier) note.textContent = hasMk
+    ? `마코위츠 경계(정확, scipy) + 몬테카를로 ${(d.frontier.n_sims || 0).toLocaleString()}회 구름(실현가능영역) · ★ 접점(Max Sharpe) · ◆ 최소분산(GMV) · ● 단일자산 · ◇ 프리셋 (무위험 ${_apct(d.rf, 0)}).`
+    : `long-only 랜덤 비중 ${(d.frontier.n_sims || 0).toLocaleString()}회 · ★ Max Sharpe · ◆ Min Variance · ● 단일자산 · ◇ 프리셋 (무위험 ${_apct(d.rf, 0)}).`;
   renderRiskReturn(d);
   renderCorrelation(d);
   renderFrontier(d);
+  renderFrontierStats(d);
   renderRiskParity(d);
   renderDescription();
 }
@@ -989,10 +1053,12 @@ function renderFrontier(d) {
   traces.push({ type: 'scattergl', mode: 'markers', name: '시뮬', showlegend: false,
     x: pts.map(p => p[0] * 100), y: pts.map(p => p[1] * 100),
     marker: { size: 3, color: grid, opacity: 0.55 }, hoverinfo: 'skip' });
-  const cv = f.curve || [];
-  traces.push({ type: 'scatter', mode: 'lines', name: '효율적 경계',
+  const mk = f.markowitz;
+  const hasMk = mk && mk.curve_mv && mk.curve_mv.length;
+  const cv = hasMk ? mk.curve_mv : (f.curve || []);
+  traces.push({ type: 'scatter', mode: 'lines', name: hasMk ? '마코위츠 경계' : '효율적 경계',
     x: cv.map(p => p[0] * 100), y: cv.map(p => p[1] * 100),
-    line: { color: muted, width: 1.5, dash: 'dot' }, hoverinfo: 'skip' });
+    line: { color: hasMk ? cssVar('--accent') : muted, width: 2, dash: hasMk ? 'solid' : 'dot' }, hoverinfo: 'skip' });
   const sa = f.single_asset || [];
   traces.push({ type: 'scatter', mode: 'markers+text', name: '단일자산',
     x: sa.map(s => s.vol * 100), y: sa.map(s => s.ret * 100), text: sa.map(s => s.label),
@@ -1005,19 +1071,89 @@ function renderFrontier(d) {
     customdata: pr.map(p => p.sharpe),
     marker: { size: 11, symbol: 'diamond-open', color: cssVar('--accent'), line: { width: 1.5 } },
     hovertemplate: '%{text}<br>수익 %{y:.1f}% · 변동성 %{x:.1f}% · Sharpe %{customdata:.2f}<extra></extra>' });
-  const ms = f.max_sharpe, mv = f.min_var;
-  if (ms) traces.push({ type: 'scatter', mode: 'markers', name: 'Max Sharpe', x: [ms.vol * 100], y: [ms.ret * 100],
+  const ms = hasMk ? mk.tangency : f.max_sharpe, mv = hasMk ? mk.gmv : f.min_var;
+  const msName = hasMk ? '접점 (Max Sharpe)' : 'Max Sharpe', mvName = hasMk ? '최소분산 (GMV)' : 'Min Variance';
+  if (ms) traces.push({ type: 'scatter', mode: 'markers', name: msName, x: [ms.vol * 100], y: [ms.ret * 100],
     marker: { size: 17, symbol: 'star', color: '#f59e0b', line: { width: 1, color: cssVar('--chart-paper') } },
-    hovertemplate: 'Max Sharpe<br>수익 %{y:.1f}% · 변동성 %{x:.1f}%<extra></extra>' });
-  if (mv) traces.push({ type: 'scatter', mode: 'markers', name: 'Min Variance', x: [mv.vol * 100], y: [mv.ret * 100],
+    hovertemplate: `${msName}<br>CAGR %{y:.1f}% · 변동성 %{x:.1f}%` + (ms.stats ? ` · MDD ${(ms.stats.mdd * 100).toFixed(1)}% · Sharpe ${(+ms.sharpe).toFixed(2)}` : '') + '<extra></extra>' });
+  if (mv) traces.push({ type: 'scatter', mode: 'markers', name: mvName, x: [mv.vol * 100], y: [mv.ret * 100],
     marker: { size: 13, symbol: 'diamond', color: '#10b981', line: { width: 1, color: cssVar('--chart-paper') } },
-    hovertemplate: 'Min Variance<br>수익 %{y:.1f}% · 변동성 %{x:.1f}%<extra></extra>' });
+    hovertemplate: `${mvName}<br>CAGR %{y:.1f}% · 변동성 %{x:.1f}%` + (mv.stats ? ` · MDD ${(mv.stats.mdd * 100).toFixed(1)}%` : '') + '<extra></extra>' });
   const layout = baseLayout('', '');
   layout.xaxis = { title: { text: '연환산 변동성 %', font: { color: muted } }, gridcolor: grid, zerolinecolor: grid, tickfont: { color: muted }, zeroline: false };
   layout.yaxis = { title: { text: '연환산 수익률 %', font: { color: muted } }, gridcolor: grid, zerolinecolor: grid, tickfont: { color: muted } };
   layout.hovermode = 'closest';
   layout.legend = { orientation: 'h', y: -0.16, font: { size: 10, color: fg } };
   Plotly.react('an-frontier', traces, layout, PLOTCFG);
+}
+
+// 포트폴리오 결과 카드(접점·GMV·강건 대안) + 성장 곡선. (마코위츠 없으면 MC max_sharpe/min_var 폴백.)
+const _ALT_COLOR = { equal_weight: '#64748b', min_variance: '#10b981', risk_parity: '#9333ea' };
+function renderFrontierStats(d) {
+  const host = document.getElementById('an-frontier-stats');
+  if (!host) return;
+  const f = d.frontier || {}, mk = f.markowitz;
+  let ports = [];
+  if (mk) {
+    if (mk.tangency) ports.push({ label: '접점 (Max Sharpe)', color: '#f59e0b', p: mk.tangency });
+    if (mk.gmv) ports.push({ label: '최소분산 (GMV)', color: '#10b981', p: mk.gmv });
+    (mk.alternatives || []).filter(a => !(mk.gmv && a.name === 'min_variance')).forEach((a, i) =>
+      ports.push({ label: a.label, color: _ALT_COLOR[a.name] || PALETTE[i % PALETTE.length], p: a }));
+  } else {
+    if (f.max_sharpe) ports.push({ label: 'Max Sharpe', color: '#f59e0b', p: f.max_sharpe });
+    if (f.min_var) ports.push({ label: 'Min Variance', color: '#10b981', p: f.min_var });
+  }
+  const ap = document.getElementById('an-fstats-period');
+  if (ap) ap.textContent = d.period || '';
+  const labelOf = k => ((d.assets || []).find(a => a.key === k) || {}).label || k;
+  const colorOf = k => ((d.assets || []).find(a => a.key === k) || {}).color;
+  host.innerHTML = ports.map(({ label, color, p }) => {
+    const st = p.stats || {};
+    const wbars = Object.entries(p.weights || {}).sort((a, b) => b[1] - a[1]).map(([k, w]) =>
+      `<div class="wbar-row"><span class="wbar-lab">${labelOf(k)}</span>` +
+      `<span class="wbar-track"><span class="wbar-fill" style="width:${(w * 100).toFixed(0)}%;background:${colorOf(k) || color}"></span></span>` +
+      `<span class="wbar-val">${(w * 100).toFixed(0)}%</span></div>`).join('');
+    return `<div class="fstat-card"><div class="fstat-h"><span class="swatch" style="background:${color}"></span>${label}</div>` +
+      `<div class="fstat-grid">` +
+      `<div><b>${_apct(p.ret)}</b><span>CAGR</span></div><div><b>${_apct(p.vol)}</b><span>변동성</span></div>` +
+      `<div><b>${_anum(p.sharpe)}</b><span>Sharpe</span></div><div><b>${_anum(st.sortino)}</b><span>Sortino</span></div>` +
+      `<div><b>${_apct(st.mdd)}</b><span>MDD</span></div><div><b>${_apct(st.total_return)}</b><span>총수익</span></div>` +
+      `</div><div class="wbars">${wbars}</div></div>`;
+  }).join('');
+
+  if (mk && mk.dates && mk.dates.length) {
+    const x = mk.dates;
+    const traces = ports.filter(({ p }) => p.nav && p.nav.length).map(({ label, color, p }) =>
+      ({ type: 'scatter', mode: 'lines', name: label, x, y: p.nav, line: { width: 1.8, color } }));
+    const layout = baseLayout('', '성장 배수 (로그)');
+    layout.yaxis.type = 'log';
+    layout.legend = { orientation: 'h', y: -0.2, font: { size: 10, color: cssVar('--chart-fg') } };
+    Plotly.react('an-frontier-growth', traces, layout, PLOTCFG);
+    setHidden('an-frontier-growth', false);
+  } else setHidden('an-frontier-growth', true);
+}
+
+// 데이터 정확도 (도구·지표) — 자산별 신뢰도·실측범위·프록시 출처(기간별)·오차추정·포트폴리오 영향.
+function renderReliability(d) {
+  const assetRows = (d.assets || []).map(a => {
+    const grade = a.grade ? `<span class="grade ${a.grade}">${GRADE_LABEL[a.grade] || a.grade}</span>` : '';
+    const segs = (a.segments || []).map(s =>
+      `${s.label}${s.since ? ` <span class="muted">(${s.since}~)</span>` : ''}${s.transform ? ` <span class="muted">[${s.transform}]</span>` : ''}`).join(' ← ');
+    return `<tr><td class="name">${a.label || a.key}</td><td>${grade}</td><td>${a.range || ''}</td>` +
+      `<td class="muted">${segs}</td><td class="muted">${a.note || ''}</td></tr>`;
+  }).join('');
+  const assetTable = '<table class="diag-table"><thead><tr><th class="name">자산</th><th>신뢰도</th>' +
+    '<th>실측 범위</th><th>프록시 출처 (최신 ← 과거)</th><th>비고</th></tr></thead><tbody>' + assetRows + '</tbody></table>';
+  const errRows = (d.error_rows || []).map(r =>
+    `<tr><td class="name">${CAT_LABEL[r.asset] || r.asset}</td><td class="muted">${r.cause}</td>` +
+    `<td>${r.cagr_err}</td><td class="muted">${r.note || ''}</td></tr>`).join('');
+  const errTable = errRows ? '<h3>오차 추정</h3><table class="diag-table"><thead><tr><th class="name">자산</th>' +
+    '<th>주된 오차 원인</th><th>CAGR 오차</th><th>비고</th></tr></thead><tbody>' + errRows + '</tbody></table>' : '';
+  const impact = (d.error_impact || []).map(t => `<li>${t}</li>`).join('');
+  const impactBlock = impact ? '<h3>포트폴리오 영향</h3><ul class="diag-impact">' + impact + '</ul>' : '';
+  document.getElementById('reliability-body').innerHTML = assetTable + errTable + impactBlock;
+  document.getElementById('reliability-meta').textContent =
+    `생성일 ${d.generated_at || '-'} · 신뢰도 등급: 높음 / 보통 / 낮음`;
 }
 
 function renderRiskParity(d) {

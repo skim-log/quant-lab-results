@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=e666d84f" />
+  <link rel="stylesheet" href="style.css?v=d4f775fe" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -98,9 +98,15 @@
         <div id="an-corr" class="chart chart-corr"></div>
       </section>
       <section class="panel">
-        <h2>효율적 프론티어 <span class="muted">(몬테카를로)</span></h2>
-        <p class="period-note" id="an-frontier-note">long-only 랜덤 비중 시뮬 · ★ Max Sharpe · ◆ Min Variance · ● 단일자산 · ◇ 프리셋.</p>
+        <h2>효율적 프론티어 <span class="muted">(마코위츠 + 몬테카를로)</span></h2>
+        <p class="period-note" id="an-frontier-note">마코위츠 경계(정확) · 몬테카를로 구름(실현가능영역) · ★ 접점(Max Sharpe) · ◆ 최소분산(GMV) · ● 단일자산 · ◇ 프리셋.</p>
         <div id="an-frontier" class="chart chart-frontier"></div>
+      </section>
+      <section class="panel">
+        <h2>포트폴리오 결과 <span class="muted">(이렇게 투자했다면 — 접점·최소분산·대안)</span></h2>
+        <p class="period-note">각 최적 포트폴리오로 <strong>매월 리밸런싱·비용 미반영</strong> 가정, 8자산 공통구간(<span id="an-fstats-period"></span>) 투자 시 결과. 평균-분산 접점은 기대수익 추정오차에 민감 → 강건 대안(최소분산·리스크패리티·동일가중)도 함께 보세요.</p>
+        <div id="an-frontier-stats" class="ext-cards"></div>
+        <div id="an-frontier-growth" class="chart" style="height:300px;margin-top:0.6rem"></div>
       </section>
       <section class="panel">
         <h2>리스크 패리티 <span class="muted">(역변동성 비중)</span></h2>
@@ -116,14 +122,21 @@
         <p class="period-note">복리 성장 + 인플레이션 반영 모델.
           <a href="https://keep-ones.me/#/paradise-calculator2" target="_blank" rel="noopener">keep-ones.me 낙원계산기</a>를 참고했습니다.</p>
         <div class="pg-controls">
-          <label>보유 자산(원) <input type="number" id="para-asset" value="0" step="1000000" /></label>
-          <label>연간 저축(원) <input type="number" id="para-save" value="18000000" step="1000000" /></label>
+          <label>보유 자산(원) <input type="text" inputmode="numeric" id="para-asset" value="0" /></label>
+          <label>연간 저축(원) <input type="text" inputmode="numeric" id="para-save" value="18,000,000" />
+            <small class="pg-hint" id="para-save-hint"></small></label>
           <label>은퇴까지(년) <input type="number" id="para-years" value="20" min="1" /></label>
           <label>명목 수익률(%) <input type="number" id="para-nom" value="10" step="0.5" /></label>
           <label>인플레이션(%) <input type="number" id="para-infl" value="2.5" step="0.5" /></label>
         </div>
         <div id="para-results" class="ext-cards"></div>
+        <div class="tool-explain">
+          <p><strong>공식</strong> <code>자산 × (1+r)^n + 저축 × ((1+r)^n − (1+i)^n) / (r − i)</code></p>
+          <p><strong>전제</strong> 저축액은 오늘 가치 기준이며 매년 인플레이션만큼 증가.</p>
+          <p><strong>월 수입</strong> <code>오늘 가치 환산 자산 × ((1+r)/(1+i) − 1) / 12</code> (r=명목수익률, i=인플레이션, n=연차)</p>
+        </div>
         <div id="para-chart" class="chart" style="height:360px;margin-top:0.8rem"></div>
+        <p class="period-note">자산 성장 = 시작 자산이 복리로 불어난 부분 · 저축 누적 = 매년 물가만큼 늘린 저축액 + 그 복리.</p>
       </section>
     </div>
 
@@ -131,10 +144,12 @@
     <div id="sentiment-section" class="hidden">
       <section class="panel">
         <h2>시장 심리 <span class="muted">(공포·탐욕·변동성·김프)</span></h2>
-        <p class="period-note">CNN·크립토 공포탐욕 지수, VIX, 달러 인덱스, 금/은 비율, 김치프리미엄. 매일 갱신(빌드타임).</p>
+        <p class="period-note">시장 참여자들의 공포·탐욕·변동성을 측정한 종합 지표. CNN·크립토 공포탐욕 지수, VIX, 달러 인덱스(DXY), 금/은 비율, 김치프리미엄. 매일 갱신(빌드타임).</p>
+        <div id="senti-fg"></div>
+        <div id="senti-chart" class="chart hidden" style="height:260px;margin-top:0.6rem"></div>
         <div id="senti-cards" class="senti-cards"></div>
-        <div id="senti-chart" class="chart hidden" style="height:260px;margin-top:0.8rem"></div>
         <p id="senti-note" class="period-note"></p>
+        <p class="tool-disclaimer">⚠️ 시장 심리 지표는 참고용. 매수·매도 결정의 단일 근거로 사용 X. 역사적으로 극공포/극탐욕은 추세 반전 시그널이 되기도 하지만 100% 정확하진 않음.</p>
       </section>
     </div>
 
@@ -142,8 +157,52 @@
     <div id="trend-section" class="hidden">
       <section class="panel">
         <h2>추세 경보 <span class="muted">(climax-top 6신호)</span></h2>
+        <p class="period-note">윌리엄 오닐·마크 미너비니·스탠 와인스타인의 천장(클라이맥스 톱) 이론에서 도출한 6대 시그널로 주요 자산의 이상 추세를 점검. 빨간 신호 3개 이상이면 추세 이상으로 판정. <strong>②거래량·⑥30주선은 방향 무관</strong>이라 폭락 중인 자산도 잡힘 — <strong>①급등 부호</strong>로 상승 천장(+)과 하락 패닉(−)을 구분하세요.</p>
         <p id="trend-meta" class="period-note"></p>
         <div class="table-wrap"><table id="trend-table" class="diag-table"></table></div>
+
+        <details class="theory">
+          <summary>👨‍🏫 거장들이 정의한 천장(클라이맥스 톱)</summary>
+          <div class="theory-body">
+            <h4>William J. O'Neil <span class="muted">(1933–2023)</span></h4>
+            <p class="muted">IBD(Investor's Business Daily) 창립자 · CAN SLIM 시스템 창시자 · 『How to Make Money in Stocks』(1988)</p>
+            <p>성장주 천장의 원형으로 <strong>클라이맥스 런(Climax Run)</strong>을 정의. 장기 상승 끝 마지막 1~3주간 종가 기준 25~50%로 가속 급등 + 사상 최대 거래량 + 추격 매수가 사라지는 <em>churning(휘저음)</em>·<em>stalling</em>·<em>exhaustion gap</em> 같은 분산 패턴이 동시에 발생한다고 봤음. <strong>분산일(Distribution Day)</strong> 카운트 개념도 그의 발명. <span class="muted">→ 관련 신호: ①급등·②거래량·④갭반전</span></p>
+            <h4>Mark Minervini <span class="muted">(1965–)</span></h4>
+            <p class="muted">1997 US Investing Champion · 『Trade Like a Stock Market Wizard』(2013)</p>
+            <p>오닐의 시스템을 정량 매매 규칙으로 정제. 핵심은 <strong>Trend Template</strong> — 정상 상승 추세라면 200일선이 우상향이고 가격이 <strong>50d MA &gt; 150d MA &gt; 200d MA</strong> 순으로 정렬돼야 한다는 조건. 200일선 대비 <strong>+70~100% 이상 이격</strong>되면 <em>blow-off top</em> 진입으로 보고 즉시 차익 실현 영역으로 분류. <span class="muted">→ 관련 신호: ⑤이격도·①급등 각도</span></p>
+            <h4>Stan Weinstein</h4>
+            <p class="muted">『Secrets for Profiting in Bull and Bear Markets』(1988) · The Professional Tape Reader 편집자</p>
+            <p><strong>4단계 사이클(Stage Analysis)</strong>의 원조. 모든 자산은 <strong>Stage 1(바닥 베이스) → 2(상승) → 3(천장 분산) → 4(하락)</strong>을 반복. <strong>30주 이동평균선(≈150 거래일)</strong>의 기울기·위치로 단계를 판정하며, 가격이 30주선을 깨고 30주선 자체가 우하향으로 돌면 <strong>Stage 3 → 4 전환 확정</strong>(상승추세 완전 종료). <span class="muted">→ 관련 신호: ⑥30주선</span></p>
+            <p class="theory-synth">세 이론은 시기·강조점이 조금씩 다르지만 핵심은 같음: <strong>“천장은 가속 + 거래량 + 이동평균선과의 비정상적 이격으로 미리 보인다.”</strong> 이 탭은 그 세 줄기를 6개 정량 시그널로 자동 점검합니다.</p>
+          </div>
+        </details>
+
+        <details class="theory">
+          <summary>📏 6신호 임계값 (정의 · 🔴🟡🟢)</summary>
+          <div class="table-wrap"><table class="diag-table sig-thresh">
+            <thead><tr><th class="name">신호</th><th>정의</th><th>🔴</th><th>🟡</th><th>🟢</th></tr></thead>
+            <tbody>
+              <tr><td class="name">①급등</td><td class="muted">3주(15거래일) 종가 변화율</td><td>≥25%</td><td>15~25%</td><td>&lt;15%</td></tr>
+              <tr><td class="name">②거래량</td><td class="muted">최근 5일 평균 / 이전 45일 평균</td><td>≥2.5×</td><td>1.5~2.5×</td><td>&lt;1.5×</td></tr>
+              <tr><td class="name">③연속상승</td><td class="muted">최근 10거래일 중 상승일 수</td><td>≥8</td><td>6~7</td><td>≤5</td></tr>
+              <tr><td class="name">④갭반전</td><td class="muted">갭상승 후 전일저가 이탈 횟수(10일)</td><td>≥2</td><td>1</td><td>0</td></tr>
+              <tr><td class="name">⑤MA200이격</td><td class="muted">200일선 대비 현재가 이격도</td><td>≥+70%</td><td>+30~70%</td><td>&lt;+30%</td></tr>
+              <tr><td class="name">⑥30주선</td><td class="muted">150일선 대비 위치(Stage 분석)</td><td>&lt;−2%</td><td>±2% 이내</td><td>&gt;+2%</td></tr>
+            </tbody>
+          </table></div>
+          <p class="muted" style="margin-top:.5rem">종합 경보 = 빨간 신호 개수(0개 🟢 안전 / 1~2개 🟡 주의 / 3개+ 🔴 경보). <strong>재진입</strong> 컬럼은 초록 신호 개수 기반 <em>단순 추정</em>이며 정식 Stage-2 재진입 신호는 아닙니다.</p>
+        </details>
+        <p class="tool-disclaimer">신호는 정보·교육용이며 투자 권유가 아닙니다. KRX 개별 ETF 대신 지수·yfinance 티커로 계산합니다.</p>
+      </section>
+    </div>
+
+    <!-- 도구·지표: 데이터 정확도 (자산군 신뢰도·프록시 출처·오차추정) -->
+    <div id="reliability-section" class="hidden">
+      <section class="panel">
+        <h2>데이터 정확도 <span class="muted">(자산군 신뢰도·프록시 출처·오차추정)</span></h2>
+        <p class="period-note">백테스트에 쓰는 8자산은 실제 ETF 상장이 늦어 <strong>유사 익스포저의 인덱스·공개 시계열로 대체(프록시)</strong>하고 오래된 구간을 이어붙입니다. 자산별 신뢰도 등급·실측 범위·기간별 출처·오차추정을 정리했습니다. <strong>절대값보다 ‘배분 간 상대 비교’가 신뢰도 높으며</strong>, 위험지표(MDD·변동성)는 보수적으로 해석하세요.</p>
+        <div id="reliability-body"></div>
+        <p id="reliability-meta" class="period-note"></p>
       </section>
     </div>
 
@@ -229,7 +288,7 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=e666d84f" defer></script>
-  <script src="app.js?v=e666d84f" defer></script>
+  <script src="alloc.js?v=d4f775fe" defer></script>
+  <script src="app.js?v=d4f775fe" defer></script>
 </body>
 </html>
