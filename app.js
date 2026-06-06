@@ -320,22 +320,22 @@ function renderTable(rows, fullPeriod) {
     const disp = d.table_display[r.name] || {};
     const tds = cols.map(col => {
       // 기간: 항상 현재 윈도우에서 도출
-      if (col === '기간') return `<td>${r.period}</td>`;
+      if (col === '기간') return `<td data-label="기간">${r.period}</td>`;
 
       // 전체기간 → CSV(table_display) 값을 그대로 표시: 프로젝트 요약표와 100% 일치.
       // (KR 전략 행은 CSV가 엔진 내부 수익률로 계산 → NAV 재계산과 2dp에서 갈릴 수 있어
       //  헤드라인은 CSV 값을 신뢰원으로 사용.)
-      if (fullPeriod) return `<td>${fmtDisplay(col, disp[col])}</td>`;
+      if (fullPeriod) return `<td data-label="${col}">${fmtDisplay(col, disp[col])}</td>`;
 
       // 구간 선택 → NAV 기반 클라이언트 재계산(재정규화). 브라우저엔 NAV만 있다.
       const mkey = state.colToMetric[col];
       if (mkey) {
         const v = r.metrics[mkey];
         const txt = pct.has(col) ? fmtPct(v) : ratio.has(col) ? fmtRatio(v) : fmtPlain(v);
-        return `<td>${txt}</td>`;
+        return `<td data-label="${col}">${txt}</td>`;
       }
       // 구간에서는 재계산 불가(연회전율/XIRR/양도세 등) → —
-      return '<td class="muted">—</td>';
+      return `<td class="muted" data-label="${col}">—</td>`;
     }).join('');
     const sw = `<span class="swatch" style="background:${state.colorOf[r.name]}"></span>`;
     return `<tr><td class="name">${sw}${r.name}</td>${tds}</tr>`;
@@ -491,8 +491,8 @@ function renderBandAB() {
     const diff = (on - off) * better;   // >0 → 밴드 ON 이 더 나음
     const cls = Math.abs(on - off) < 1e-9 ? '' : (diff > 0 ? 'pos' : 'neg');
     const diffTxt = kind === 'pct' ? fmtPct(on - off) : fmtRatio(on - off);
-    return `<tr><td class="name">${lab}</td><td>${f(kind, on)}</td><td>${f(kind, off)}</td>` +
-           `<td class="${cls}">${diffTxt}</td></tr>`;
+    return `<tr><td class="name">${lab}</td><td data-label="밴드 ON">${f(kind, on)}</td><td data-label="밴드 OFF">${f(kind, off)}</td>` +
+           `<td class="${cls}" data-label="차이">${diffTxt}</td></tr>`;
   }).join('');
   document.getElementById('bandab-table').innerHTML =
     '<thead><tr><th class="name">지표</th><th>밴드 ON</th><th>밴드 OFF</th><th>차이</th></tr></thead>' +
@@ -520,8 +520,8 @@ function renderDiag() {
   const assetRows = (dg.assets || []).map(a => {
     const grade = a.grade ? `<span class="grade ${a.grade}">${GRADE_LABEL[a.grade] || a.grade}</span>` : '';
     const proxy = (a.proxy || []).join(' + ');
-    return `<tr><td class="name">${a.label || a.asset}</td><td>${grade}</td>` +
-           `<td>${a.range || ''}</td><td class="muted">${proxy}</td><td class="muted">${a.note || ''}</td></tr>`;
+    return `<tr><td class="name">${a.label || a.asset}</td><td data-label="신뢰도">${grade}</td>` +
+           `<td data-label="실제 범위">${a.range || ''}</td><td class="muted" data-label="프록시">${proxy}</td><td class="muted" data-label="비고">${a.note || ''}</td></tr>`;
   }).join('');
   const assetTable = assetRows
     ? '<table class="diag-table"><thead><tr><th class="name">자산</th><th>신뢰도</th><th>실제 범위</th>' +
@@ -530,8 +530,8 @@ function renderDiag() {
   const fx = (dg.fx_labels && dg.fx_labels.length)
     ? `<p class="diag-fx">USD/KRW 환율: <span class="muted">${dg.fx_labels.join(' + ')}</span></p>` : '';
   const errRows = (dg.error_rows || []).map(r =>
-    `<tr><td class="name">${CAT_LABEL[r.asset] || r.asset}</td><td class="muted">${r.cause}</td>` +
-    `<td>${r.cagr_err}</td><td class="muted">${r.note || ''}</td></tr>`).join('');
+    `<tr><td class="name">${CAT_LABEL[r.asset] || r.asset}</td><td class="muted" data-label="주된 오차 원인">${r.cause}</td>` +
+    `<td data-label="CAGR 오차">${r.cagr_err}</td><td class="muted" data-label="비고">${r.note || ''}</td></tr>`).join('');
   const errTable = errRows
     ? '<h3>오차 추정</h3><table class="diag-table"><thead><tr><th class="name">자산</th><th>주된 오차 원인</th>' +
       '<th>CAGR 오차</th><th>비고</th></tr></thead><tbody>' + errRows + '</tbody></table>' : '';
@@ -962,31 +962,126 @@ function renderSentiment(d) {
     ? `미수신 지표: ${errs.join(', ')} (소스 일시 차단/지역제한 가능 — best-effort)` : '';
 }
 
-function renderTrend(d) {
-  const SIGN = [
-    ['surge', '급등', '3주(15거래일) 종가 변화율 — 15%/25% 임계'],
-    ['volume', '거래량', '최근 5일 평균 / 이전 45일 평균 — 1.5×/2.5× 임계'],
-    ['consecutive', '연속상승', '최근 10거래일 중 상승일 수 — 6/8 임계'],
-    ['gap_reversal', '갭반전', '갭상승 후 전일저가 이탈 횟수(10일) — 1/2회 임계'],
-    ['ma200_distance', 'MA200이격', '200일선 대비 이격도 — +30%/+70% 임계'],
-    ['ma30week', '30주선', '150일선 대비 위치(Stage 분석) — ±2% 임계']];
-  const order = d.order || Object.keys(d.assets || {});
-  const head = '<thead><tr><th class="name">자산</th>' + SIGN.map(s => `<th title="${s[2]}">${s[1]}</th>`).join('') +
-    '<th title="빨간 신호 개수: 0개 🟢 안전 / 1~2개 🟡 주의 / 3개+ 🔴 경보">경보</th>' +
-    '<th title="초록 신호 개수 기반 단순 추정 — 정식 Stage-2 재진입 아님">재진입</th></tr></thead>';
-  const dot = sig => `<td style="text-align:center"><span class="sig-dot" style="background:${SIG_COLOR[sig] || SIG_COLOR.na}" title="${sig}"></span></td>`;
-  const badge = (cls, txt) => `<td style="text-align:center"><span class="grade ${cls}">${txt}</span></td>`;
-  const rows = order.filter(s => d.assets[s]).map(sym => {
-    const a = d.assets[sym];
-    const comp = a.composite === 'red' ? badge('low', '경보') : a.composite === 'yellow' ? badge('medium', '주의') : badge('high', '안전');
-    const re = a.reentry === 'green' ? badge('high', '양호') : a.reentry === 'yellow' ? badge('medium', '중립') : badge('low', '미흡');
-    return `<tr><td class="name">${a.label || sym}</td>` + SIGN.map(s => dot(a.signals[s[0]])).join('') + comp + re + '</tr>';
+const TREND_CT = [
+  ['surge', '급등', '3주(15거래일) 종가 변화율 — 15%/25% 임계'],
+  ['volume', '거래량', '최근 5일 평균 / 이전 45일 평균 — 1.5×/2.5× 임계'],
+  ['consecutive', '연속상승', '최근 10거래일 중 상승일 수 — 6/8 임계'],
+  ['gap_reversal', '갭반전', '갭상승 후 전일저가 이탈 횟수(10일) — 1/2회 임계'],
+  ['ma200_distance', 'MA200이격', '200일선 대비 이격도 — +30%/+70% 임계'],
+  ['ma30week', '30주선', '150일선 대비 위치(Stage 분석) — ±2% 임계']];
+const TREND_RE = [
+  ['ma30_slope', '30주↗', '30주선(150MA) 4주 슬로프 — 전환구간 +0.3~+2.0% 🟢'],
+  ['ma30_position', '30주위', '30주선 대비 위치 — 방금 돌파 0~+10% 🟢'],
+  ['base_width', '베이스', '8주 베이스 폭 (max−min)/min — ≤15% 🟢'],
+  ['from_low52w', '저점', '52주 저점 대비 — +20~+50% 🟢'],
+  ['breakout_volume', '거래량', 'Breakout 거래량 5일/직전20일 — ≥1.5× 🟢'],
+  ['ma200_slope', '200d↗', '200일선 4주 슬로프 — +0.3~+1.5% 🟢']];
+
+function _trendDot(sig, lab) {
+  return `<td data-label="${lab}" style="text-align:center"><span class="sig-dot" style="background:${SIG_COLOR[sig] || SIG_COLOR.na}" title="${sig}"></span></td>`;
+}
+function _trendBadge(cls, txt, lab) {
+  return `<td data-label="${lab}" style="text-align:center"><span class="grade ${cls}">${txt}</span></td>`;
+}
+function _trendTableHTML(order, assets, SIGN, getSignals, compHead, compCell) {
+  const head = '<thead><tr><th class="name">자산</th>' + SIGN.map(s => `<th title="${s[2]}">${s[1]}</th>`).join('') + compHead + '</tr></thead>';
+  const rows = order.filter(s => assets[s]).map(sym => {
+    const a = assets[sym], sigs = getSignals(a) || {};
+    return `<tr><td class="name" data-label="자산">${a.label || sym}</td>` +
+      SIGN.map(s => _trendDot(sigs[s[0]], s[1])).join('') + compCell(a) + '</tr>';
   }).join('');
-  document.getElementById('trend-table').innerHTML = head + '<tbody>' + rows + '</tbody>';
+  return head + '<tbody>' + rows + '</tbody>';
+}
+
+function renderTrend(d) {
+  const order = d.order || Object.keys(d.assets || {});
+  // 천장(매도) 표 — 6신호 + 경보
+  document.getElementById('trend-table').innerHTML = _trendTableHTML(order, d.assets, TREND_CT,
+    a => a.signals,
+    '<th title="빨간 신호 개수: 0개 🟢 안전 / 1~2개 🟡 주의 / 3개+ 🔴 경보">경보</th>',
+    a => a.composite === 'red' ? _trendBadge('low', '경보', '경보')
+      : a.composite === 'yellow' ? _trendBadge('medium', '주의', '경보') : _trendBadge('high', '안전', '경보'));
+  // 재진입(매수) 표 — Stage-2 6신호 + 종합
+  const ret = document.getElementById('trend-reentry-table');
+  if (ret) ret.innerHTML = _trendTableHTML(order, d.assets, TREND_RE,
+    a => (a.reentry && a.reentry.signals) || {},
+    '<th title="초록 신호 개수: 3개+ 🟢 재진입 영역 / 1~2개 🟡 / 0개 🔴">종합</th>',
+    a => { const r = (a.reentry && a.reentry.composite) || 'na'; return r === 'green' ? _trendBadge('high', '재진입', '종합')
+      : r === 'yellow' ? _trendBadge('medium', '관찰', '종합') : _trendBadge('low', '아직', '종합'); });
   const errs = Object.keys(d.errors || {});
   document.getElementById('trend-meta').textContent =
-    `기준일 ${d.as_of || '-'} · 6신호(급등·거래량·연속상승·갭반전·MA200이격·30주선) climax-top 분석. 정보용(투자권유 아님).`
+    `기준일 ${d.as_of || '-'} · 천장(매도)·재진입(매수) 각 6신호. 정보용(투자권유 아님).`
     + (errs.length ? ` · 미수신: ${errs.join(', ')}` : '');
+  setupBacktest(d);
+}
+
+// ── 시그널 정확도 백테스트 (사전계산 결과 렌더; 모드 토글 + 자산 드롭다운) ──
+function setupBacktest(d) {
+  const bt = d.backtest || {};
+  const sel = document.getElementById('bt-asset');
+  if (!sel) return;
+  const syms = (d.order || Object.keys(bt)).filter(s => bt[s]);
+  if (!syms.length) { setHidden('backtest-block', true); return; }
+  setHidden('backtest-block', false);
+  sel.innerHTML = syms.map(s => `<option value="${s}">${bt[s].label || s}</option>`).join('');
+  if (!state.trendBt || !bt[state.trendBt.sym]) state.trendBt = { sym: syms[0], mode: 'climax_top' };
+  sel.value = state.trendBt.sym;
+  document.querySelectorAll('#bt-mode button').forEach(b => b.classList.toggle('active', b.dataset.mode === state.trendBt.mode));
+  state._btData = d;
+  if (!state._btWired) {
+    sel.addEventListener('change', () => { state.trendBt.sym = sel.value; renderBacktest(); });
+    document.querySelectorAll('#bt-mode button').forEach(b => b.addEventListener('click', () => {
+      state.trendBt.mode = b.dataset.mode;
+      document.querySelectorAll('#bt-mode button').forEach(x => x.classList.toggle('active', x === b));
+      renderBacktest();
+    }));
+    state._btWired = true;
+  }
+  renderBacktest();
+}
+
+function renderBacktest() {
+  const d = state._btData; if (!d) return;
+  const { sym, mode } = state.trendBt;
+  const rep = ((d.backtest || {})[sym] || {})[mode];
+  if (!rep) return;
+  const isCT = mode === 'climax_top', markColor = isCT ? '#dc2626' : '#16a34a';
+  const ps = rep.price_series || [], trigs = ps.filter(p => p.triggered);
+  const traces = [
+    { type: 'scatter', mode: 'lines', name: '종가', x: ps.map(p => p.date), y: ps.map(p => p.close),
+      line: { color: cssVar('--chart-muted'), width: 1.3 }, hoverinfo: 'skip' },
+    { type: 'scatter', mode: 'markers', name: isCT ? '천장 신호' : '바닥 신호',
+      x: trigs.map(p => p.date), y: trigs.map(p => p.close),
+      marker: { size: 10, color: markColor, symbol: isCT ? 'triangle-down' : 'triangle-up', line: { width: 1, color: cssVar('--chart-paper') } },
+      hovertemplate: '%{x}<br>%{y}<extra></extra>' },
+  ];
+  const layout = baseLayout('', '종가 (로그)'); layout.yaxis.type = 'log';
+  layout.legend = { orientation: 'h', y: -0.18, font: { size: 10, color: cssVar('--chart-fg') } };
+  Plotly.react('bt-chart', traces, layout, PLOTCFG);
+
+  const s = rep.summary || {}, H = ['d20', 'd60', 'd120', 'd250'], HL = ['+20일', '+60일', '+120일', '+250일'];
+  const srow = (label, obj) => `<tr><td class="name" data-label="구분">${label}</td>` +
+    H.map((h, i) => `<td data-label="${HL[i]}">${_apct(obj[h])}</td>`).join('') + '</tr>';
+  const hr = s.hit_rate || {};
+  document.getElementById('bt-summary').innerHTML =
+    '<thead><tr><th class="name">구분</th>' + HL.map(l => `<th>${l}</th>`).join('') + '</tr></thead><tbody>' +
+    srow('신호 평균 수익', s.trigger_avg_fwd || {}) + srow('베이스라인 평균', s.baseline_avg_fwd || {}) +
+    `<tr><td class="name" data-label="구분">${isCT ? '적중률 (≤−5/−10%)' : '적중률 (≥+5/+10%)'}</td>` +
+    `<td data-label="+20일">${_apct(hr.d20)}</td><td data-label="+60일">${_apct(hr.d60)}</td>` +
+    `<td data-label="+120일">${_apct(hr.d120)}</td><td data-label="+250일">–</td></tr></tbody>`;
+
+  const evs = (rep.events || []).slice().reverse();
+  document.getElementById('bt-events').innerHTML =
+    '<thead><tr><th class="name">날짜</th><th>신호</th><th>+20일</th><th>+60일</th><th>+120일</th><th>+250일</th></tr></thead><tbody>' +
+    (evs.length ? evs.map(e => `<tr><td class="name" data-label="날짜">${e.date}</td>` +
+      `<td data-label="신호">${e.trigger_count}/6 ${(e.trigger_labels || []).join('')}</td>` +
+      `<td data-label="+20일">${_apct(e.fwd.d20)}</td><td data-label="+60일">${_apct(e.fwd.d60)}</td>` +
+      `<td data-label="+120일">${_apct(e.fwd.d120)}</td><td data-label="+250일">${_apct(e.fwd.d250)}</td></tr>`).join('')
+      : '<tr><td class="muted" colspan="6">트리거 이벤트 없음 (표본 부족 또는 신호 미발생)</td></tr>') + '</tbody>';
+
+  const meta = document.getElementById('bt-meta');
+  if (meta) meta.textContent = `${rep.start_date}~${rep.end_date} · 평가 ${rep.evaluated_days}일 · 트리거 ${s.total_triggers || 0}건 · ` +
+    (isCT ? '🔴 천장: 신호 평균이 베이스라인보다 낮을수록(음수) 적중' : '🟢 바닥: 신호 평균이 베이스라인보다 높을수록(양수) 적중');
 }
 
 function enterAnalytics(d) {
@@ -1139,14 +1234,14 @@ function renderReliability(d) {
     const grade = a.grade ? `<span class="grade ${a.grade}">${GRADE_LABEL[a.grade] || a.grade}</span>` : '';
     const segs = (a.segments || []).map(s =>
       `${s.label}${s.since ? ` <span class="muted">(${s.since}~)</span>` : ''}${s.transform ? ` <span class="muted">[${s.transform}]</span>` : ''}`).join(' ← ');
-    return `<tr><td class="name">${a.label || a.key}</td><td>${grade}</td><td>${a.range || ''}</td>` +
-      `<td class="muted">${segs}</td><td class="muted">${a.note || ''}</td></tr>`;
+    return `<tr><td class="name">${a.label || a.key}</td><td data-label="신뢰도">${grade}</td><td data-label="실측 범위">${a.range || ''}</td>` +
+      `<td class="muted" data-label="프록시 출처">${segs}</td><td class="muted" data-label="비고">${a.note || ''}</td></tr>`;
   }).join('');
   const assetTable = '<table class="diag-table"><thead><tr><th class="name">자산</th><th>신뢰도</th>' +
     '<th>실측 범위</th><th>프록시 출처 (최신 ← 과거)</th><th>비고</th></tr></thead><tbody>' + assetRows + '</tbody></table>';
   const errRows = (d.error_rows || []).map(r =>
-    `<tr><td class="name">${CAT_LABEL[r.asset] || r.asset}</td><td class="muted">${r.cause}</td>` +
-    `<td>${r.cagr_err}</td><td class="muted">${r.note || ''}</td></tr>`).join('');
+    `<tr><td class="name">${CAT_LABEL[r.asset] || r.asset}</td><td class="muted" data-label="주된 오차 원인">${r.cause}</td>` +
+    `<td data-label="CAGR 오차">${r.cagr_err}</td><td class="muted" data-label="비고">${r.note || ''}</td></tr>`).join('');
   const errTable = errRows ? '<h3>오차 추정</h3><table class="diag-table"><thead><tr><th class="name">자산</th>' +
     '<th>주된 오차 원인</th><th>CAGR 오차</th><th>비고</th></tr></thead><tbody>' + errRows + '</tbody></table>' : '';
   const impact = (d.error_impact || []).map(t => `<li>${t}</li>`).join('');

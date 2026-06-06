@@ -440,6 +440,15 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
 .wbar-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; opacity: 0.9; }
 .wbar-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--fg); }
 
+/* ---- 추세 경보 소제목 · 백테스트 컨트롤 ---- */
+.trend-sub { font-size: 1rem; font-weight: 700; margin: 1.2rem 0 0.4rem; }
+.bt-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem; margin: 0.4rem 0 0.2rem; }
+.bt-toggle { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.bt-toggle button { border: none; background: var(--surface-2); color: var(--muted); padding: 0.4rem 0.85rem; font-size: 0.85rem; cursor: pointer; }
+.bt-toggle button.active { background: var(--accent); color: #fff; font-weight: 600; }
+.bt-controls select { padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--fg); }
+.bt-h { font-size: 0.92rem; font-weight: 600; margin: 0.9rem 0 0.3rem; }
+
 /* ---- 모바일 ---- */
 @media (max-width: 640px) {
   .rp-row { grid-template-columns: 92px 1fr 112px; }
@@ -449,8 +458,35 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
   .control-row { gap: 0.7rem 1rem; }
   #chart-equity { height: 380px; }
   #chart-dd { height: 240px; }
-  /* 좁은 화면: 첫 열(전략명) 고정으로 가로 스크롤 시 맥락 유지 */
-  #metrics-table td.name, #metrics-table th.name { box-shadow: 1px 0 0 var(--border); }
+  #bt-chart { height: 260px; }
+
+  /* 좁은 화면: 표를 카드형으로 — 가로 스크롤 없이 첫 열(전략·자산명)이 항상 헤더로 보임.
+     (인앱/구형 브라우저의 position:sticky 미지원 환경까지 확실히 해결.) */
+  #metrics-table, #bandab-table, .diag-table:not(.sig-thresh),
+  #metrics-table tbody, #bandab-table tbody, .diag-table:not(.sig-thresh) tbody { display: block; width: 100%; }
+  #metrics-table thead, #bandab-table thead, .diag-table:not(.sig-thresh) thead { display: none; }
+  #metrics-table tr, #bandab-table tr, .diag-table:not(.sig-thresh) tr {
+    display: block; margin-bottom: 0.6rem; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); background: var(--card); overflow: hidden;
+  }
+  #metrics-table td, #bandab-table td, .diag-table:not(.sig-thresh) td {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+    text-align: right; white-space: normal; border-bottom: 1px solid var(--border);
+    padding: 0.4rem 0.7rem; position: static;
+  }
+  #metrics-table td::before, #bandab-table td::before, .diag-table:not(.sig-thresh) td::before {
+    content: attr(data-label); color: var(--muted); font-weight: 600; text-align: left;
+    margin-right: auto; white-space: nowrap;
+  }
+  #metrics-table td.name, #bandab-table td.name, .diag-table:not(.sig-thresh) td.name {
+    display: block; background: var(--surface-2); font-weight: 700; font-size: 0.95rem;
+    text-align: left; padding: 0.5rem 0.7rem; border-bottom: 1px solid var(--border);
+  }
+  #metrics-table td.name::before, #bandab-table td.name::before, .diag-table:not(.sig-thresh) td.name::before { content: none; }
+  #metrics-table td:last-child, #bandab-table td:last-child, .diag-table:not(.sig-thresh) td:last-child { border-bottom: none; }
+  #metrics-table tr:nth-child(even) td { background: var(--card); }
+  /* sig-thresh(참고 임계표)는 카드 미적용 — 줄바꿈으로 폭 맞춤 */
+  .sig-thresh td, .sig-thresh th { white-space: normal; font-size: 0.76rem; padding: 0.35rem 0.4rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

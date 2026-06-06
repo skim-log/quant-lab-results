@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=d4f775fe" />
+  <link rel="stylesheet" href="style.css?v=3618ad36" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -159,7 +159,11 @@
         <h2>추세 경보 <span class="muted">(climax-top 6신호)</span></h2>
         <p class="period-note">윌리엄 오닐·마크 미너비니·스탠 와인스타인의 천장(클라이맥스 톱) 이론에서 도출한 6대 시그널로 주요 자산의 이상 추세를 점검. 빨간 신호 3개 이상이면 추세 이상으로 판정. <strong>②거래량·⑥30주선은 방향 무관</strong>이라 폭락 중인 자산도 잡힘 — <strong>①급등 부호</strong>로 상승 천장(+)과 하락 패닉(−)을 구분하세요.</p>
         <p id="trend-meta" class="period-note"></p>
+        <h3 class="trend-sub">🚨 천장 (매도/감축 신호) <span class="muted">— 빨강 3개+ = 천장 가능성</span></h3>
         <div class="table-wrap"><table id="trend-table" class="diag-table"></table></div>
+        <h3 class="trend-sub">🔄 재진입 (매수/추가 신호) <span class="muted">— 초록 3개+ = Stage-2 진입 영역</span></h3>
+        <p class="period-note">하락이 끝나고 새 상승 추세가 시작되는 시점을 6신호로 감지. 각 신호는 “전환 구간”으로 한정해 <strong>이미 한참 오른 종목은 🔴</strong>(천장 신호와 동시에 켜지지 않도록).</p>
+        <div class="table-wrap"><table id="trend-reentry-table" class="diag-table"></table></div>
 
         <details class="theory">
           <summary>👨‍🏫 거장들이 정의한 천장(클라이맥스 톱)</summary>
@@ -190,9 +194,57 @@
               <tr><td class="name">⑥30주선</td><td class="muted">150일선 대비 위치(Stage 분석)</td><td>&lt;−2%</td><td>±2% 이내</td><td>&gt;+2%</td></tr>
             </tbody>
           </table></div>
-          <p class="muted" style="margin-top:.5rem">종합 경보 = 빨간 신호 개수(0개 🟢 안전 / 1~2개 🟡 주의 / 3개+ 🔴 경보). <strong>재진입</strong> 컬럼은 초록 신호 개수 기반 <em>단순 추정</em>이며 정식 Stage-2 재진입 신호는 아닙니다.</p>
+          <p class="muted" style="margin-top:.5rem">종합 경보 = 빨간 신호 개수(0개 🟢 안전 / 1~2개 🟡 주의 / 3개+ 🔴 경보).</p>
         </details>
-        <p class="tool-disclaimer">신호는 정보·교육용이며 투자 권유가 아닙니다. KRX 개별 ETF 대신 지수·yfinance 티커로 계산합니다.</p>
+
+        <details class="theory">
+          <summary>👨‍🏫 재진입 — 거장들의 Stage 2 정의</summary>
+          <div class="theory-body">
+            <h4>Stan Weinstein — Stage 1 → Stage 2 전환</h4>
+            <p>하락 종료(Stage 4) 후 횡보 베이스(Stage 1)에 들어감. 가격이 <strong>30주선 위로 다시 복귀</strong>하고 그 30주선 기울기가 <strong>우하향 → 평탄 → 우상향</strong>으로 바뀌면 <strong>Stage 2(상승) 진입 확정</strong>. 보통 breakout 당일 거래량이 증가하는 게 정상. <span class="muted">→ ①30주↗·②30주위·⑤거래량</span></p>
+            <h4>William O'Neil — Follow-Through Day</h4>
+            <p>하락장 반등 시도 후 <strong>4~7일째</strong> 주요 지수가 <strong>+1.25% 이상 상승 + 전일보다 거래량 증가</strong>를 동반하면 새 강세장 출발 신호. 그 이전엔 신규 매수 보류. IBD가 매일 FTD 발표. <span class="muted">→ ⑤거래량(breakout 검증)</span></p>
+            <h4>Mark Minervini — Trend Template 충족</h4>
+            <p>가장 보수적 매수 영역: <strong>가격 &gt; 50d &gt; 150d &gt; 200d</strong> 정렬, 200d MA 1개월 이상 우상향, 52주 고점 −25% 이내, 52주 저점 +30% 이상. 모두 충족 시 신규 진입 검토. <span class="muted">→ ④저점·⑥200d↗</span></p>
+            <p class="theory-synth">공통 핵심: <strong>“30주선이 바닥을 다지고 우상향 + 가격이 그 위로 breakout + 거래량 동반.”</strong> 재진입 6신호는 이 골격을 정량화했고, 상한을 둬 이미 오른 종목은 제외합니다.</p>
+          </div>
+        </details>
+
+        <details class="theory">
+          <summary>📏 재진입 6신호 임계값 (정의 · 🟢🟡🔴)</summary>
+          <div class="table-wrap"><table class="diag-table sig-thresh">
+            <thead><tr><th class="name">신호</th><th>정의</th><th>🟢</th><th>🟡</th><th>🔴</th></tr></thead>
+            <tbody>
+              <tr><td class="name">①30주↗</td><td class="muted">30주선(150MA) 4주 슬로프</td><td>+0.3~+2.0%</td><td>−0.5~+0.3% · +2~+5%</td><td>그 외(파라볼릭/하락)</td></tr>
+              <tr><td class="name">②30주위</td><td class="muted">30주선 대비 현재가</td><td>0~+10%</td><td>−2~0% · +10~+20%</td><td>그 외(아래 · +20%↑ 늦음)</td></tr>
+              <tr><td class="name">③베이스</td><td class="muted">최근 40일 (max−min)/min</td><td>≤15%</td><td>15~25%</td><td>&gt;25%</td></tr>
+              <tr><td class="name">④저점</td><td class="muted">52주 저점 대비 상승률</td><td>+20~+50%</td><td>+10~20% · +50~100%</td><td>그 외(바닥 근처 · +100%↑)</td></tr>
+              <tr><td class="name">⑤거래량</td><td class="muted">5일평균 / 직전 20일평균</td><td>≥1.5×</td><td>1.0~1.5×</td><td>&lt;1.0×</td></tr>
+              <tr><td class="name">⑥200d↗</td><td class="muted">200일선 4주 슬로프</td><td>+0.3~+1.5%</td><td>−0.5~+0.3% · +1.5~+4%</td><td>그 외(파라볼릭/하락)</td></tr>
+            </tbody>
+          </table></div>
+          <p class="muted" style="margin-top:.5rem">상한선 설계 이유: 천장 신호와 재진입이 동시에 켜지지 않게 “이미 한참 오른 상태”를 재진입에서 제외(①②④⑥에 상한).</p>
+        </details>
+
+        <!-- 시그널 정확도 백테스트 (고정 유니버스 사전계산) -->
+        <div id="backtest-block">
+          <h3 class="trend-sub">🧪 알고리즘 백테스트 <span class="muted">(시그널 정확도)</span></h3>
+          <p class="period-note">과거 시계열에 sliding window로 알고리즘을 반복 호출 → 트리거 신호가 떴던 날의 forward return을 베이스라인과 비교해 정확도를 평가합니다. <strong>🔴 천장</strong>은 베이스라인 대비 음수 방향이면 천장을 잘 잡는 것, <strong>🟢 바닥</strong>은 양수 방향이면 바닥을 잘 잡는 것. 고정 유니버스 사전계산 · 디바운서로 한 사이클 1건만 카운트 · 정보·교육용.</p>
+          <div class="bt-controls">
+            <div id="bt-mode" class="bt-toggle">
+              <button type="button" data-mode="climax_top" class="active">🔴 천장(매도)</button>
+              <button type="button" data-mode="reentry">🟢 바닥(재진입)</button>
+            </div>
+            <label>자산 <select id="bt-asset"></select></label>
+          </div>
+          <p id="bt-meta" class="period-note"></p>
+          <div id="bt-chart" class="chart" style="height:330px"></div>
+          <div class="table-wrap"><table id="bt-summary" class="diag-table"></table></div>
+          <h4 class="bt-h">트리거 이벤트</h4>
+          <div class="table-wrap"><table id="bt-events" class="diag-table"></table></div>
+        </div>
+
+        <p class="tool-disclaimer">신호·백테스트는 정보·교육용이며 투자 권유가 아닙니다. KRX 개별 ETF 대신 지수·yfinance 티커로 계산합니다.</p>
       </section>
     </div>
 
@@ -288,7 +340,7 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=d4f775fe" defer></script>
-  <script src="app.js?v=d4f775fe" defer></script>
+  <script src="alloc.js?v=3618ad36" defer></script>
+  <script src="app.js?v=3618ad36" defer></script>
 </body>
 </html>
