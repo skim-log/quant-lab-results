@@ -632,8 +632,9 @@ function clearPresetActive() {
 // ---------------------------------------------------------------------------
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
-const CAT_ORDER = { dynamic: 0, static: 1, momentum: 2, compare: 3 };
-const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀', compare: '전략 비교' };
+const CAT_ORDER = { dynamic: 0, static: 1, momentum: 2, crypto: 3, analytics: 4, compare: 5 };
+const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
+  crypto: '코인', analytics: '정량분석', compare: '전략 비교' };
 
 function catsPresent() {
   return [...new Set(state.manifest.map(m => m.category))]

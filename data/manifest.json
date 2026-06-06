@@ -376,6 +376,54 @@
     "file": "kr_all.json"
   },
   {
+    "id": "crypto_btc_krw",
+    "category": "crypto",
+    "group": "BTC · 비트코인",
+    "currency": "krw",
+    "label": "코인 · BTC · 비트코인 (KRW)",
+    "file": "crypto_btc_krw.json"
+  },
+  {
+    "id": "crypto_btc_usd",
+    "category": "crypto",
+    "group": "BTC · 비트코인",
+    "currency": "usd",
+    "label": "코인 · BTC · 비트코인 (USD)",
+    "file": "crypto_btc_usd.json"
+  },
+  {
+    "id": "crypto_eth_krw",
+    "category": "crypto",
+    "group": "ETH · 이더리움",
+    "currency": "krw",
+    "label": "코인 · ETH · 이더리움 (KRW)",
+    "file": "crypto_eth_krw.json"
+  },
+  {
+    "id": "crypto_eth_usd",
+    "category": "crypto",
+    "group": "ETH · 이더리움",
+    "currency": "usd",
+    "label": "코인 · ETH · 이더리움 (USD)",
+    "file": "crypto_eth_usd.json"
+  },
+  {
+    "id": "crypto_xrp_krw",
+    "category": "crypto",
+    "group": "XRP · 리플",
+    "currency": "krw",
+    "label": "코인 · XRP · 리플 (KRW)",
+    "file": "crypto_xrp_krw.json"
+  },
+  {
+    "id": "crypto_xrp_usd",
+    "category": "crypto",
+    "group": "XRP · 리플",
+    "currency": "usd",
+    "label": "코인 · XRP · 리플 (USD)",
+    "file": "crypto_xrp_usd.json"
+  },
+  {
     "id": "multi_analytics_krw",
     "category": "analytics",
     "group": "8자산 정량분석",
