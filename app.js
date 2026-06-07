@@ -38,6 +38,7 @@ const state = {
   analyticsActive: false, analyticsPayload: null, _analyticsCur: null,   // 정량분석 기간조절 재계산(월수익 행렬 보관)
   explorerCtx: null, explorer: null, _expWired: false,   // 전략 탐색기(위험성향 슬라이더·내 비중 점)
   selectedAssets: [], _assetWired: false,                // 정량분석 분석 자산 선택(부분집합)
+  allocCtx: null, panelCache: null,                      // 정적 리밸런싱 셀렉터(즉석 재계산)
   sort: { col: null, dir: -1 },  // 성과표 리더보드 정렬(열 클릭). dir: -1=내림차순
 };
 
@@ -163,6 +164,7 @@ function stratDesc(name) {
   if (name.includes('DCA')) return '정액 분할 매수(DCA).';
   return '';
 }
+const REBAL_KOR = { never: '없음(Buy&Hold)', monthly: '월', quarterly: '분기', semiannual: '반기', yearly: '연' };
 function renderDescription() {
   const el = document.getElementById('strategy-desc');
   if (!el) return;
@@ -171,6 +173,12 @@ function renderDescription() {
   if (d && d.kind === 'analytics') txt = CAT_BLURB.analytics;
   else if (d && d.description) txt = d.description;        // 동적/정적: JSON 상세 설명
   else txt = stratDesc(state.nav.group) || CAT_BLURB[state.nav.category] || '';
+  // 리밸런싱 주기 표기 — 동적=신호 기반 매월, 정적/플레이그라운드=주기(+밴드)
+  if (d) {
+    if (d.kind === 'dynamic') txt += (txt ? ' · ' : '') + '신호 기반 매월 리밸런싱';
+    else if (d.rebalance) txt += (txt ? ' · ' : '') + `리밸런싱: ${REBAL_KOR[d.rebalance] || d.rebalance}`
+      + (d.band_ratio != null ? ` (밴드 ±${(d.band_ratio * 100).toFixed(0)}%)` : '');
+  }
   el.textContent = txt;
   el.classList.toggle('hidden', !txt);
 }
@@ -599,6 +607,7 @@ async function loadDataset(file) {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const d = await resp.json();
     state.analyticsActive = false;
+    state.allocCtx = null; _showAllocRebal(false);   // 정적 리밸런싱 셀렉터 기본 숨김(정적이면 아래서 재노출)
     if (d.kind === 'analytics') { setStatus(''); return enterAnalytics(d); }
     if (d.mode === 'playground') { setStatus(''); return enterPlayground(d); }
     setAnalyticsMode(false); setToolsMode(false);
@@ -613,6 +622,15 @@ async function loadDataset(file) {
       `${d.title || ''} · 생성일 ${d.generated_at || '-'} · 빈도 ${d.freq === 'D' ? '일별' : '월별'}`;
     setStatus('');
     render();
+    // 정적 프리셋: 리밸런싱 주기·밴드 셀렉터 노출(즉석 재계산). target_weights 있는 정적(allocation)만.
+    if (d.kind === 'allocation' && d.target_weights && Object.keys(d.target_weights).length) {
+      state.allocCtx = { file, weights: d.target_weights, defaultRebal: d.rebalance || 'quarterly',
+        defaultBand: d.band_ratio != null ? d.band_ratio : 0.2, title: d.title || '정적 배분', desc: d.description || '' };
+      const sel = document.getElementById('alloc-rebal'), bnd = document.getElementById('alloc-band');
+      if (sel) sel.value = state.allocCtx.defaultRebal;
+      if (bnd) bnd.value = (state.allocCtx.defaultBand * 100).toFixed(0);
+      _showAllocRebal(true);
+    }
   } catch (err) {
     setStatus('데이터 로딩 실패: ' + err.message + ' (로컬에서 볼 때는 file:// 가 아니라 http 서버로 열어야 합니다)', true);
   }
@@ -679,6 +697,10 @@ function wireControls() {
   document.querySelectorAll('#presets button').forEach(b => {
     b.addEventListener('click', () => { setActivePreset(Number(b.dataset.years)); onPeriodChange(); });
   });
+  // 정적 자산배분 리밸런싱 주기·밴드 → 즉석 재계산
+  const arb = document.getElementById('alloc-rebal'), abd = document.getElementById('alloc-band');
+  if (arb) arb.addEventListener('change', onAllocRebalChange);
+  if (abd) abd.addEventListener('change', onAllocRebalChange);
   // 성과표 리더보드 정렬 — 열 헤더 클릭(같은 열 재클릭 시 방향 토글).
   document.getElementById('metrics-table').addEventListener('click', e => {
     const th = e.target.closest('th[data-col]');
@@ -892,6 +914,7 @@ function renderParadise() {
 async function loadTool(entry, kind) {
   setToolsMode(true, kind);
   state.playground = false; state.analyticsActive = false; state._analyticsCur = null; state.data = null;
+  state.allocCtx = null; _showAllocRebal(false);
   setStatus('불러오는 중…');
   try {
     const d = await fetch('data/' + entry.file, { cache: 'no-cache' })
@@ -1444,6 +1467,7 @@ async function loadMultiDatasets(files, title) {
   setStatus('여러 데이터셋 불러오는 중…');
   setAnalyticsMode(false); setToolsMode(false);
   state.playground = false; setHidden('playground', true);
+  state.allocCtx = null; _showAllocRebal(false);
   try {
     const ds = await Promise.all(files.map(f =>
       fetch('data/' + f, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })));
@@ -1570,31 +1594,67 @@ function _pgNormalize() {
   let sum = 0; inps.forEach(i => { sum += parseFloat(i.value) || 0; });
   if (sum > 0) inps.forEach(i => { i.value = ((parseFloat(i.value) || 0) / sum * 100).toFixed(1); });
 }
+// 공유: 비중·주기·밴드 → alloc.js 즉석 백테스트 → 통화곡선+벤치마크 → synth 데이터셋 → render.
+// 플레이그라운드와 정적 프리셋 리밸런싱 셀렉터가 공유. opts={selfName,title,desc}.
+function _allocRun(panel, w, rebalance, band, ccy, opts) {
+  opts = opts || {};
+  const ids = panel.assets.map(a => a.id);
+  const res = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, w, { rebalance, bandRatio: band, costs: panel.costs });
+  if (!res) { setStatus('선택한 자산의 공통 데이터가 부족합니다(비중>0 자산을 확인하세요).', true); return false; }
+  setStatus('');
+  const fxWin = res.win.map(t => panel.fx[t]);
+  const curves = [{ name: opts.selfName || '내 배분', dates: res.dates, nav: ALLOC.navToCcy(res.navKrw, fxWin, ccy) }];
+  for (const [name, b] of Object.entries(panel.benchmarks || {})) {
+    curves.push({ name, dates: res.dates, nav: ALLOC.benchCurve(b.price, b.ccy, panel.fx, ccy, res.win) });
+  }
+  state.data = _synthDataset(curves, opts.title || '사용자 배분');
+  state.data.target_weights = res.weights;            // 정규화 비중 → 구성 표
+  state.data.rebalance = rebalance; state.data.band_ratio = band;   // 설명에 주기 표기
+  if (opts.desc != null) state.data.description = opts.desc;
+  state.colToMetric = buildColToMetric(state.data);
+  buildStrategyList(state.data);
+  render();
+  return true;
+}
+
 function runPlayground() {
   const panel = state.panel; if (!panel) return;
   const w = {}; let sum = 0;
   _pgWeightInputs().forEach(i => { const v = (parseFloat(i.value) || 0) / 100; w[i.dataset.asset] = v; sum += v; });
   document.getElementById('pg-sum').textContent = `합계 ${(sum * 100).toFixed(1)}%`;
   document.getElementById('pg-sum').className = 'pg-sum' + (Math.abs(sum - 1) <= 0.001 ? ' ok' : ' warn');
-  const ids = panel.assets.map(a => a.id);
   const rebalance = document.getElementById('pg-rebalance').value;
   const band = (parseFloat(document.getElementById('pg-band').value) || 0) / 100;
-  const res = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, w,
-    { rebalance, bandRatio: band, costs: panel.costs });
-  if (!res) { setStatus('선택한 자산의 공통 데이터가 부족합니다(비중>0 자산을 확인하세요).', true); return; }
-  setStatus('');
-  const ccy = state.nav.currency || 'krw';
-  const fxWin = res.win.map(t => panel.fx[t]);
-  const curves = [{ name: '내 배분', dates: res.dates, nav: ALLOC.navToCcy(res.navKrw, fxWin, ccy) }];
-  for (const [name, b] of Object.entries(panel.benchmarks || {})) {
-    const bc = ALLOC.benchCurve(b.price, b.ccy, panel.fx, ccy, res.win);
-    curves.push({ name, dates: res.dates, nav: bc });
+  _allocRun(panel, w, rebalance, band, state.nav.currency || 'krw', { selfName: '내 배분', title: '사용자 배분' });
+}
+
+// 정적 프리셋 리밸런싱 셀렉터 ─────────────────────────────────────────────
+function _showAllocRebal(show) {
+  const el = document.querySelector('.ctl-rebal');
+  if (el) el.classList.toggle('hidden', !show);
+}
+async function _ensurePanel() {
+  if (state.panelCache) return state.panelCache;
+  try {
+    const r = await fetch('data/panel.json', { cache: 'no-cache' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    state.panelCache = await r.json();
+    return state.panelCache;
+  } catch (e) { return null; }
+}
+async function onAllocRebalChange() {
+  const ctx = state.allocCtx; if (!ctx) return;
+  const rebalance = document.getElementById('alloc-rebal').value;
+  const band = (parseFloat(document.getElementById('alloc-band').value) || 0) / 100;
+  if (rebalance === ctx.defaultRebal && Math.abs(band - ctx.defaultBand) < 1e-9) {
+    return loadDataset(ctx.file);   // 기본값 → 사전계산 풀 뷰 복원
   }
-  state.data = _synthDataset(curves, '사용자 배분');
-  state.data.target_weights = res.weights;   // 정규화 비중 → 구성 표
-  state.colToMetric = buildColToMetric(state.data);
-  buildStrategyList(state.data);
-  render();
+  setStatus('재계산 중…');
+  const panel = await _ensurePanel();
+  if (!panel) { setStatus('panel.json 로드 실패 — 기본(분기) 결과만 가능', true); return; }
+  _allocRun(panel, ctx.weights, rebalance, band, state.nav.currency || 'krw',
+    { selfName: ctx.title, title: ctx.title, desc: ctx.desc });
+  _showAllocRebal(true);            // render 후에도 컨트롤 유지
 }
 
 async function init() {

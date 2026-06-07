@@ -441,6 +441,11 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
 .wbar-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; opacity: 0.9; }
 .wbar-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--fg); }
 
+/* ---- 정적 리밸런싱 셀렉터 ---- */
+.ctl-rebal .ctl { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 0.8rem; }
+.ctl-rebal select { padding: 0.3rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--fg); }
+.ctl-rebal .muted { font-size: 0.78rem; }
+
 /* ---- 정량분석 자산 선택 ---- */
 .an-select { margin: 0.5rem 0 0.3rem; padding: 0.6rem 0.8rem; background: var(--surface-2); border-radius: var(--radius-sm); }
 .an-select-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.4rem; }
