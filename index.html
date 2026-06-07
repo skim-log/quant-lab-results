@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=abbf38ce" />
+  <link rel="stylesheet" href="style.css?v=db96d65e" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -184,22 +184,49 @@
         <h2>낙원계산기 <span class="muted">(은퇴·경제적 자유)</span></h2>
         <p class="period-note">복리 성장 + 인플레이션 반영 모델.
           <a href="https://keep-ones.me/#/paradise-calculator2" target="_blank" rel="noopener">keep-ones.me 낙원계산기</a>를 참고했습니다.</p>
+        <div id="para-mode" class="bt-toggle" style="margin-bottom:.6rem">
+          <button type="button" data-mode="det" class="active">결정론 (단일값)</button>
+          <button type="button" data-mode="mc">몬테카를로 (분포·생존율)</button>
+        </div>
         <div class="pg-controls">
           <label>보유 자산(원) <input type="text" inputmode="numeric" id="para-asset" value="0" /></label>
           <label>연간 저축(원) <input type="text" inputmode="numeric" id="para-save" value="18,000,000" />
             <small class="pg-hint" id="para-save-hint"></small></label>
-          <label>은퇴까지(년) <input type="number" id="para-years" value="20" min="1" /></label>
+          <label>은퇴까지/기간(년) <input type="number" id="para-years" value="20" min="1" /></label>
           <label>명목 수익률(%) <input type="number" id="para-nom" value="10" step="0.5" /></label>
           <label>인플레이션(%) <input type="number" id="para-infl" value="2.5" step="0.5" /></label>
         </div>
-        <div id="para-results" class="ext-cards"></div>
-        <div class="tool-explain">
-          <p><strong>공식</strong> <code>자산 × (1+r)^n + 저축 × ((1+r)^n − (1+i)^n) / (r − i)</code></p>
-          <p><strong>전제</strong> 저축액은 오늘 가치 기준이며 매년 인플레이션만큼 증가.</p>
-          <p><strong>월 수입</strong> <code>오늘 가치 환산 자산 × ((1+r)/(1+i) − 1) / 12</code> (r=명목수익률, i=인플레이션, n=연차)</p>
+
+        <div id="para-det">
+          <div id="para-results" class="ext-cards"></div>
+          <div class="tool-explain">
+            <p><strong>공식</strong> <code>자산 × (1+r)^n + 저축 × ((1+r)^n − (1+i)^n) / (r − i)</code></p>
+            <p><strong>전제</strong> 저축액은 오늘 가치 기준이며 매년 인플레이션만큼 증가.</p>
+            <p><strong>월 수입</strong> <code>오늘 가치 환산 자산 × ((1+r)/(1+i) − 1) / 12</code> (r=명목수익률, i=인플레이션, n=연차)</p>
+          </div>
+          <div id="para-chart" class="chart" style="height:360px;margin-top:0.8rem"></div>
+          <p class="period-note">자산 성장 = 시작 자산이 복리로 불어난 부분 · 저축 누적 = 매년 물가만큼 늘린 저축액 + 그 복리.</p>
         </div>
-        <div id="para-chart" class="chart" style="height:360px;margin-top:0.8rem"></div>
-        <p class="period-note">자산 성장 = 시작 자산이 복리로 불어난 부분 · 저축 누적 = 매년 물가만큼 늘린 저축액 + 그 복리.</p>
+
+        <div id="para-mc" class="hidden">
+          <div class="pg-controls">
+            <label>연 인출액(원) <input type="text" inputmode="numeric" id="mc-withdraw" value="24,000,000" />
+              <small class="pg-hint">음수면 적립(저축). 오늘 가치 → 매년 인플레만큼 증가</small></label>
+            <label>경로 수 <input type="number" id="mc-paths" value="2000" min="200" max="5000" step="500" /></label>
+            <label>수익 분포 <select id="mc-src">
+              <option value="param">모수 (정규: 명목수익·변동성)</option>
+              <option value="boot">부트스트랩 (전략 과거 월수익)</option></select></label>
+            <label>변동성(%) <input type="number" id="mc-sigma" value="15" step="1" /></label>
+            <label id="mc-strat-wrap" class="hidden">부트스트랩 전략 <select id="mc-strat"></select></label>
+          </div>
+          <div id="mc-cards" class="ext-cards"></div>
+          <div id="mc-fan" class="chart" style="height:380px;margin-top:0.6rem"></div>
+          <div class="tool-explain">
+            <p><strong>몬테카를로</strong> 매월 수익을 무작위로 수천 번 뽑아 인출(인플레 반영) 경로를 시뮬 → <strong>자금 생존율</strong>(고갈하지 않은 경로 비율)과 잔액 백분위(p10·중앙·p90)를 봅니다.</p>
+            <p><strong>모수</strong> = 명목수익률을 평균, 입력 변동성을 표준편차로 한 정규분포. <strong>부트스트랩</strong> = 선택 전략의 과거 월수익을 복원추출(시드 고정).</p>
+          </div>
+          <p class="tool-disclaimer">⚠️ 과거 분포·정규 근사는 미래를 보장하지 않으며, 수익 시퀀스 위험(초기 폭락)·꼬리위험을 과소평가할 수 있습니다.</p>
+        </div>
       </section>
     </div>
 
@@ -335,10 +362,62 @@
       <p class="period-note">비중·주기·밴드·기간·통화를 바꾸면 <strong>엔진을 새로 돌려</strong> 곡선·지표를 다시 계산합니다(진짜 재백테스트).</p>
     </section>
 
+    <!-- 전략 블렌딩 · 적립식 (body.blend-mode 일 때만 표시; 결과는 아래 표준 차트/패널로 렌더) -->
+    <section id="blend-section" class="panel">
+      <h2>전략 블렌딩 · 적립식</h2>
+      <p class="period-note">여러 전략을 비중 결합(일시불 또는 주기 리밸런싱)한 곡선·지표를 계산하고, 월 적립식(XIRR)도 모델링.
+        같은 통화의 전략끼리만 합성됩니다(전략 NAV를 월말 정렬·공통구간 리베이스).</p>
+      <div class="bt-controls">
+        <span class="muted">통화</span>
+        <div id="blend-ccy" class="bt-toggle"><button type="button" data-ccy="krw" class="active">원화</button><button type="button" data-ccy="usd">달러</button></div>
+        <label>리밸런싱 <select id="blend-rebal">
+          <option value="none">없음(일시불 가중합)</option><option value="monthly">월</option>
+          <option value="quarterly" selected>분기</option><option value="semiannual">반기</option><option value="yearly">연</option></select></label>
+        <div id="blend-mode-toggle" class="bt-toggle"><button type="button" data-bm="lump" class="active">일시불</button><button type="button" data-bm="dca">월적립</button></div>
+        <label id="blend-amount-wrap" class="hidden">월 적립액(원) <input type="text" inputmode="numeric" id="blend-amount" value="1,000,000" /></label>
+      </div>
+      <div id="blend-pick"></div>
+      <div class="blend-actions">
+        <button type="button" id="blend-add" class="btn">+ 전략 추가</button>
+        <span id="blend-sum" class="pg-sum"></span>
+        <button type="button" id="blend-run" class="btn">블렌드 실행</button>
+      </div>
+      <div id="blend-dca" class="hidden">
+        <div id="blend-dca-cards" class="ext-cards"></div>
+        <div id="blend-invested" class="chart" style="height:300px;margin-top:0.4rem"></div>
+      </div>
+    </section>
+
     <section class="charts">
       <div id="chart-equity" class="chart"></div>
       <div id="chart-dd" class="chart"></div>
       <div id="chart-annual" class="chart"></div>
+    </section>
+
+    <!-- 분석 강화: 롤링 수익률 · 최대 낙폭 Top-N · 월별 수익률 히트맵 (모든 백테스트 데이터셋, 브라우저 계산) -->
+    <section id="rolling-section" class="panel hidden">
+      <h2>롤링 수익률 <span class="muted">(N년 이동창 CAGR 분포)</span></h2>
+      <p class="period-note">선택 구간의 모든 N년 이동창 CAGR — <strong>단일 CAGR은 시작 시점의 운에 좌우</strong>되므로,
+        창별 분포(최저~최고)가 전략의 기간 의존성을 드러냅니다.
+        <label style="margin-left:.5rem">창 길이
+          <select id="rolling-window"><option value="0">자동</option><option value="1">1년</option>
+          <option value="3">3년</option><option value="5">5년</option><option value="10">10년</option></select></label>
+      </p>
+      <div id="rolling-cards" class="ext-cards"></div>
+      <div id="chart-rolling" class="chart"></div>
+    </section>
+
+    <section id="topdd-section" class="panel hidden">
+      <h2>최대 낙폭 Top-5 <span class="muted" id="topdd-for"></span></h2>
+      <p class="period-note">선택 구간에서 가장 깊은 고점→저점 낙폭 에피소드(회복일·수중 기간 포함). 위험은 평균이 아니라 꼬리에서 옵니다.</p>
+      <div id="topdd-curvewrap" class="hidden" style="margin-bottom:.5rem">곡선 <select id="topdd-curve"></select></div>
+      <div class="table-wrap"><table id="topdd-table" class="diag-table"></table></div>
+    </section>
+
+    <section id="monthly-hm-section" class="panel hidden">
+      <h2>월별 수익률 히트맵 <span class="muted" id="monthly-hm-for"></span></h2>
+      <p class="period-note">연×월 월수익(초록 +, 빨강 −). 일별 데이터는 월말 종가로 리샘플, 첫 부분월은 공백.</p>
+      <div id="chart-monthly-hm" class="chart"></div>
     </section>
 
     <!-- 글로벌 자산배분 전용 패널 (해당 데이터셋에만 표시) -->
@@ -367,6 +446,22 @@
       <h2>밴드 트리거 A/B</h2>
       <p class="period-note">같은 비중에 밴드 트리거만 토글한 전체기간 비교 (초록 = 밴드가 더 나음)</p>
       <div class="table-wrap"><table id="bandab-table"></table></div>
+    </section>
+
+    <section id="sweep-section" class="panel hidden">
+      <h2>리밸런싱 민감도 스윕</h2>
+      <p class="period-note">현재 정적 비중을 <strong>주기(없음~연) × 밴드(OFF~30%)</strong> 격자(약 20개)로 브라우저에서 재백테스트.
+        비중·비용은 프리셋과 동일, 통화는 현재 토글. <strong>전체 가용 기간 기준</strong>(구간 슬라이더 미반영 — 진짜 재백테스트).</p>
+      <div class="bt-controls">
+        <div id="sweep-metric" class="bt-toggle">
+          <button type="button" data-metric="CAGR" class="active">CAGR</button>
+          <button type="button" data-metric="MDD">MDD</button>
+          <button type="button" data-metric="Sharpe">Sharpe</button>
+        </div>
+        <button type="button" id="sweep-run" class="btn">스윕 실행</button>
+      </div>
+      <div id="chart-sweep" class="chart"></div>
+      <div class="table-wrap"><table id="sweep-table" class="diag-table"></table></div>
     </section>
 
     <section id="events-section" class="panel hidden">
@@ -403,8 +498,8 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=abbf38ce" defer></script>
-  <script src="analytics-live.js?v=abbf38ce" defer></script>
-  <script src="app.js?v=abbf38ce" defer></script>
+  <script src="alloc.js?v=db96d65e" defer></script>
+  <script src="analytics-live.js?v=db96d65e" defer></script>
+  <script src="app.js?v=db96d65e" defer></script>
 </body>
 </html>

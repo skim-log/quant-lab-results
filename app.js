@@ -39,6 +39,10 @@ const state = {
   explorerCtx: null, explorer: null, _expWired: false,   // 전략 탐색기(위험성향 슬라이더·내 비중 점)
   selectedAssets: [], _assetWired: false,                // 정량분석 분석 자산 선택(부분집합)
   allocCtx: null, panelCache: null,                      // 정적 리밸런싱 셀렉터(즉석 재계산)
+  rolling: { years: 0 }, topddCurve: null,               // 롤링 수익률 창·낙폭표 곡선 선택
+  sweep: null, sweepMetric: 'CAGR',                      // 리밸런싱 민감도 스윕 결과·지표
+  paraMode: 'det', mcBoot: null,                         // 낙원계산기 모드(결정론/몬테카를로)·부트스트랩 캐시
+  blendCcy: 'krw', blendMode: 'lump', blendCache: null, _blendWired: false,  // 전략 블렌딩·적립식
   sort: { col: null, dir: -1 },  // 성과표 리더보드 정렬(열 클릭). dir: -1=내림차순
 };
 
@@ -209,6 +213,9 @@ function render() {
   renderAnnual(rows);
   renderTable(rows, isFullPeriod(s, e));
   renderExtras(rows, s, e);   // 글로벌 자산배분 전용 패널(데이터셋에 해당 필드가 있을 때만)
+  renderRolling(rows);        // 분석 강화(모든 백테스트 뷰): 롤링 수익률
+  renderTopDD(rows);          //   최대 낙폭 Top-N
+  renderMonthlyHeatmap(rows); //   월별 수익률 히트맵
 
   const note = isFullPeriod(s, e)
     ? `전체 기간 (${state.globalStart} ~ ${state.globalEnd})`
@@ -494,6 +501,148 @@ function renderExtCards(rows, s, e) {
   document.getElementById('ext-cards').innerHTML = html;
 }
 
+// ---------------------------------------------------------------------------
+// 분석 강화(클라이언트): 롤링 수익률 · 최대 낙폭 Top-N · 월별 수익률 히트맵
+// 활성 데이터셋의 NAV(rows)에서 즉석 계산. render() 경로(백테스트 뷰)에서만 호출됨.
+// ---------------------------------------------------------------------------
+function percentile(sorted, p) {
+  if (!sorted.length) return NaN;
+  const idx = (sorted.length - 1) * p, lo = Math.floor(idx), hi = Math.ceil(idx);
+  return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+function primaryRow(rows) {
+  const em = state.data.extended_metrics;
+  const pname = em ? Object.keys(em)[0] : null;
+  return rows.find(r => r.name === pname) || rows[0];
+}
+/** 롤링 N년 CAGR — 각 끝점 i에서 ≥years 인 가장 짧은 창(시작 k). k 단조증가(투포인터). */
+function rollingCagr(dates, nav, years) {
+  const out = []; let k = 0;
+  for (let i = 0; i < nav.length; i++) {
+    while (k + 1 <= i && yearsBetween(dates[k + 1], dates[i]) >= years) k++;
+    if (yearsBetween(dates[k], dates[i]) >= years - 1e-6) {
+      const yr = yearsBetween(dates[k], dates[i]);
+      out.push({ date: dates[i], cagr: Math.pow(nav[i] / nav[k], 1 / yr) - 1 });
+    }
+  }
+  return out;
+}
+function renderRolling(rows) {
+  if (!rows.length) { setHidden('rolling-section', true); return; }
+  const pr = primaryRow(rows);
+  const span = yearsBetween(pr.dates[0], pr.dates[pr.dates.length - 1]);
+  if (span < 1) { setHidden('rolling-section', true); return; }   // 1년 미만이면 롤링 무의미
+  setHidden('rolling-section', false);
+  let years = (state.rolling && state.rolling.years) || 0;
+  if (!years) years = span >= 10 ? 5 : span >= 6 ? 3 : 1;          // 자동
+  const sel = document.getElementById('rolling-window');
+  if (sel) sel.value = String((state.rolling && state.rolling.years) || 0);
+  const traces = [], pPts = [];
+  for (const r of rows) {
+    const rc = rollingCagr(r.dates, r.nav, years);
+    if (!rc.length) continue;
+    traces.push({ type: 'scatter', mode: 'lines', name: r.name, x: rc.map(p => p.date),
+      y: rc.map(p => p.cagr * 100), line: { width: 1.4, color: state.colorOf[r.name] },
+      hovertemplate: `%{y:.1f}%<extra>${r.name} · ${years}년 롤링</extra>` });
+    if (r.name === pr.name) pPts.push(...rc.map(p => p.cagr));
+  }
+  const cardsEl = document.getElementById('rolling-cards');
+  if (pPts.length) {
+    const s = [...pPts].sort((a, b) => a - b);
+    const card = (lab, v, sub) => `<div class="ext-card"><div class="lab">${lab}</div><div class="val">${v}</div><div class="sub">${sub}</div></div>`;
+    const pos = (pPts.filter(x => x > 0).length / pPts.length * 100).toFixed(0);
+    cardsEl.innerHTML =
+      card('최저', fmtPct(s[0]), `${years}년 롤링 · ${pr.name}`) +
+      card('하위 25%', fmtPct(percentile(s, 0.25)), `${pPts.length}개 창`) +
+      card('중앙값', fmtPct(percentile(s, 0.5)), '') +
+      card('상위 25%', fmtPct(percentile(s, 0.75)), '') +
+      card('최고', fmtPct(s[s.length - 1]), '') +
+      card('양(+) 창 비율', pos + '%', '손실 없이 끝난 비율');
+  } else {
+    cardsEl.innerHTML = `<p class="period-note">선택 구간이 ${years}년보다 짧아 롤링 분석 불가 — 더 긴 구간이나 짧은 창을 선택하세요.</p>`;
+  }
+  Plotly.react('chart-rolling', traces, baseLayout(`${years}년 롤링 CAGR (창 종료일 기준)`, '연율 CAGR %'), PLOTCFG);
+}
+
+/** 가장 깊은 낙폭 에피소드 Top-N (고점→저점→회복). mddEpisodeJS 다중화. */
+function topDrawdowns(dates, nav, n) {
+  const eps = []; let peak = nav[0], peakI = 0, inDD = false, trV = nav[0], trI = 0;
+  for (let i = 1; i < nav.length; i++) {
+    const v = nav[i];
+    if (v >= peak) { if (inDD) { eps.push({ peakI, trI, recI: i, rec: true }); inDD = false; } peak = v; peakI = i; }
+    else if (!inDD) { inDD = true; trV = v; trI = i; }
+    else if (v < trV) { trV = v; trI = i; }
+  }
+  if (inDD) eps.push({ peakI, trI, recI: nav.length - 1, rec: false });
+  const months = (a, b) => Math.round(yearsBetween(dates[a], dates[b]) * 12);
+  return eps.map(e => ({
+    depth: nav[e.trI] / nav[e.peakI] - 1, peak: dates[e.peakI].slice(0, 7), trough: dates[e.trI].slice(0, 7),
+    recovery: e.rec ? dates[e.recI].slice(0, 7) : '', recovered: e.rec,
+    underwater: months(e.peakI, e.rec ? e.recI : nav.length - 1),
+  })).sort((a, b) => a.depth - b.depth).slice(0, n);
+}
+function renderTopDD(rows) {
+  if (!rows.length) { setHidden('topdd-section', true); return; }
+  setHidden('topdd-section', false);
+  const wrap = document.getElementById('topdd-curvewrap'), selEl = document.getElementById('topdd-curve');
+  if (rows.length > 1) {
+    wrap.classList.remove('hidden');
+    const sig = rows.map(r => r.name).join('|');
+    if (selEl.dataset.sig !== sig) { selEl.innerHTML = rows.map(r => `<option>${r.name}</option>`).join(''); selEl.dataset.sig = sig; }
+    if (state.topddCurve && rows.some(r => r.name === state.topddCurve)) selEl.value = state.topddCurve;
+  } else { wrap.classList.add('hidden'); }
+  const chosen = (rows.length > 1 && state.topddCurve && rows.some(r => r.name === state.topddCurve))
+    ? rows.find(r => r.name === state.topddCurve) : primaryRow(rows);
+  document.getElementById('topdd-for').textContent = `— ${chosen.name}`;
+  const dd = topDrawdowns(chosen.dates, chosen.nav, 5);
+  const head = '<thead><tr><th class="name">순위</th><th>고점</th><th>저점</th><th>낙폭</th><th>회복</th><th>수중(개월)</th></tr></thead>';
+  const body = dd.map((e, i) => `<tr><td class="name" data-label="순위">${i + 1}</td>` +
+    `<td data-label="고점">${e.peak}</td><td data-label="저점">${e.trough}</td>` +
+    `<td class="neg" data-label="낙폭">${fmtPct(e.depth)}</td>` +
+    `<td data-label="회복">${e.recovered ? e.recovery : '<span class="muted">미회복</span>'}</td>` +
+    `<td data-label="수중(개월)">${e.underwater}</td></tr>`).join('');
+  document.getElementById('topdd-table').innerHTML = head + '<tbody>' + (body || '<tr><td class="muted">낙폭 없음</td></tr>') + '</tbody>';
+}
+
+/** 월별 수익률 행렬(연×월) — 월말 리샘플 후 전월 대비. 첫 달 null. */
+function monthlyReturnsMatrix(dates, nav) {
+  const monthEnd = new Map();
+  for (let i = 0; i < dates.length; i++) monthEnd.set(dates[i].slice(0, 7), nav[i]);
+  const keys = Array.from(monthEnd.keys()).sort();
+  const ret = new Map();
+  for (let k = 1; k < keys.length; k++) ret.set(keys[k], monthEnd.get(keys[k]) / monthEnd.get(keys[k - 1]) - 1);
+  const years = Array.from(new Set(keys.map(k => k.slice(0, 4)))).sort();
+  const z = years.map(y => Array.from({ length: 12 }, (_, m) => {
+    const key = `${y}-${String(m + 1).padStart(2, '0')}`;
+    return ret.has(key) ? ret.get(key) : null;
+  }));
+  return { years, z };
+}
+function renderMonthlyHeatmap(rows) {
+  if (!rows.length) { setHidden('monthly-hm-section', true); return; }
+  const pr = primaryRow(rows);
+  const { years, z } = monthlyReturnsMatrix(pr.dates, pr.nav);
+  if (!years.length || z.flat().filter(v => v != null).length < 2) { setHidden('monthly-hm-section', true); return; }
+  setHidden('monthly-hm-section', false);
+  document.getElementById('monthly-hm-for').textContent = `— ${pr.name}`;
+  const months = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
+  const amax = Math.max(0.01, ...z.flat().filter(v => v != null).map(Math.abs));
+  const text = z.map(r => r.map(v => v == null ? '' : (v > 0 ? '+' : '') + (v * 100).toFixed(1)));
+  const muted = cssVar('--chart-muted');
+  const trace = { type: 'heatmap', z: z.map(r => r.map(v => v == null ? null : v * 100)), x: months, y: years,
+    text, texttemplate: '%{text}', textfont: { size: 9, color: '#0f172a' },
+    zmid: 0, zmin: -amax * 100, zmax: amax * 100,
+    colorscale: [[0, '#dc2626'], [0.5, '#f1f5f9'], [1, '#16a34a']], xgap: 2, ygap: 2,
+    colorbar: { tickfont: { color: muted }, outlinewidth: 0, len: 0.92, thickness: 12, ticksuffix: '%' },
+    hovertemplate: '%{y} %{x}<br>%{z:.1f}%<extra></extra>' };
+  const layout = baseLayout('', '');
+  layout.margin = { l: 48, r: 10, t: 24, b: 16 };
+  layout.xaxis = { tickfont: { color: muted, size: 10 }, side: 'top', automargin: true };
+  layout.yaxis = { tickfont: { color: muted, size: 10 }, automargin: true, autorange: 'reversed' };
+  delete layout.legend; layout.hovermode = 'closest';
+  Plotly.react('chart-monthly-hm', [trace], layout, PLOTCFG);
+}
+
 function renderBandAB() {
   const ab = state.data.band_ab;
   if (!ab || !ab.on || !ab.off) { setHidden('bandab-section', true); return; }
@@ -673,12 +822,12 @@ function applyTheme(theme, persist) {
   // 차트 색은 CSS 토큰 기반 → 재렌더로 새 테마 반영(분석·도구 뷰는 전용 렌더 경로).
   if (document.body.classList.contains('tools-mode')) {
     const t = state.tool || {};
-    if (t.kind === 'paradise') renderParadise();
+    if (t.kind === 'paradise') paradiseRefresh();
     else if (t.kind === 'sentiment') renderSentiment(t.data);
     else if (t.kind === 'trend') renderTrend(t.data);
   } else if (state.data) {
     if (state.data.kind === 'analytics') renderAnalytics(state.data);
-    else render();
+    else { render(); if (state.sweep) renderSweep(); }   // 스윕 히트맵도 새 테마로 재색
   }
 }
 function setupTheme() {
@@ -706,6 +855,15 @@ function wireControls() {
   if (arb) arb.addEventListener('change', onAllocRebalChange);
   if (abd) abd.addEventListener('change', onAllocRebalChange);
   if (abon) abon.addEventListener('change', onAllocRebalChange);
+  // 분석 강화: 롤링 창 길이 · 낙폭표 곡선 선택
+  const rwin = document.getElementById('rolling-window'), tddc = document.getElementById('topdd-curve');
+  if (rwin) rwin.addEventListener('change', () => { state.rolling = { years: Number(rwin.value) || 0 }; render(); });
+  if (tddc) tddc.addEventListener('change', () => { state.topddCurve = tddc.value; render(); });
+  // 리밸런싱 민감도 스윕: 실행 버튼 + 지표 토글
+  const srun = document.getElementById('sweep-run');
+  if (srun) srun.addEventListener('click', runRebalSweep);
+  document.querySelectorAll('#sweep-metric button').forEach(b =>
+    b.addEventListener('click', () => { state.sweepMetric = b.dataset.metric; renderSweep(); }));
   // 성과표 리더보드 정렬 — 열 헤더 클릭(같은 열 재클릭 시 방향 토글).
   document.getElementById('metrics-table').addEventListener('click', e => {
     const th = e.target.closest('th[data-col]');
@@ -723,13 +881,13 @@ function clearPresetActive() {
 // ---------------------------------------------------------------------------
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
-const CAT_ORDER = { dynamic: 0, static: 1, momentum: 2, crypto: 3, analytics: 4, compare: 5,
-  paradise: 6, sentiment: 7, trend: 8, reliability: 9 };
+const CAT_ORDER = { dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, crypto: 3,
+  paradise: 7, sentiment: 8, trend: 9, reliability: 10 };
 const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
-  crypto: '코인', analytics: '정량분석', compare: '전략 비교',
+  crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩',
   paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도' };
 // 2단 대분류: 자산배분(8자산) / 개별전략(코인·모멘텀) / 도구·지표(계산기·심리·경보·데이터정확도).
-const SUPER_OF = { dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc',
+const SUPER_OF = { dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
   momentum: 'strat', crypto: 'strat',
   paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools' };
 const SUPER_ORDER = { alloc: 0, strat: 1, tools: 2 };
@@ -812,7 +970,9 @@ function setCurrency(cur) {
   });
   const entry = resolveEntry(state.nav.category, state.nav.group, cur);
   if (!entry) return;
+  document.body.classList.toggle('blend-mode', entry.mode === 'blend');   // 블렌딩 뷰 전용 컨트롤 표시
   // 도구·지표: 낙원계산기(클라이언트)·시장심리/추세경보/데이터정확도(JSON 로드) — mode 분기.
+  if (entry.mode === 'blend') return enterBlend();
   if (entry.mode === 'paradise') return enterParadise();
   if (entry.mode === 'sentiment' || entry.mode === 'trend' || entry.mode === 'reliability')
     return loadTool(entry, entry.mode);
@@ -877,13 +1037,33 @@ function enterParadise() {
   document.getElementById('meta').textContent = '낙원계산기 · keep-ones.me 참고';
   setStatus('');
   if (!state._paraWired) {
-    _attachComma('para-asset', renderParadise);
-    _attachComma('para-save', renderParadise);
+    _attachComma('para-asset', paradiseRefresh);
+    _attachComma('para-save', paradiseRefresh);
     ['para-years', 'para-nom', 'para-infl'].forEach(id =>
-      document.getElementById(id).addEventListener('input', renderParadise));
+      document.getElementById(id).addEventListener('input', paradiseRefresh));
+    // 몬테카를로 모드 토글 + MC 입력
+    document.querySelectorAll('#para-mode button').forEach(b =>
+      b.addEventListener('click', () => setParadiseMode(b.dataset.mode)));
+    _attachComma('mc-withdraw', paradiseRefresh);
+    ['mc-paths', 'mc-sigma'].forEach(id => document.getElementById(id).addEventListener('input', paradiseRefresh));
+    document.getElementById('mc-src').addEventListener('change', () => {
+      document.getElementById('mc-strat-wrap').classList.toggle('hidden', document.getElementById('mc-src').value !== 'boot');
+      paradiseRefresh();
+    });
+    document.getElementById('mc-strat').addEventListener('change', paradiseRefresh);
+    document.getElementById('mc-strat').innerHTML = state.manifest    // 단일곡선 데이터셋만
+      .filter(m => m.file && !m.mode).map(m => `<option value="${m.file}">${m.label}</option>`).join('');
     state._paraWired = true;
   }
-  renderParadise();
+  paradiseRefresh();
+}
+function paradiseRefresh() { if (state.paraMode === 'mc') renderParadiseMC(); else renderParadise(); }
+function setParadiseMode(m) {
+  state.paraMode = m;
+  setHidden('para-det', m !== 'det'); setHidden('para-mc', m !== 'mc');
+  document.querySelectorAll('#para-mode button').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+  document.getElementById('mc-strat-wrap').classList.toggle('hidden', document.getElementById('mc-src').value !== 'boot');
+  paradiseRefresh();
 }
 function renderParadise() {
   const start = _pgv('para-asset', 0), save = _pgv('para-save', 18000000);
@@ -914,6 +1094,77 @@ function renderParadise() {
     { type: 'bar', name: '자산 성장', x: xs, y: assetSeq, marker: { color: '#2563eb' } },
     { type: 'bar', name: '저축 누적', x: xs, y: saveSeq, marker: { color: '#10b981' } },
   ], layout, PLOTCFG);
+}
+
+// 몬테카를로 은퇴/인출 시뮬 — 시드 PRNG(analytics-live 와 동일 계열), 결정론 단일값 옆에 분포·생존율.
+function _mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function _rngNormal(rng) { let u = 0, v = 0; while (u === 0) u = rng(); while (v === 0) v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+function _monthlyReturnsFromSeries(dates, nav) {   // 월말 리샘플 후 전월 대비(일별 데이터 대응). Tier D 와 공용.
+  const me = new Map();
+  for (let i = 0; i < dates.length; i++) me.set(dates[i].slice(0, 7), nav[i]);
+  const keys = [...me.keys()].sort(); const r = [];
+  for (let k = 1; k < keys.length; k++) r.push(me.get(keys[k]) / me.get(keys[k - 1]) - 1);
+  return r;
+}
+async function _mcBootReturns(file) {
+  state.mcBoot = state.mcBoot || {};
+  if (state.mcBoot[file]) return state.mcBoot[file];
+  try {
+    const d = await (await fetch('data/' + file, { cache: 'no-cache' })).json();
+    const s = (d.series || [])[0]; if (!s) return null;
+    const ret = _monthlyReturnsFromSeries(s.dates, s.nav); state.mcBoot[file] = ret; return ret;
+  } catch (e) { return null; }
+}
+function mcRetirement(o) {
+  const N = Math.max(1, Math.round(o.years)) * 12, K = Math.min(5000, Math.max(200, Math.round(o.paths)));
+  const rng = _mulberry32(12345);
+  const muM = Math.pow(1 + o.mu, 1 / 12) - 1, sigM = o.sigma / Math.sqrt(12), inflM = Math.pow(1 + o.inflation, 1 / 12) - 1;
+  const w0 = o.annualWithdraw / 12;
+  const boot = o.source === 'boot' && o.hist && o.hist.length;
+  const byMonth = Array.from({ length: N + 1 }, () => []);
+  let survived = 0;
+  for (let p = 0; p < K; p++) {
+    let bal = o.start, alive = true;
+    byMonth[0].push(bal);
+    for (let t = 1; t <= N; t++) {
+      const r = boot ? o.hist[Math.floor(rng() * o.hist.length)] : muM + sigM * _rngNormal(rng);
+      const w = w0 * Math.pow(1 + inflM, t - 1);
+      bal = bal * (1 + r) - w;
+      if (bal <= 0) { bal = 0; alive = false; }
+      byMonth[t].push(bal);
+    }
+    if (alive) survived++;
+  }
+  const pct = (arr, q) => percentile([...arr].sort((a, b) => a - b), q);
+  const p10 = [], p50 = [], p90 = [];
+  for (let t = 0; t <= N; t++) { p10.push(pct(byMonth[t], 0.1)); p50.push(pct(byMonth[t], 0.5)); p90.push(pct(byMonth[t], 0.9)); }
+  return { successRate: survived / K, p10, p50, p90, months: N, bootUsed: boot };
+}
+async function renderParadiseMC() {
+  const start = _pgv('para-asset', 0), years = Math.max(1, Math.round(_pgv('para-years', 20)));
+  const mu = _pgv('para-nom', 10) / 100, sigma = _pgv('mc-sigma', 15) / 100, infl = _pgv('para-infl', 2.5) / 100;
+  const withdraw = _pgv('mc-withdraw', 24000000), paths = _pgv('mc-paths', 2000);
+  const source = document.getElementById('mc-src').value;
+  let hist = null;
+  if (source === 'boot') { const f = document.getElementById('mc-strat').value; if (f) hist = await _mcBootReturns(f); }
+  const res = mcRetirement({ start, years, mu, sigma, inflation: infl, annualWithdraw: withdraw, paths, source, hist });
+  const accum = withdraw < 0;
+  const card = (lab, v, sub) => `<div class="ext-card"><div class="lab">${lab}</div><div class="val">${v}</div><div class="sub">${sub || ''}</div></div>`;
+  document.getElementById('mc-cards').innerHTML =
+    card(accum ? '적립 경로(고갈 없음)' : '자금 생존율', (res.successRate * 100).toFixed(0) + '%',
+      `${years}년 · ${Math.min(5000, Math.max(200, Math.round(paths)))}경로` + (res.bootUsed ? ' · 부트스트랩' : ' · 정규')) +
+    card('중앙값 잔액 (p50)', _krwCompact(res.p50[res.months]), '명목') +
+    card('하위 10% (p10)', _krwCompact(res.p10[res.months]), '비관 시나리오') +
+    card('상위 10% (p90)', _krwCompact(res.p90[res.months]), '낙관 시나리오');
+  const xs = res.p50.map((_, t) => t / 12), muted = cssVar('--chart-muted');
+  const traces = [
+    { type: 'scatter', mode: 'lines', x: xs, y: res.p10, line: { width: 0 }, hoverinfo: 'skip', showlegend: false },
+    { type: 'scatter', mode: 'lines', name: 'p10~p90', x: xs, y: res.p90, fill: 'tonexty', fillcolor: 'rgba(37,99,235,0.16)', line: { width: 0 }, hovertemplate: '%{y:,.0f}원<extra>p90</extra>' },
+    { type: 'scatter', mode: 'lines', name: '중앙값(p50)', x: xs, y: res.p50, line: { width: 2, color: cssVar('--accent') }, hovertemplate: '%{y:,.0f}원<extra>p50</extra>' },
+  ];
+  const layout = baseLayout('자금 경로 분포 (백분위 밴드)', '잔액 (원)');
+  layout.xaxis = { title: { text: '연차', font: { color: muted } }, gridcolor: cssVar('--chart-grid'), tickfont: { color: muted } };
+  Plotly.react('mc-fan', traces, layout, PLOTCFG);
 }
 
 async function loadTool(entry, kind) {
@@ -1637,6 +1888,59 @@ function runPlayground() {
 function _showAllocRebal(show) {
   const el = document.querySelector('.ctl-rebal');
   if (el) el.classList.toggle('hidden', !show);
+  setHidden('sweep-section', !show);                  // 리밸 민감도 스윕도 정적 프리셋에서만
+  if (!show) {                                        // 데이터셋 변경 시 이전 스윕 결과 초기화
+    state.sweep = null;
+    const t = document.getElementById('sweep-table'); if (t) t.innerHTML = '';
+    const c = document.getElementById('chart-sweep'); if (c) c.innerHTML = '';
+  }
+}
+
+// 리밸런싱 민감도 스윕 — 주기×밴드 격자를 alloc.js 로 재백테스트(전체 기간) ───────────
+const SWEEP_METRIC = { CAGR: { key: 'CAGR', pct: true }, MDD: { key: 'mdd', pct: true }, Sharpe: { key: 'sharpe', pct: false } };
+const SWEEP_REBALS = ['never', 'monthly', 'quarterly', 'semiannual', 'yearly'];
+const SWEEP_BANDS = [0, 0.10, 0.20, 0.30];
+async function runRebalSweep() {
+  const ctx = state.allocCtx; if (!ctx) return;
+  setStatus('스윕 계산 중…');
+  const panel = await _ensurePanel();
+  if (!panel) { setStatus('panel.json 로드 실패 — 스윕 불가', true); return; }
+  const ids = panel.assets.map(a => a.id), ccy = state.nav.currency || 'krw', ppy = panel.periods_per_year || 12;
+  const grid = SWEEP_BANDS.map(band => SWEEP_REBALS.map(rebalance => {
+    const res = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, ctx.weights, { rebalance, bandRatio: band, costs: panel.costs });
+    if (!res) return null;
+    const nav = ALLOC.navToCcy(res.navKrw, res.win.map(t => panel.fx[t]), ccy);
+    return computeMetrics(res.dates, nav, ppy);
+  }));
+  state.sweep = { grid };
+  setStatus('');
+  renderSweep();
+}
+function renderSweep() {
+  if (!state.sweep) return;
+  const m = SWEEP_METRIC[state.sweepMetric] || SWEEP_METRIC.CAGR;
+  const grid = state.sweep.grid;
+  const x = SWEEP_REBALS.map(r => REBAL_KOR[r] || r);
+  const y = SWEEP_BANDS.map(b => b === 0 ? '밴드 OFF' : `±${(b * 100).toFixed(0)}%`);
+  const val = c => (c && isFinite(c[m.key])) ? c[m.key] : null;
+  const text = grid.map(row => row.map(c => { const v = val(c); return v == null ? '' : (m.pct ? (v * 100).toFixed(1) + '%' : v.toFixed(2)); }));
+  const muted = cssVar('--chart-muted');
+  const trace = { type: 'heatmap', z: grid.map(r => r.map(c => { const v = val(c); return v == null ? null : (m.pct ? v * 100 : v); })),
+    x, y, text, texttemplate: '%{text}', textfont: { size: 11, color: '#0f172a' },
+    colorscale: [[0, '#dc2626'], [0.5, '#fde68a'], [1, '#16a34a']], xgap: 2, ygap: 2,
+    colorbar: { tickfont: { color: muted }, outlinewidth: 0, len: 0.92, thickness: 12 },
+    hovertemplate: `%{y} · %{x}<br>${state.sweepMetric} %{text}<extra></extra>` };
+  const layout = baseLayout('', '');
+  layout.margin = { l: 74, r: 10, t: 8, b: 36 };
+  layout.xaxis = { tickfont: { color: muted, size: 11 }, automargin: true };
+  layout.yaxis = { tickfont: { color: muted, size: 11 }, automargin: true };
+  delete layout.legend; layout.hovermode = 'closest';
+  Plotly.react('chart-sweep', [trace], layout, PLOTCFG);
+  document.querySelectorAll('#sweep-metric button').forEach(b => b.classList.toggle('active', b.dataset.metric === (state.sweepMetric || 'CAGR')));
+  const head = '<thead><tr><th class="name">밴드 \\ 주기</th>' + x.map(c => `<th>${c}</th>`).join('') + '</tr></thead>';
+  const body = SWEEP_BANDS.map((b, bi) => `<tr><td class="name" data-label="밴드">${y[bi]}</td>` +
+    SWEEP_REBALS.map((r, ri) => { const v = val(grid[bi][ri]); return `<td data-label="${x[ri]}">${v == null ? '—' : (m.pct ? fmtPct(v) : fmtRatio(v))}</td>`; }).join('') + '</tr>').join('');
+  document.getElementById('sweep-table').innerHTML = head + '<tbody>' + body + '</tbody>';
 }
 async function _ensurePanel() {
   if (state.panelCache) return state.panelCache;
@@ -1662,6 +1966,193 @@ async function onAllocRebalChange() {
   _allocRun(panel, ctx.weights, rebalance, band, state.nav.currency || 'krw',
     { selfName: ctx.title, title: ctx.title, desc: ctx.desc });
   _showAllocRebal(true);            // render 후에도 컨트롤 유지
+}
+
+// ---------------------------------------------------------------------------
+// 전략 블렌딩 + 적립식 (클라이언트) — 여러 전략 NAV를 합성, 적립식 XIRR.
+// ---------------------------------------------------------------------------
+function xirr(flows) {                       // flows: [[iso, amount]] 투자<0 / 회수>0. metrics.xirr 미러.
+  if (flows.length < 2) return NaN;
+  const t0 = new Date(flows[0][0]);
+  const ts = flows.map(f => (new Date(f[0]) - t0) / 86400000 / 365.25), amt = flows.map(f => f[1]);
+  if (!amt.some(a => a > 0) || !amt.some(a => a < 0)) return NaN;
+  const npv = r => amt.reduce((s, a, i) => s + a / Math.pow(1 + r, ts[i]), 0);
+  let lo = -0.9999, hi = 10, flo = npv(lo), fhi = npv(hi);
+  if (flo * fhi > 0) {                       // 브래킷 실패 → Newton
+    let r = 0.1;
+    for (let i = 0; i < 80; i++) {
+      const f = npv(r), df = amt.reduce((s, a, k) => s - ts[k] * a / Math.pow(1 + r, ts[k] + 1), 0);
+      if (Math.abs(df) < 1e-12) break;
+      const nr = r - f / df;
+      if (!isFinite(nr) || nr <= -0.9999) break;
+      if (Math.abs(nr - r) < 1e-9) return nr;
+      r = nr;
+    }
+    return (isFinite(r) && r > -0.9999) ? r : NaN;
+  }
+  for (let i = 0; i < 120; i++) {            // bisection
+    const mid = (lo + hi) / 2, fm = npv(mid);
+    if (Math.abs(fm) < 1e-7) return mid;
+    if (flo * fm < 0) hi = mid; else { lo = mid; flo = fm; }
+  }
+  return (lo + hi) / 2;
+}
+function _periodMaskYM(ym, mode) {           // YYYY-MM 배열 → 리밸 발생 여부(첫 달 true)
+  return ym.map((k, i) => {
+    if (i === 0) return true;
+    const m = +k.slice(5, 7);
+    if (mode === 'monthly') return true;
+    if (mode === 'quarterly') return [1, 4, 7, 10].includes(m);
+    if (mode === 'semiannual') return [1, 7].includes(m);
+    if (mode === 'yearly') return k.slice(0, 4) !== ym[i - 1].slice(0, 4);
+    return false;
+  });
+}
+function _alignSeries(comps) {               // 월말 정렬 · 공통 YYYY-MM 교집합 · 1.0 리베이스
+  const maps = comps.map(c => { const me = new Map(); for (let i = 0; i < c.dates.length; i++) me.set(c.dates[i].slice(0, 7), c.nav[i]); return me; });
+  let common = null;
+  for (const m of maps) { const ks = new Set(m.keys()); common = common ? new Set([...common].filter(k => ks.has(k))) : ks; }
+  const months = [...(common || [])].sort();
+  if (months.length < 2) return null;
+  const navByName = comps.map((c, ci) => { const base = maps[ci].get(months[0]); return months.map(mk => maps[ci].get(mk) / base); });
+  return { months, navByName };
+}
+function blendNav(aligned, weights, rebalance) {
+  const { months, navByName } = aligned, n = months.length;
+  const wsum = weights.reduce((s, w) => s + w, 0) || 1, w = weights.map(x => x / wsum);
+  const nav = new Array(n), dates = months.map(m => m + '-01');
+  if (rebalance === 'none') {                // 일시불 가중합(드리프트)
+    for (let t = 0; t < n; t++) nav[t] = w.reduce((s, wi, k) => s + wi * navByName[k][t], 0);
+    return { dates, nav };
+  }
+  const mask = _periodMaskYM(months, rebalance);
+  let shares = w.slice(); nav[0] = 1;
+  for (let t = 1; t < n; t++) {
+    const grown = shares.map((sh, k) => sh * (navByName[k][t] / navByName[k][t - 1]));
+    const tot = grown.reduce((s, x) => s + x, 0);
+    nav[t] = nav[t - 1] * tot;
+    shares = mask[t] ? w.slice() : grown.map(x => x / tot);   // 리밸 월 목표 복귀, 아니면 표류
+  }
+  return { dates, nav };
+}
+function dcaResult(dates, nav, amount) {     // 매월 amount 매수 → 평가액·XIRR
+  let units = 0; const invested = [], value = [], flows = [];
+  for (let t = 0; t < nav.length; t++) {
+    units += amount / nav[t];
+    invested.push(amount * (t + 1)); value.push(units * nav[t]); flows.push([dates[t], -amount]);
+  }
+  flows.push([dates[nav.length - 1], units * nav[nav.length - 1]]);
+  return { dates, invested, value, final: value[value.length - 1], totalInvested: invested[invested.length - 1], xirr: xirr(flows) };
+}
+function _blendOptions() {                    // 현재 통화의 단일곡선 전략 데이터셋
+  return state.manifest.filter(m => m.file && !m.mode && m.currency === state.blendCcy);
+}
+function _blendRowHtml(opts, selFile, weight) {
+  const o = opts.map(x => `<option value="${x.file}"${x.file === selFile ? ' selected' : ''}>${x.label}</option>`).join('');
+  return `<div class="blend-row"><select class="blend-sel">${o}</select>` +
+    `<input type="number" class="blend-w" min="0" max="100" step="5" value="${weight}" />%` +
+    `<button type="button" class="rm" title="제거">×</button></div>`;
+}
+function _wireBlendRows() {
+  document.querySelectorAll('#blend-pick .blend-row').forEach(row => {
+    if (row._wired) return; row._wired = true;
+    row.querySelector('.rm').addEventListener('click', () => { row.remove(); _updateBlendSum(); });
+    row.querySelector('.blend-w').addEventListener('input', _updateBlendSum);
+  });
+}
+function _updateBlendSum() {
+  let sum = 0; document.querySelectorAll('#blend-pick .blend-w').forEach(i => sum += parseFloat(i.value) || 0);
+  const el = document.getElementById('blend-sum');
+  el.textContent = `합계 ${sum.toFixed(0)}%`;
+  el.className = 'pg-sum' + (Math.abs(sum - 100) <= 0.1 ? ' ok' : ' warn');
+}
+function _populateBlendRows() {
+  const opts = _blendOptions(), pick = document.getElementById('blend-pick');
+  if (!opts.length) { pick.innerHTML = '<p class="period-note">이 통화의 전략 데이터셋이 없습니다.</p>'; return; }
+  pick.innerHTML = _blendRowHtml(opts, opts[0].file, 50) + _blendRowHtml(opts, (opts[1] || opts[0]).file, 50);
+  _wireBlendRows(); _updateBlendSum();
+}
+function _addBlendRow() {
+  const opts = _blendOptions(); if (!opts.length) return;
+  document.getElementById('blend-pick').insertAdjacentHTML('beforeend', _blendRowHtml(opts, opts[0].file, 0));
+  _wireBlendRows(); _updateBlendSum();
+}
+function enterBlend() {
+  setAnalyticsMode(false); setToolsMode(false);
+  state.playground = false; state.allocCtx = null; _showAllocRebal(false);
+  document.getElementById('meta').textContent = '전략 블렌딩 · 적립식 (클라이언트 합성)';
+  setStatus('');
+  if (!state._blendWired) {
+    document.getElementById('blend-add').addEventListener('click', _addBlendRow);
+    document.getElementById('blend-run').addEventListener('click', runBlend);
+    document.getElementById('blend-rebal').addEventListener('change', runBlend);
+    document.querySelectorAll('#blend-ccy button').forEach(b => b.addEventListener('click', () => {
+      state.blendCcy = b.dataset.ccy;
+      document.querySelectorAll('#blend-ccy button').forEach(x => x.classList.toggle('active', x === b));
+      _populateBlendRows();
+    }));
+    document.querySelectorAll('#blend-mode-toggle button').forEach(b => b.addEventListener('click', () => {
+      state.blendMode = b.dataset.bm;
+      document.querySelectorAll('#blend-mode-toggle button').forEach(x => x.classList.toggle('active', x === b));
+      document.getElementById('blend-amount-wrap').classList.toggle('hidden', state.blendMode !== 'dca');
+      runBlend();
+    }));
+    _attachComma('blend-amount', runBlend);
+    state._blendWired = true;
+  }
+  _populateBlendRows();
+  runBlend();
+}
+async function runBlend() {
+  const rows = [...document.querySelectorAll('#blend-pick .blend-row')].map(r => ({
+    file: r.querySelector('.blend-sel').value, w: (parseFloat(r.querySelector('.blend-w').value) || 0) / 100,
+  })).filter(r => r.file && r.w > 0);
+  if (!rows.length) { setStatus('블렌드할 전략을 1개 이상 선택하세요.', true); return; }
+  setStatus('블렌드 계산 중…');
+  state.blendCache = state.blendCache || {};
+  const comps = [];
+  for (const r of rows) {
+    if (!(r.file in state.blendCache)) {
+      try { const d = await (await fetch('data/' + r.file, { cache: 'no-cache' })).json();
+        const s = (d.series || [])[0]; state.blendCache[r.file] = s ? { name: d.title || s.name, dates: s.dates, nav: s.nav } : null;
+      } catch (e) { state.blendCache[r.file] = null; }
+    }
+    const c = state.blendCache[r.file];
+    if (c) comps.push({ ...c, w: r.w });
+  }
+  if (!comps.length) { setStatus('전략 데이터 로드 실패.', true); return; }
+  const aligned = _alignSeries(comps);
+  if (!aligned) { setStatus('전략들의 공통 구간이 2개월 미만입니다(통화·기간 확인).', true); return; }
+  const rebalance = document.getElementById('blend-rebal').value;
+  const blended = blendNav(aligned, comps.map(c => c.w), rebalance);
+  setStatus('');
+  const curves = [{ name: '블렌드', dates: blended.dates, nav: blended.nav }];
+  comps.forEach((c, ci) => curves.push({ name: c.name, dates: blended.dates, nav: aligned.navByName[ci] }));
+  state.data = _synthDataset(curves, '전략 블렌딩');
+  const wsum = comps.reduce((s, c) => s + c.w, 0) || 1;
+  state.data.target_weights = Object.fromEntries(comps.map(c => [c.name, c.w / wsum]));
+  state.colToMetric = buildColToMetric(state.data);
+  buildStrategyList(state.data);
+  state.globalStart = blended.dates[0]; state.globalEnd = blended.dates[blended.dates.length - 1];
+  const sEl = document.getElementById('start'), eEl = document.getElementById('end');
+  sEl.min = eEl.min = state.globalStart; sEl.max = eEl.max = state.globalEnd;
+  sEl.value = state.globalStart; eEl.value = state.globalEnd; setActivePreset(0);
+  render();
+  if (state.blendMode === 'dca') {
+    const amt = _pgv('blend-amount', 1000000), dca = dcaResult(blended.dates, blended.nav, amt);
+    setHidden('blend-dca', false);
+    const card = (l, v, s) => `<div class="ext-card"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s || ''}</div></div>`;
+    document.getElementById('blend-dca-cards').innerHTML =
+      card('최종 평가액', _krwCompact(dca.final), `${dca.dates.length}개월 적립`) +
+      card('총 납입액', _krwCompact(dca.totalInvested), '') +
+      card('평가손익', _krwCompact(dca.final - dca.totalInvested), '') +
+      card('XIRR (금액가중)', fmtPct(dca.xirr), '연율');
+    const muted = cssVar('--chart-muted');
+    Plotly.react('blend-invested', [
+      { type: 'scatter', mode: 'lines', name: '평가액', x: dca.dates, y: dca.value, line: { width: 2, color: cssVar('--accent') }, hovertemplate: '%{y:,.0f}원<extra>평가액</extra>' },
+      { type: 'scatter', mode: 'lines', name: '납입 누계', x: dca.dates, y: dca.invested, line: { width: 1.4, color: muted, dash: 'dot' }, hovertemplate: '%{y:,.0f}원<extra>납입</extra>' },
+    ], baseLayout('적립식 — 납입 누계 vs 평가액', '금액 (원)'), PLOTCFG);
+  } else setHidden('blend-dca', true);
 }
 
 async function init() {

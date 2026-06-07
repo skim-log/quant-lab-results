@@ -214,6 +214,18 @@ fieldset#strategies legend { font-size: 0.82rem; color: var(--muted); padding: 0
 #chart-dd { height: 280px; }
 #chart-annual { height: 320px; }
 #chart-alloc { height: 340px; }
+#chart-rolling { height: 320px; }
+#chart-monthly-hm { height: 380px; }
+#chart-sweep { height: 300px; }
+
+/* ---- 전략 블렌딩 (body.blend-mode 일 때만 picker 표시, 그 외엔 숨김) ---- */
+body:not(.blend-mode) #blend-section { display: none; }
+body.blend-mode #strategies, body.blend-mode .ctl-cur { display: none !important; }
+.blend-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.35rem 0; flex-wrap: wrap; }
+.blend-row select { flex: 1 1 14rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--fg); }
+.blend-row input { width: 4.2rem; padding: 0.3rem 0.4rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--fg); }
+.blend-row .rm { cursor: pointer; border: none; background: var(--surface-2); color: var(--muted); border-radius: var(--radius-sm); width: 1.8rem; height: 1.8rem; }
+.blend-actions { display: flex; align-items: center; gap: 0.7rem; margin-top: 0.5rem; flex-wrap: wrap; }
 
 /* ---- 글로벌 자산배분 전용 패널 ---- */
 .hidden { display: none !important; }

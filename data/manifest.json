@@ -618,6 +618,15 @@
     "file": "panel.json"
   },
   {
+    "id": "tool_blend",
+    "category": "blend",
+    "group": "전략 블렌딩",
+    "currency": "",
+    "mode": "blend",
+    "label": "전략 블렌딩 · 적립식",
+    "file": ""
+  },
+  {
     "id": "tool_paradise",
     "category": "paradise",
     "group": "낙원계산기",
