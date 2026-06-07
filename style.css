@@ -355,9 +355,10 @@ footer code { background: var(--surface-2); padding: 0.05rem 0.35rem; border-rad
 #analytics-section > .panel:first-child { margin-top: 1.1rem; }
 body:not(.analytics-mode) #analytics-section { display: none; }
 body.analytics-mode main > section:not(.controls) { display: none !important; }
-body.analytics-mode .ctl-period,
+/* 정량분석: 기간 컨트롤은 노출(구간 조절 재계산), 전략선택·로그축만 숨김 */
 body.analytics-mode #strategies,
 body.analytics-mode .ctl-check { display: none !important; }
+#an-range-note { color: var(--neg); font-weight: 600; }
 
 /* ---- 도구·지표 전용 뷰 (낙원계산기·시장심리·추세경보) ---- */
 body:not(.tools-mode) #paradise-section,

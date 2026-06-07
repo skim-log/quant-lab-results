@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=3618ad36" />
+  <link rel="stylesheet" href="style.css?v=213fee4c" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -87,6 +87,27 @@
 
     <!-- 정량분석 전용 뷰 (kind=analytics 데이터셋에서만; body.analytics-mode 로 그 외 섹션 숨김) -->
     <div id="analytics-section">
+      <section class="panel">
+        <p class="period-note">상단 <strong>기간</strong> 컨트롤(3년/5년/10년 또는 시작·종료일)을 바꾸면 그 구간의 효율적 전략을 <strong>브라우저에서 즉시 재계산</strong>합니다(사전계산 아님). 8자산 월수익 기준 · 무위험 2%.</p>
+        <p id="an-range-note" class="period-note hidden"></p>
+        <details class="theory">
+          <summary>💡 효율적 전략 설계 방법론 (마코위츠·몬테카를로 쉽게)</summary>
+          <div class="theory-body">
+            <h4>분산투자와 효율적 프론티어</h4>
+            <p>자산들이 <strong>똑같이 움직이지 않으면</strong>(상관이 낮으면) 섞었을 때 위험이 부분적으로 상쇄됩니다. 그래서 <em>같은 위험에서 더 높은 수익</em>(또는 같은 수익에서 더 낮은 위험)을 주는 조합이 존재하고, 그 최적 조합들을 이은 경계가 <strong>효율적 프론티어</strong>입니다.</p>
+            <h4>마코위츠 평균-분산 최적화</h4>
+            <p>해리 마코위츠(1952, 노벨상)의 이론. 각 자산의 <strong>기대수익·변동성·상관</strong>으로 “위험 대비 수익이 가장 좋은 비중”을 수학적으로 찾습니다. 이 사이트는 <strong>long-only</strong>(공매도 없이 비중 0~100%, 합 100%) 제약으로 브라우저 안에서 정확히 최적화합니다.</p>
+            <ul>
+              <li><strong>★ 접점(Max Sharpe)</strong> — 무위험수익(2%) 대비 <em>위험 1단위당 초과수익</em>이 가장 큰 포트폴리오. Sharpe = (연수익−2%)/연변동성.</li>
+              <li><strong>◆ 최소분산(GMV)</strong> — 변동성이 가장 낮은 포트폴리오.</li>
+            </ul>
+            <h4>몬테카를로</h4>
+            <p>비중을 <strong>무작위로 수천 번</strong> 뽑아 (위험,수익)을 점으로 흩뿌려 “실현 가능한 조합의 구름”을 보여줍니다. 정밀 경계의 직관적 배경이자 교차검증 역할입니다.</p>
+            <h4>강건 대안 · 한계</h4>
+            <p>평균-분산 접점은 <strong>기대수익 추정오차에 민감</strong>합니다(과거가 미래를 보장하지 않음). 그래서 추정오차에 둔감한 <strong>최소분산·리스크패리티(역변동성)·동일가중</strong>을 함께 제시합니다. 짧은 구간은 표본이 적어 불안정하니 <em>절대값보다 배분 간 상대 비교</em>로 해석하세요.</p>
+          </div>
+        </details>
+      </section>
       <section class="panel">
         <h2>자산군 위험·수익 <span class="muted" id="an-period"></span></h2>
         <p class="period-note">8자산 월별 수익 기준 · 무위험 2% 가정(리밸런서 정합). 프록시 한계는 정적배분의 데이터 신뢰도 참고.</p>
@@ -340,7 +361,8 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=3618ad36" defer></script>
-  <script src="app.js?v=3618ad36" defer></script>
+  <script src="alloc.js?v=213fee4c" defer></script>
+  <script src="analytics-live.js?v=213fee4c" defer></script>
+  <script src="app.js?v=213fee4c" defer></script>
 </body>
 </html>

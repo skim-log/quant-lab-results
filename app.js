@@ -35,6 +35,7 @@ const state = {
   globalEnd: '',     // 데이터셋 전체 최대 날짜 (ISO)
   nav: { super: '', category: '', group: '', currency: '' },  // 4축 네비(대분류→소분류→그룹→통화)
   playground: false, panel: null, _pgWired: false,  // 플레이그라운드 상태
+  analyticsActive: false, analyticsPayload: null, _analyticsCur: null,   // 정량분석 기간조절 재계산(월수익 행렬 보관)
   sort: { col: null, dir: -1 },  // 성과표 리더보드 정렬(열 클릭). dir: -1=내림차순
 };
 
@@ -588,10 +589,11 @@ async function loadDataset(file) {
     const resp = await fetch('data/' + file, { cache: 'no-cache' });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const d = await resp.json();
+    state.analyticsActive = false;
     if (d.kind === 'analytics') { setStatus(''); return enterAnalytics(d); }
     if (d.mode === 'playground') { setStatus(''); return enterPlayground(d); }
     setAnalyticsMode(false); setToolsMode(false);
-    state.playground = false;
+    state.playground = false; state._analyticsCur = null;
     setHidden('playground', true);
     state.data = d;
     state.colToMetric = buildColToMetric(d);
@@ -660,12 +662,13 @@ function setupTheme() {
   } catch (e) { /* 구형 브라우저 */ }
 }
 
+function onPeriodChange() { if (state.analyticsActive) recomputeAnalytics(); else render(); }
 function wireControls() {
   document.getElementById('logscale').addEventListener('change', render);
-  document.getElementById('start').addEventListener('change', () => { clearPresetActive(); render(); });
-  document.getElementById('end').addEventListener('change', () => { clearPresetActive(); render(); });
+  document.getElementById('start').addEventListener('change', () => { clearPresetActive(); onPeriodChange(); });
+  document.getElementById('end').addEventListener('change', () => { clearPresetActive(); onPeriodChange(); });
   document.querySelectorAll('#presets button').forEach(b => {
-    b.addEventListener('click', () => { setActivePreset(Number(b.dataset.years)); render(); });
+    b.addEventListener('click', () => { setActivePreset(Number(b.dataset.years)); onPeriodChange(); });
   });
   // 성과표 리더보드 정렬 — 열 헤더 클릭(같은 열 재클릭 시 방향 토글).
   document.getElementById('metrics-table').addEventListener('click', e => {
@@ -833,7 +836,7 @@ function _attachComma(id, onChange) {
 
 // 낙원계산기 — ParadisePage.tsx compute 이식 (keep-ones.me/#/paradise-calculator2 참고).
 function enterParadise() {
-  state.playground = false; state.data = null; state.tool = { kind: 'paradise' };
+  state.playground = false; state.analyticsActive = false; state._analyticsCur = null; state.data = null; state.tool = { kind: 'paradise' };
   setToolsMode(true, 'paradise');
   document.getElementById('meta').textContent = '낙원계산기 · keep-ones.me 참고';
   setStatus('');
@@ -879,7 +882,7 @@ function renderParadise() {
 
 async function loadTool(entry, kind) {
   setToolsMode(true, kind);
-  state.playground = false; state.data = null;
+  state.playground = false; state.analyticsActive = false; state._analyticsCur = null; state.data = null;
   setStatus('불러오는 중…');
   try {
     const d = await fetch('data/' + entry.file, { cache: 'no-cache' })
@@ -1084,13 +1087,48 @@ function renderBacktest() {
     (isCT ? '🔴 천장: 신호 평균이 베이스라인보다 낮을수록(음수) 적중' : '🟢 바닥: 신호 평균이 베이스라인보다 높을수록(양수) 적중');
 }
 
-function enterAnalytics(d) {
+function enterAnalytics(payload) {
   state.playground = false;
-  state.data = d;
   setAnalyticsMode(true);
+  // 폴백: returns 미동봉(구 JSON)이거나 엔진 미로드 → 사전계산 그대로(기간 고정).
+  if (!payload.returns || !payload.dates || typeof ANALYTICS === 'undefined') {
+    state.analyticsActive = false; state.analyticsPayload = null; state.data = payload;
+    document.getElementById('meta').textContent =
+      `${payload.title || '정량분석'} · 생성일 ${payload.generated_at || '-'} · ${payload.n_months || 0}개월`;
+    renderAnalytics(payload); return;
+  }
+  // 인터랙티브: 월수익 행렬을 보관하고 선택 구간을 브라우저에서 즉석 재계산.
+  const wasAnalytics = state._analyticsCur != null;     // 직전도 정량분석(통화 토글)이면 구간 유지
+  state.analyticsActive = true; state.analyticsPayload = payload;
+  const dts = payload.dates; state.globalStart = dts[0]; state.globalEnd = dts[dts.length - 1];
+  const sEl = document.getElementById('start'), eEl = document.getElementById('end');
+  sEl.min = state.globalStart; sEl.max = state.globalEnd; eEl.min = state.globalStart; eEl.max = state.globalEnd;
+  if (wasAnalytics) {                                   // 통화 토글: 기존 선택 구간 유지(유효 범위로 클램프)
+    if (!sEl.value || sEl.value < state.globalStart || sEl.value > state.globalEnd) sEl.value = state.globalStart;
+    if (!eEl.value || eEl.value > state.globalEnd || eEl.value < state.globalStart) eEl.value = state.globalEnd;
+  } else {                                              // 새 진입: 전체기간 기본(‘전체’ 프리셋)
+    setActivePreset(0);
+  }
+  state._analyticsCur = payload.currency || '';
+  recomputeAnalytics();
+}
+
+// 선택 구간(start/end) → 클라이언트 재계산(상관·프론티어·접점·결과지표·리스크패리티).
+function recomputeAnalytics() {
+  const p = state.analyticsPayload; if (!p) return;
+  const { s, e } = currentWindow();
+  const d = ANALYTICS.buildAnalytics(p, { s, e });
+  state.data = d;
+  const full = isFullPeriod(s, e);
   document.getElementById('meta').textContent =
-    `${d.title || '정량분석'} · 생성일 ${d.generated_at || '-'} · ${d.n_months || 0}개월`;
+    `${d.title || '정량분석'} · ${d.n_months}개월 · ${d.period}` + (full ? ' (전체기간)' : ' · 조절구간 즉시 재계산');
   renderAnalytics(d);
+  const note = document.getElementById('an-range-note');
+  if (note) {
+    const small = d.n_months < 24;
+    note.classList.toggle('hidden', !small);
+    if (small) note.textContent = `⚠️ 표본 ${d.n_months}개월 — 구간이 짧아 효율적 프론티어·접점이 불안정할 수 있습니다(24개월 이상 권장).`;
+  }
 }
 
 function renderAnalytics(d) {
