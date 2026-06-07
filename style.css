@@ -196,6 +196,13 @@ fieldset#strategies {
   padding: 0.6rem 0.9rem 0.9rem; margin: 0;
 }
 fieldset#strategies legend { font-size: 0.82rem; color: var(--muted); padding: 0 0.4rem; }
+.strategy-actions { display: flex; gap: 0.4rem; margin-bottom: 0.55rem; flex-wrap: wrap; }
+.strategy-actions button {
+  font-size: 0.8rem; padding: 0.25rem 0.6rem; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--bg); color: var(--muted);
+}
+.strategy-actions button:hover { border-color: var(--accent); color: var(--fg); }
 .strategy-list { display: flex; flex-wrap: wrap; gap: 0.45rem 1.1rem; }
 .strategy-list label {
   display: inline-flex; align-items: center; gap: 0.35rem;
@@ -215,7 +222,7 @@ fieldset#strategies legend { font-size: 0.82rem; color: var(--muted); padding: 0
 #chart-annual { height: 320px; }
 #chart-alloc { height: 340px; }
 #chart-rolling { height: 320px; }
-#chart-monthly-hm { height: 380px; }
+#chart-monthly-hm { min-height: 380px; }   /* 실제 높이는 app.js가 연도 수에 비례해 설정 */
 #chart-sweep { height: 300px; }
 
 /* ---- 전략 블렌딩 (body.blend-mode 일 때만 picker 표시, 그 외엔 숨김) ---- */

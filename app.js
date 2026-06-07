@@ -464,6 +464,10 @@ function bestWorstYear(dates, rebased) {
   for (const a of ar) { if (a.ret > best.ret) best = a; if (a.ret < worst.ret) worst = a; }
   return { best: { v: best.ret, d: best.year }, worst: { v: worst.ret, d: worst.year } };
 }
+function monthsBetween(d1, d2) {            // "YYYY-MM[-DD]" → 정수 달력 개월 차(freq 무관)
+  const a = d1.split('-'), b = d2.split('-');
+  return (b[0] - a[0]) * 12 + (b[1] - a[1]);
+}
 function mddEpisodeJS(dates, nav) {
   let peak = nav[0], peakI = 0, maxdd = 0, mp = 0, mt = 0;
   for (let i = 0; i < nav.length; i++) {
@@ -473,18 +477,18 @@ function mddEpisodeJS(dates, nav) {
   }
   const pv = nav[mp]; let rec = false, ri = nav.length - 1;
   for (let i = mt + 1; i < nav.length; i++) if (nav[i] >= pv) { rec = true; ri = i; break; }
-  const uw = rec ? ri - mp : nav.length - 1 - mp;
+  // 인덱스 간격이 아니라 날짜 기준 달력 개월(일별·월별 트랙 모두 정확).
+  const uw = monthsBetween(dates[mp], dates[rec ? ri : nav.length - 1]);
   return { peak: dates[mp].slice(0, 7), trough: dates[mt].slice(0, 7),
            recovery: rec ? dates[ri].slice(0, 7) : '', underwater: uw, recovered: rec };
 }
 function renderExtCards(rows, s, e) {
   const em = state.data.extended_metrics;
   if (!em) { setHidden('ext-section', true); return; }
-  const pname = Object.keys(em)[0];
-  const row = rows.find(r => r.name === pname);
+  const row = primaryRow(rows);                 // 주력(또는 첫 표시) 전략 — 비교 뷰에서도 견고
   if (!row) { setHidden('ext-section', true); return; }
   setHidden('ext-section', false);
-  document.getElementById('ext-for').textContent = `— ${pname} (선택 구간 재계산)`;
+  document.getElementById('ext-for').textContent = `— ${row.name} (선택 구간 재계산)`;
   const bm = bestWorstMonth(row.dates, row.rebased);
   const by = bestWorstYear(row.dates, row.rebased);
   const ep = mddEpisodeJS(row.dates, row.rebased);
@@ -640,6 +644,10 @@ function renderMonthlyHeatmap(rows) {
   layout.xaxis = { tickfont: { color: muted, size: 11 }, side: 'top', automargin: true };
   layout.yaxis = { tickfont: { color: muted, size: 11 }, automargin: true, autorange: 'reversed' };
   delete layout.legend; layout.hovermode = 'closest';
+  // 연도(행) 수에 비례해 높이를 키워 셀이 짧아지지 않게(글씨 가독성). 기간 길수록(20년+) 효과 큼.
+  const H = Math.max(360, years.length * 26 + 90);
+  layout.height = H;
+  document.getElementById('chart-monthly-hm').style.height = H + 'px';
   Plotly.react('chart-monthly-hm', [trace], layout, PLOTCFG);
 }
 
@@ -844,6 +852,15 @@ function setupTheme() {
 function onPeriodChange() { if (state.analyticsActive) recomputeAnalytics(); else render(); }
 function wireControls() {
   document.getElementById('logscale').addEventListener('change', render);
+  // 전략 일괄 토글(버튼은 정적 → 1회 바인딩, 클릭 시점에 현재 체크박스 조회)
+  const setAllStrategies = on => {
+    document.querySelectorAll('#strategy-list input').forEach(c => { c.checked = on; });
+    render();
+  };
+  const offBtn = document.getElementById('strat-all-off');
+  const onBtn = document.getElementById('strat-all-on');
+  if (offBtn) offBtn.addEventListener('click', () => setAllStrategies(false));
+  if (onBtn) onBtn.addEventListener('click', () => setAllStrategies(true));
   document.getElementById('start').addEventListener('change', () => { clearPresetActive(); onPeriodChange(); });
   document.getElementById('end').addEventListener('change', () => { clearPresetActive(); onPeriodChange(); });
   document.querySelectorAll('#presets button').forEach(b => {
