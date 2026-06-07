@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=9027a567" />
+  <link rel="stylesheet" href="style.css?v=c3a2b00e" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -392,6 +392,18 @@
       </div>
     </section>
 
+    <!-- 블렌딩 효율적 프론티어 · 상관 (선택 전략 ≥2개일 때 표시; 정량분석 엔진 재사용) -->
+    <section id="blend-frontier-section" class="panel hidden">
+      <h2>블렌딩 효율적 프론티어 · 상관 <span id="blend-fr-period" class="muted"></span></h2>
+      <p class="period-note">선택한 전략들의 월수익률로 상관관계와 효율적 프론티어를 계산합니다. 별(★)=Max Sharpe,
+        ◆=최소분산(GMV), ◇=현재 내 블렌드 비중. 추천 비중은 "이 비중 적용"으로 바로 반영됩니다(무위험 2% 가정).</p>
+      <div id="blend-reco" class="reco-cards"></div>
+      <h3>상관관계</h3>
+      <div id="blend-corr" class="chart"></div>
+      <h3>효율적 프론티어</h3>
+      <div id="blend-frontier" class="chart"></div>
+    </section>
+
     <section class="charts">
       <div id="chart-equity" class="chart"></div>
       <div id="chart-dd" class="chart"></div>
@@ -502,8 +514,8 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=9027a567" defer></script>
-  <script src="analytics-live.js?v=9027a567" defer></script>
-  <script src="app.js?v=9027a567" defer></script>
+  <script src="alloc.js?v=c3a2b00e" defer></script>
+  <script src="analytics-live.js?v=c3a2b00e" defer></script>
+  <script src="app.js?v=c3a2b00e" defer></script>
 </body>
 </html>

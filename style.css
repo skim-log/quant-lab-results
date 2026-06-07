@@ -227,7 +227,24 @@ fieldset#strategies legend { font-size: 0.82rem; color: var(--muted); padding: 0
 
 /* ---- 전략 블렌딩 (body.blend-mode 일 때만 picker 표시, 그 외엔 숨김) ---- */
 body:not(.blend-mode) #blend-section { display: none; }
+body:not(.blend-mode) #blend-frontier-section { display: none; }
 body.blend-mode #strategies, body.blend-mode .ctl-cur { display: none !important; }
+#blend-corr { min-height: 320px; }
+#blend-frontier { height: 420px; }
+.reco-cards { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0.2rem 0 0.8rem; }
+.reco-card {
+  flex: 1 1 16rem; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); padding: 0.6rem 0.75rem;
+}
+.reco-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.reco-title { font-weight: 600; font-size: 0.9rem; }
+.reco-apply {
+  font-size: 0.78rem; padding: 0.25rem 0.6rem; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--accent); border-radius: var(--radius-sm); background: var(--card); color: var(--fg);
+}
+.reco-apply:hover { background: var(--accent); color: #fff; }
+.reco-w { margin: 0.4rem 0 0.2rem; font-size: 0.9rem; color: var(--fg); }
+.reco-stat { font-size: 0.8rem; color: var(--muted); }
 .blend-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.35rem 0; flex-wrap: wrap; }
 .blend-row select { flex: 1 1 14rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--fg); }
 .blend-row input { width: 4.2rem; padding: 0.3rem 0.4rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--fg); }

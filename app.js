@@ -835,7 +835,7 @@ function applyTheme(theme, persist) {
     else if (t.kind === 'trend') renderTrend(t.data);
   } else if (state.data) {
     if (state.data.kind === 'analytics') renderAnalytics(state.data);
-    else { render(); if (state.sweep) renderSweep(); }   // 스윕 히트맵도 새 테마로 재색
+    else { render(); if (state.sweep) renderSweep(); if (state.blendFrontier) _drawBlendFrontier(); }   // 스윕·블렌드 프론티어도 새 테마로 재색
   }
 }
 function setupTheme() {
@@ -1522,7 +1522,7 @@ function renderRiskReturn(d) {
   document.getElementById('an-riskreturn').innerHTML = html;
 }
 
-function renderCorrelation(d) {
+function renderCorrelation(d, el = 'an-corr') {
   const c = d.correlation || {}; const keys = c.assets || [];
   const labelOf = k => ((d.assets || []).find(a => a.key === k) || {}).label || k;
   const labels = keys.map(labelOf);
@@ -1541,10 +1541,12 @@ function renderCorrelation(d) {
   layout.xaxis = { tickfont: { color: muted, size: 10 }, tickangle: -40, automargin: true };
   layout.yaxis = { tickfont: { color: muted, size: 10 }, automargin: true, autorange: 'reversed' };
   delete layout.legend; layout.hovermode = 'closest';
-  Plotly.react('an-corr', [trace], layout, PLOTCFG);
+  Plotly.react(el, [trace], layout, PLOTCFG);
 }
 
-function renderFrontier(d) {
+function renderFrontier(d, opts = {}) {
+  const el = opts.el || 'an-frontier';
+  const mineName = opts.mineName || '내 포트폴리오';
   const f = d.frontier || {}; const pts = f.points || [];
   const muted = cssVar('--chart-muted'), fg = cssVar('--chart-fg'), grid = cssVar('--chart-grid');
   const traces = [];
@@ -1577,17 +1579,18 @@ function renderFrontier(d) {
   if (mv) traces.push({ type: 'scatter', mode: 'markers', name: mvName, x: [mv.vol * 100], y: [mv.ret * 100],
     marker: { size: 13, symbol: 'diamond', color: '#10b981', line: { width: 1, color: cssVar('--chart-paper') } },
     hovertemplate: `${mvName}<br>CAGR %{y:.1f}% · 변동성 %{x:.1f}%` + (mv.stats ? ` · MDD ${(mv.stats.mdd * 100).toFixed(1)}%` : '') + '<extra></extra>' });
-  const exp = state.explorer;             // 전략 탐색기: 내 포트폴리오 점(◇)
-  if (exp && exp.mine) traces.push({ type: 'scatter', mode: 'markers', name: '내 포트폴리오',
-    x: [exp.mine.vol * 100], y: [exp.mine.ret * 100],
+  // 내 포트폴리오/블렌드 점(◇) — opts.mine 우선, 없으면 전략 탐색기 state.explorer.mine
+  const mine = (opts.mine !== undefined) ? opts.mine : (state.explorer && state.explorer.mine);
+  if (mine) traces.push({ type: 'scatter', mode: 'markers', name: mineName,
+    x: [mine.vol * 100], y: [mine.ret * 100],
     marker: { size: 16, symbol: 'diamond-open', color: '#e11d48', line: { width: 2.5, color: '#e11d48' } },
-    hovertemplate: '내 포트폴리오<br>CAGR %{y:.1f}% · 변동성 %{x:.1f}%<extra></extra>' });
+    hovertemplate: mineName + '<br>CAGR %{y:.1f}% · 변동성 %{x:.1f}%<extra></extra>' });
   const layout = baseLayout('', '');
   layout.xaxis = { title: { text: '연환산 변동성 %', font: { color: muted } }, gridcolor: grid, zerolinecolor: grid, tickfont: { color: muted }, zeroline: false };
   layout.yaxis = { title: { text: '연환산 수익률 %', font: { color: muted } }, gridcolor: grid, zerolinecolor: grid, tickfont: { color: muted } };
   layout.hovermode = 'closest';
   layout.legend = { orientation: 'h', y: -0.16, font: { size: 10, color: fg } };
-  Plotly.react('an-frontier', traces, layout, PLOTCFG);
+  Plotly.react(el, traces, layout, PLOTCFG);
 }
 
 // ── 전략 탐색기 (위험성향 슬라이더 + 내 비중 점 찍기) ───────────────────────
@@ -2116,6 +2119,9 @@ function enterBlend() {
       runBlend();
     }));
     _attachComma('blend-amount', runBlend);
+    document.getElementById('blend-reco').addEventListener('click', e => {   // 추천 비중 적용(위임)
+      const b = e.target.closest('button[data-reco]'); if (b) applyBlendWeights(b.dataset.reco);
+    });
     state._blendWired = true;
   }
   _populateBlendRows();
@@ -2171,6 +2177,67 @@ async function runBlend() {
       { type: 'scatter', mode: 'lines', name: '납입 누계', x: dca.dates, y: dca.invested, line: { width: 1.4, color: muted, dash: 'dot' }, hovertemplate: '%{y:,.0f}원<extra>납입</extra>' },
     ], baseLayout('적립식 — 납입 누계 vs 평가액', '금액 (원)'), PLOTCFG);
   } else setHidden('blend-dca', true);
+  renderBlendFrontier(comps, aligned);
+}
+
+// ── 블렌딩 효율적 프론티어 · 상관 (정량분석 엔진 ANALYTICS 재사용) ──────────────
+function renderBlendFrontier(comps, aligned) {
+  const sec = document.getElementById('blend-frontier-section');
+  const ok = typeof ANALYTICS !== 'undefined' && comps && comps.length >= 2
+    && aligned && aligned.months.length >= 6;
+  if (!ok) { state.blendFrontier = null; if (sec) sec.classList.add('hidden'); return; }
+  // 선택 전략들의 월수익률 → 정량분석 payload 포맷
+  const dates = aligned.months.slice(1);
+  const returns = {};
+  comps.forEach((c, i) => {
+    const nav = aligned.navByName[i], r = [];
+    for (let t = 1; t < nav.length; t++) r.push(nav[t] / nav[t - 1] - 1);
+    returns[c.name] = r;
+  });
+  const assets = comps.map((c, i) => ({ key: c.name, label: c.name,
+    color: (state.colorOf && state.colorOf[c.name]) || PALETTE[i % PALETTE.length] }));
+  const payload = { dates, assets, returns, periods_per_year: 12, rf: 0.02, preset_defs: {} };
+  const d = ANALYTICS.buildAnalytics(payload, null, null);          // 상관·프론티어(GMV·MaxSharpe)
+  const exp = ANALYTICS.makeExplorer(payload, null, null);          // 추천 비중 + 임의 비중 평가
+  const wsum = comps.reduce((s, c) => s + c.w, 0) || 1;
+  const mine = exp.evalWeights(Object.fromEntries(comps.map(c => [c.name, c.w / wsum])));
+  state.blendFrontier = { d, mine, exp };
+  if (sec) sec.classList.remove('hidden');
+  const per = document.getElementById('blend-fr-period');
+  if (per) per.textContent = `— ${d.period} · ${d.n_months}개월 · 무위험 2%`;
+  _drawBlendFrontier();
+}
+function _drawBlendFrontier() {                  // state.blendFrontier 캐시로 (재)렌더(테마 변경 대응)
+  const bf = state.blendFrontier; if (!bf) return;
+  renderBlendReco(bf.exp);
+  renderCorrelation(bf.d, 'blend-corr');
+  renderFrontier(bf.d, { el: 'blend-frontier', mine: bf.mine, mineName: '내 블렌드' });
+}
+function _blendWeightsStr(exp, rec) {
+  return exp.keys.map(k => ({ k, w: rec.weights[k] || 0 })).filter(x => x.w > 0.005)
+    .sort((a, b) => b.w - a.w).map(x => `${x.k} ${(x.w * 100).toFixed(0)}%`).join(' · ') || '—';
+}
+function renderBlendReco(exp) {
+  const el = document.getElementById('blend-reco'); if (!el) return;
+  const card = (key, title, rec) => `<div class="reco-card"><div class="reco-head">` +
+    `<span class="reco-title">${title}</span>` +
+    `<button type="button" class="reco-apply" data-reco="${key}">이 비중 적용</button></div>` +
+    `<div class="reco-w">${_blendWeightsStr(exp, rec)}</div>` +
+    `<div class="reco-stat">CAGR ${(rec.ret * 100).toFixed(1)}% · 변동성 ${(rec.vol * 100).toFixed(1)}% · ` +
+    `Sharpe ${(+rec.sharpe).toFixed(2)}</div></div>`;
+  el.innerHTML = card('tangency', '★ Max Sharpe (위험대비 최적)', exp.tangency)
+    + card('gmv', '◆ 최소분산 (GMV)', exp.gmv);
+}
+function applyBlendWeights(which) {              // 추천 비중을 블렌드 행 입력에 채우고 재실행
+  const bf = state.blendFrontier; if (!bf) return;
+  const rec = which === 'gmv' ? bf.exp.gmv : bf.exp.tangency;
+  const w = rec.weights || {};
+  document.querySelectorAll('#blend-pick .blend-row').forEach(row => {
+    const c = state.blendCache[row.querySelector('.blend-sel').value];
+    const name = c ? c.name : null;
+    row.querySelector('.blend-w').value = (name && w[name]) ? Math.round(w[name] * 100) : 0;
+  });
+  _updateBlendSum(); runBlend();
 }
 
 async function init() {
