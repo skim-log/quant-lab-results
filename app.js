@@ -23,7 +23,7 @@ const PALETTE = ['#2563eb', '#10b981', '#dc2626', '#ea580c', '#9333ea', '#0891b2
 // 자산군 색 — 리밸런서 팔레트 정합(static 8자산 + 현금). 동적 전략의 계기자산(티커)은 PALETTE 폴백.
 const CAT_COLOR = { us_stock: '#2563eb', kr_stock: '#10b981', cn_stock: '#dc2626',
   in_stock: '#ea580c', gold: '#ca8a04', silver: '#94a3b8', us_bond: '#0891b2',
-  kr_bond: '#9333ea', cash: '#9ca3af' };
+  kr_bond: '#9333ea', cash: '#9ca3af', commodities: '#a16207' };
 const FONT = '"Pretendard Variable",Pretendard,"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif';
 
 const state = {
@@ -366,7 +366,7 @@ function renderTable(rows, fullPeriod) {
 // 글로벌 자산배분 전용 패널 (allocation·regimes·current·extended·band_ab·events·diagnostics)
 // ---------------------------------------------------------------------------
 const CAT_LABEL = { us_stock: '미국 주식', kr_stock: '한국 주식', cn_stock: '중국 주식',
-  in_stock: '인도 주식', gold: '금', silver: '은', us_bond: '미국 장기국채', kr_bond: '한국 국채', cash: '현금' };
+  in_stock: '인도 주식', gold: '금', silver: '은', us_bond: '미국 장기국채', kr_bond: '한국 국채', cash: '현금', commodities: '원자재' };
 const GRADE_LABEL = { high: '높음', medium: '보통', low: '낮음' };
 
 function setHidden(id, hidden) { document.getElementById(id).classList.toggle('hidden', hidden); }

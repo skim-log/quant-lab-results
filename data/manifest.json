@@ -48,6 +48,22 @@
     "file": "multi_dynamic_baa_b_usd.json"
   },
   {
+    "id": "multi_dynamic_cdm_krw",
+    "category": "dynamic",
+    "group": "CDM (종합듀얼)",
+    "currency": "krw",
+    "label": "동적 자산배분 · CDM (종합듀얼) (KRW)",
+    "file": "multi_dynamic_cdm_krw.json"
+  },
+  {
+    "id": "multi_dynamic_cdm_usd",
+    "category": "dynamic",
+    "group": "CDM (종합듀얼)",
+    "currency": "usd",
+    "label": "동적 자산배분 · CDM (종합듀얼) (USD)",
+    "file": "multi_dynamic_cdm_usd.json"
+  },
+  {
     "id": "multi_dynamic_daa_g12_krw",
     "category": "dynamic",
     "group": "DAA-G12",
@@ -96,6 +112,22 @@
     "file": "multi_dynamic_gem_usd.json"
   },
   {
+    "id": "multi_dynamic_paa1_krw",
+    "category": "dynamic",
+    "group": "PAA1 (보호)",
+    "currency": "krw",
+    "label": "동적 자산배분 · PAA1 (보호) (KRW)",
+    "file": "multi_dynamic_paa1_krw.json"
+  },
+  {
+    "id": "multi_dynamic_paa1_usd",
+    "category": "dynamic",
+    "group": "PAA1 (보호)",
+    "currency": "usd",
+    "label": "동적 자산배분 · PAA1 (보호) (USD)",
+    "file": "multi_dynamic_paa1_usd.json"
+  },
+  {
     "id": "multi_dynamic_trend_krw",
     "category": "dynamic",
     "group": "S&P 추세추종",
@@ -126,6 +158,22 @@
     "currency": "usd",
     "label": "동적 자산배분 · VAA-G4 공격 (USD)",
     "file": "multi_dynamic_vaa_g4_usd.json"
+  },
+  {
+    "id": "multi_dynamic_nrp_krw",
+    "category": "dynamic",
+    "group": "리스크패리티",
+    "currency": "krw",
+    "label": "동적 자산배분 · 리스크패리티 (KRW)",
+    "file": "multi_dynamic_nrp_krw.json"
+  },
+  {
+    "id": "multi_dynamic_nrp_usd",
+    "category": "dynamic",
+    "group": "리스크패리티",
+    "currency": "usd",
+    "label": "동적 자산배분 · 리스크패리티 (USD)",
+    "file": "multi_dynamic_nrp_usd.json"
   },
   {
     "id": "multi_dynamic_all_krw",
@@ -304,6 +352,38 @@
     "file": "multi_allocation_defensive_usd.json"
   },
   {
+    "id": "multi_allocation_permanent_krw",
+    "category": "static",
+    "group": "영구 포트폴리오",
+    "currency": "krw",
+    "label": "정적 자산배분 · 영구 포트폴리오 (KRW)",
+    "file": "multi_allocation_permanent_krw.json"
+  },
+  {
+    "id": "multi_allocation_permanent_usd",
+    "category": "static",
+    "group": "영구 포트폴리오",
+    "currency": "usd",
+    "label": "정적 자산배분 · 영구 포트폴리오 (USD)",
+    "file": "multi_allocation_permanent_usd.json"
+  },
+  {
+    "id": "multi_allocation_allweather_full_krw",
+    "category": "static",
+    "group": "올웨더 충실",
+    "currency": "krw",
+    "label": "정적 자산배분 · 올웨더 충실 (KRW)",
+    "file": "multi_allocation_allweather_full_krw.json"
+  },
+  {
+    "id": "multi_allocation_allweather_full_usd",
+    "category": "static",
+    "group": "올웨더 충실",
+    "currency": "usd",
+    "label": "정적 자산배분 · 올웨더 충실 (USD)",
+    "file": "multi_allocation_allweather_full_usd.json"
+  },
+  {
     "id": "multi_allocation_allweather_krw",
     "category": "static",
     "group": "올웨더풍",
@@ -334,6 +414,14 @@
     "currency": "usd",
     "label": "정적 자산배분 · 주식중심 (USD)",
     "file": "multi_allocation_equity_usd.json"
+  },
+  {
+    "id": "us_hfea_usd",
+    "category": "momentum",
+    "group": "HFEA (UPRO/TMF 3x)",
+    "currency": "usd",
+    "label": "모멘텀 · HFEA (UPRO/TMF 3x) (USD)",
+    "file": "us_hfea_usd.json"
   },
   {
     "id": "us_real_krw",
@@ -450,11 +538,14 @@
       "multi_dynamic_adm_usd.json",
       "multi_dynamic_baa_g_usd.json",
       "multi_dynamic_baa_b_usd.json",
+      "multi_dynamic_cdm_usd.json",
       "multi_dynamic_daa_g12_usd.json",
       "multi_dynamic_faber_gtaa5_usd.json",
       "multi_dynamic_gem_usd.json",
+      "multi_dynamic_paa1_usd.json",
       "multi_dynamic_trend_usd.json",
       "multi_dynamic_vaa_g4_usd.json",
+      "multi_dynamic_nrp_usd.json",
       "multi_dynamic_all_usd.json",
       "multi_dynamic_absmom_usd.json",
       "multi_dynamic_kr_us_mom6_usd.json",
@@ -466,6 +557,8 @@
       "multi_allocation_balanced_usd.json",
       "multi_allocation_rebal_usd.json",
       "multi_allocation_defensive_usd.json",
+      "multi_allocation_permanent_usd.json",
+      "multi_allocation_allweather_full_usd.json",
       "multi_allocation_allweather_usd.json",
       "multi_allocation_equity_usd.json"
     ]
@@ -481,11 +574,14 @@
       "multi_dynamic_adm_krw.json",
       "multi_dynamic_baa_g_krw.json",
       "multi_dynamic_baa_b_krw.json",
+      "multi_dynamic_cdm_krw.json",
       "multi_dynamic_daa_g12_krw.json",
       "multi_dynamic_faber_gtaa5_krw.json",
       "multi_dynamic_gem_krw.json",
+      "multi_dynamic_paa1_krw.json",
       "multi_dynamic_trend_krw.json",
       "multi_dynamic_vaa_g4_krw.json",
+      "multi_dynamic_nrp_krw.json",
       "multi_dynamic_all_krw.json",
       "multi_dynamic_absmom_krw.json",
       "multi_dynamic_kr_us_mom6_krw.json",
@@ -497,6 +593,8 @@
       "multi_allocation_balanced_krw.json",
       "multi_allocation_rebal_krw.json",
       "multi_allocation_defensive_krw.json",
+      "multi_allocation_permanent_krw.json",
+      "multi_allocation_allweather_full_krw.json",
       "multi_allocation_allweather_krw.json",
       "multi_allocation_equity_krw.json"
     ]
