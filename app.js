@@ -782,7 +782,8 @@ async function loadDataset(file) {
     // 정적 프리셋: 리밸런싱 주기·밴드 셀렉터 노출(즉석 재계산). target_weights 있는 정적(allocation)만.
     if (d.kind === 'allocation' && d.target_weights && Object.keys(d.target_weights).length) {
       state.allocCtx = { file, weights: d.target_weights, defaultRebal: d.rebalance || 'quarterly',
-        defaultBand: d.band_ratio != null ? d.band_ratio : 0.2, title: d.title || '정적 배분', desc: d.description || '' };
+        defaultBand: d.band_ratio != null ? d.band_ratio : 0.2, title: d.title || '정적 배분', desc: d.description || '',
+        base: state.nav.group || '정적 배분' };   // 프리셋 라벨(주기 접미사 없음) — 재계산 시 이름 재구성용
       const sel = document.getElementById('alloc-rebal'), bnd = document.getElementById('alloc-band'),
             bon = document.getElementById('alloc-band-on');
       const hasBand = state.allocCtx.defaultBand > 0;
@@ -1972,6 +1973,10 @@ async function _ensurePanel() {
     return state.panelCache;
   } catch (e) { return null; }
 }
+const _REBAL_KR = { never: '리밸 없음', monthly: '월', quarterly: '분기', semiannual: '반기', yearly: '연' };
+function _allocName(base, rebalance, band) {     // allocation.py 와 동일 포맷: "프리셋 · 주기(· 밴드%)"
+  return `${base} · ${_REBAL_KR[rebalance] || rebalance}` + (band > 0 ? ` · 밴드 ${Math.round(band * 100)}%` : '');
+}
 async function onAllocRebalChange() {
   const ctx = state.allocCtx; if (!ctx) return;
   const rebalance = document.getElementById('alloc-rebal').value;
@@ -1984,8 +1989,9 @@ async function onAllocRebalChange() {
   setStatus('재계산 중…');
   const panel = await _ensurePanel();
   if (!panel) { setStatus('panel.json 로드 실패 — 기본(분기) 결과만 가능', true); return; }
+  const name = _allocName(ctx.base, rebalance, band);   // 선택 주기를 이름에 반영
   _allocRun(panel, ctx.weights, rebalance, band, state.nav.currency || 'krw',
-    { selfName: ctx.title, title: ctx.title, desc: ctx.desc });
+    { selfName: name, title: name, desc: ctx.desc });
   _showAllocRebal(true);            // render 후에도 컨트롤 유지
 }
 

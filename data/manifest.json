@@ -322,17 +322,17 @@
   {
     "id": "multi_allocation_rebal_krw",
     "category": "static",
-    "group": "리밸런서 기본",
+    "group": "글로벌 분산 (귀금속 강화)",
     "currency": "krw",
-    "label": "정적 자산배분 · 리밸런서 기본 (KRW)",
+    "label": "정적 자산배분 · 글로벌 분산 (귀금속 강화) (KRW)",
     "file": "multi_allocation_rebal_krw.json"
   },
   {
     "id": "multi_allocation_rebal_usd",
     "category": "static",
-    "group": "리밸런서 기본",
+    "group": "글로벌 분산 (귀금속 강화)",
     "currency": "usd",
-    "label": "정적 자산배분 · 리밸런서 기본 (USD)",
+    "label": "정적 자산배분 · 글로벌 분산 (귀금속 강화) (USD)",
     "file": "multi_allocation_rebal_usd.json"
   },
   {
