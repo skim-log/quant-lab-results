@@ -1455,15 +1455,22 @@ async function loadMultiDatasets(files, title) {
       pct_cols: base.pct_cols, ratio_cols: base.ratio_cols, metric_to_col: base.metric_to_col,
       series: [], table_display: {}, metrics_raw: {},
     };
-    for (const d of ds) {
-      for (const s of (d.series || [])) {
-        if (merged.series.some(x => x.name === s.name)) continue;   // 이름 중복(벤치마크) 1회만
-        merged.series.push(s);
-      }
-      // first-wins: 벤치마크(KOSPI 등)는 시리즈를 첫 데이터셋만 채택하므로 표/지표도 같은
-      // 데이터셋 행을 써야 곡선=표가 일치(데이터셋마다 벤치마크를 자기 구간으로 재정규화하기 때문).
-      for (const [k, v] of Object.entries(d.table_display || {})) if (!(k in merged.table_display)) merged.table_display[k] = v;
-      for (const [k, v] of Object.entries(d.metrics_raw || {})) if (!(k in merged.metrics_raw)) merged.metrics_raw[k] = v;
+    // 벤치마크(KOSPI·S&P 등)는 데이터셋마다 자기 구간으로 재정규화돼 총수익이 다르다. 같은 이름이면
+    // **비결측 NAV가 가장 긴(=가장 완전한 이력)** 버전을 곡선·표·지표 모두에서 채택 → 비교 구성이 같으면
+    // 항상 같은(전체이력) 벤치마크가 결정적으로 표시되고 곡선=표가 일치. 전략(고유명)은 1개뿐이라 무영향.
+    const chosen = new Map();   // name -> { len, series, td, mr }
+    const navLen = s => (s.nav || []).reduce((a, v) => a + (v != null ? 1 : 0), 0);
+    const order = [];
+    for (const d of ds) for (const s of (d.series || [])) {
+      if (!chosen.has(s.name)) order.push(s.name);
+      const len = navLen(s), cur = chosen.get(s.name);
+      if (!cur || len > cur.len) chosen.set(s.name, { len, series: s, td: (d.table_display || {})[s.name], mr: (d.metrics_raw || {})[s.name] });
+    }
+    for (const nm of order) {
+      const c = chosen.get(nm);
+      merged.series.push(c.series);
+      if (c.td) merged.table_display[nm] = c.td;
+      if (c.mr) merged.metrics_raw[nm] = c.mr;
     }
     state.data = merged;
     state.colToMetric = buildColToMetric(merged);

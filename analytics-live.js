@@ -115,6 +115,8 @@
       const s = w.reduce((a, b) => a + b, 0); if (s <= 0) continue;
       const r = rec(w.map(x => x / s)); presets.push({ name, label: presetDefs[name].label || name, ret: r.ret, vol: r.vol, sharpe: r.sharpe, weights: r.weights });
     }
+    // 동일가중(선택 자산) — 부분집합에서도 의미 있는 기준점(사용자 요청). 항상 추가.
+    if (K >= 1) { const eq = rec(new Array(K).fill(1 / K)); presets.push({ name: 'equal', label: '동일가중', ret: eq.ret, vol: eq.vol, sharpe: eq.sharpe, weights: eq.weights }); }
     let points = allPts; storePoints = storePoints || 2000;
     if (allPts.length > storePoints) { points = []; const step = allPts.length / storePoints; for (let i = 0; i < storePoints; i++) points.push(allPts[Math.floor(i * step)]); }
     return { n_sims: n, points, curve: extractFrontier(allPts), max_sharpe: rec(bestW), min_var: rec(minW), single_asset: single, presets, _bestW: bestW };
@@ -234,14 +236,13 @@
     const ctx = _sliceCtx(payload, range, selectedKeys);
     const { R, keys, labels, colors, dates, assets, ppy, rf } = ctx;
     const n = dates.length;
-    const fullSet = !selectedKeys || selectedKeys.length >= (payload.assets || []).length;
     const risk_return = [], vols = {};
     for (let k = 0; k < keys.length; k++) { const st = riskStats(R[k], ppy, rf); vols[keys[k]] = st.ann_vol; risk_return.push({ key: keys[k], label: labels[keys[k]], color: colors[keys[k]], ...st }); }
     const rp = riskParityWeights(vols);
     const defW = ((payload.preset_defs && payload.preset_defs[payload.default_preset]) || {}).weights || {};
     const risk_parity = keys.map(k => ({ key: k, label: labels[k], color: colors[k], vol: rp[k].vol, weight: rp[k].weight, target: +(defW[k] || 0) }));
     const correlation = correlationMatrix(R, keys);
-    const mc = monteCarloFrontier(R, keys, labels, colors, ppy, rf, 6000, 12345, fullSet ? payload.preset_defs : null, 2000);
+    const mc = monteCarloFrontier(R, keys, labels, colors, ppy, rf, 6000, 12345, payload.preset_defs, 2000);
     let marko = null;
     if (n >= 12) { marko = markowitzFrontier(R, keys, labels, colors, ppy, rf, mc.points, mc._bestW); if (marko) marko.dates = dates; }
     const frontier = { n_sims: mc.n_sims, points: mc.points, curve: mc.curve, max_sharpe: mc.max_sharpe, min_var: mc.min_var, single_asset: mc.single_asset, presets: mc.presets, markowitz: marko };
