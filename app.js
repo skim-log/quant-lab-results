@@ -630,15 +630,15 @@ function renderMonthlyHeatmap(rows) {
   const text = z.map(r => r.map(v => v == null ? '' : (v > 0 ? '+' : '') + (v * 100).toFixed(1)));
   const muted = cssVar('--chart-muted');
   const trace = { type: 'heatmap', z: z.map(r => r.map(v => v == null ? null : v * 100)), x: months, y: years,
-    text, texttemplate: '%{text}', textfont: { size: 9, color: '#0f172a' },
+    text, texttemplate: '%{text}', textfont: { size: 12, color: '#0f172a' },
     zmid: 0, zmin: -amax * 100, zmax: amax * 100,
     colorscale: [[0, '#dc2626'], [0.5, '#f1f5f9'], [1, '#16a34a']], xgap: 2, ygap: 2,
     colorbar: { tickfont: { color: muted }, outlinewidth: 0, len: 0.92, thickness: 12, ticksuffix: '%' },
     hovertemplate: '%{y} %{x}<br>%{z:.1f}%<extra></extra>' };
   const layout = baseLayout('', '');
   layout.margin = { l: 48, r: 10, t: 24, b: 16 };
-  layout.xaxis = { tickfont: { color: muted, size: 10 }, side: 'top', automargin: true };
-  layout.yaxis = { tickfont: { color: muted, size: 10 }, automargin: true, autorange: 'reversed' };
+  layout.xaxis = { tickfont: { color: muted, size: 11 }, side: 'top', automargin: true };
+  layout.yaxis = { tickfont: { color: muted, size: 11 }, automargin: true, autorange: 'reversed' };
   delete layout.legend; layout.hovermode = 'closest';
   Plotly.react('chart-monthly-hm', [trace], layout, PLOTCFG);
 }
@@ -886,12 +886,13 @@ const CAT_ORDER = { dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, m
 const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
   crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩',
   paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도' };
-// 2단 대분류: 자산배분(8자산) / 개별전략(코인·모멘텀) / 도구·지표(계산기·심리·경보·데이터정확도).
+// 4대분류: 자산배분(8자산) / 주식·레버리지(한국 모멘텀·미국 TQQQ) / 코인(BTC/ETH/XRP) /
+//          도구·지표(계산기·심리·경보·데이터정확도). 코인은 전통자산과 위험특성이 달라 독립 영역.
 const SUPER_OF = { dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
-  momentum: 'strat', crypto: 'strat',
+  momentum: 'strat', crypto: 'coin',
   paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools' };
-const SUPER_ORDER = { alloc: 0, strat: 1, tools: 2 };
-const SUPER_LABEL = { alloc: '자산배분', strat: '개별전략', tools: '도구·지표' };
+const SUPER_ORDER = { alloc: 0, strat: 1, coin: 2, tools: 3 };
+const SUPER_LABEL = { alloc: '자산배분', strat: '주식·레버리지', coin: '코인', tools: '도구·지표' };
 
 function catsPresent() {
   return [...new Set(state.manifest.map(m => m.category))]
