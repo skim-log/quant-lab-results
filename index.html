@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=53b1f526" />
+  <link rel="stylesheet" href="style.css?v=fcd846e3" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -86,8 +86,9 @@
             <option value="semiannual">반기</option>
             <option value="yearly">연</option>
           </select></label>
-          <label>밴드 ±<input type="number" id="alloc-band" min="0" max="100" step="1" value="20" style="width:3.4rem" />%</label>
-          <span class="muted">주기·밴드를 바꾸면 브라우저가 즉석 재계산(기본 분기·20%로 되돌리면 상세 패널 복원)</span>
+          <label class="band-on"><input type="checkbox" id="alloc-band-on" checked /> 밴드</label>
+          <label>±<input type="number" id="alloc-band" min="0" max="100" step="1" value="20" style="width:3.4rem" />%</label>
+          <span class="muted">밴드 끄면 주기 리밸만(표류 트리거 없음). 바꾸면 즉석 재계산(기본 분기·밴드±20%면 상세 패널 복원)</span>
         </div>
       </div>
 
@@ -402,8 +403,8 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=53b1f526" defer></script>
-  <script src="analytics-live.js?v=53b1f526" defer></script>
-  <script src="app.js?v=53b1f526" defer></script>
+  <script src="alloc.js?v=fcd846e3" defer></script>
+  <script src="analytics-live.js?v=fcd846e3" defer></script>
+  <script src="app.js?v=fcd846e3" defer></script>
 </body>
 </html>

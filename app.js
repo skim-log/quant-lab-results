@@ -177,7 +177,7 @@ function renderDescription() {
   if (d) {
     if (d.kind === 'dynamic') txt += (txt ? ' · ' : '') + '신호 기반 매월 리밸런싱';
     else if (d.rebalance) txt += (txt ? ' · ' : '') + `리밸런싱: ${REBAL_KOR[d.rebalance] || d.rebalance}`
-      + (d.band_ratio != null ? ` (밴드 ±${(d.band_ratio * 100).toFixed(0)}%)` : '');
+      + (d.band_ratio != null ? (d.band_ratio > 0 ? ` (밴드 ±${(d.band_ratio * 100).toFixed(0)}%)` : ' (밴드 없음)') : '');
   }
   el.textContent = txt;
   el.classList.toggle('hidden', !txt);
@@ -626,9 +626,12 @@ async function loadDataset(file) {
     if (d.kind === 'allocation' && d.target_weights && Object.keys(d.target_weights).length) {
       state.allocCtx = { file, weights: d.target_weights, defaultRebal: d.rebalance || 'quarterly',
         defaultBand: d.band_ratio != null ? d.band_ratio : 0.2, title: d.title || '정적 배분', desc: d.description || '' };
-      const sel = document.getElementById('alloc-rebal'), bnd = document.getElementById('alloc-band');
+      const sel = document.getElementById('alloc-rebal'), bnd = document.getElementById('alloc-band'),
+            bon = document.getElementById('alloc-band-on');
+      const hasBand = state.allocCtx.defaultBand > 0;
       if (sel) sel.value = state.allocCtx.defaultRebal;
-      if (bnd) bnd.value = (state.allocCtx.defaultBand * 100).toFixed(0);
+      if (bon) bon.checked = hasBand;
+      if (bnd) { bnd.value = (hasBand ? state.allocCtx.defaultBand * 100 : 20).toFixed(0); bnd.disabled = !hasBand; }
       _showAllocRebal(true);
     }
   } catch (err) {
@@ -698,9 +701,11 @@ function wireControls() {
     b.addEventListener('click', () => { setActivePreset(Number(b.dataset.years)); onPeriodChange(); });
   });
   // 정적 자산배분 리밸런싱 주기·밴드 → 즉석 재계산
-  const arb = document.getElementById('alloc-rebal'), abd = document.getElementById('alloc-band');
+  const arb = document.getElementById('alloc-rebal'), abd = document.getElementById('alloc-band'),
+        abon = document.getElementById('alloc-band-on');
   if (arb) arb.addEventListener('change', onAllocRebalChange);
   if (abd) abd.addEventListener('change', onAllocRebalChange);
+  if (abon) abon.addEventListener('change', onAllocRebalChange);
   // 성과표 리더보드 정렬 — 열 헤더 클릭(같은 열 재클릭 시 방향 토글).
   document.getElementById('metrics-table').addEventListener('click', e => {
     const th = e.target.closest('th[data-col]');
@@ -1645,7 +1650,9 @@ async function _ensurePanel() {
 async function onAllocRebalChange() {
   const ctx = state.allocCtx; if (!ctx) return;
   const rebalance = document.getElementById('alloc-rebal').value;
-  const band = (parseFloat(document.getElementById('alloc-band').value) || 0) / 100;
+  const bandOn = document.getElementById('alloc-band-on').checked;
+  document.getElementById('alloc-band').disabled = !bandOn;   // 끄면 % 입력 비활성
+  const band = bandOn ? (parseFloat(document.getElementById('alloc-band').value) || 0) / 100 : 0;
   if (rebalance === ctx.defaultRebal && Math.abs(band - ctx.defaultBand) < 1e-9) {
     return loadDataset(ctx.file);   // 기본값 → 사전계산 풀 뷰 복원
   }
