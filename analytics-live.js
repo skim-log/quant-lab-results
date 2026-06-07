@@ -213,9 +213,12 @@
     return { method: 'markowitz_js', curve_mv: curve, tangency: tRec, gmv: gRec, alternatives: alts, dates: null };
   }
 
-  // payload(전체 월수익) + range(s,e) → 슬라이스 컨텍스트(buildAnalytics·makeExplorer 공용)
-  function _sliceCtx(payload, range) {
-    const allDates = payload.dates || [], assets = payload.assets || [], keys = assets.map(a => a.key);
+  // payload(전체 월수익) + range(s,e) + selectedKeys(선택 자산) → 슬라이스 컨텍스트(공용)
+  function _sliceCtx(payload, range, selectedKeys) {
+    const allDates = payload.dates || [];
+    let assets = payload.assets || [];
+    if (selectedKeys && selectedKeys.length) { const sel = new Set(selectedKeys); assets = assets.filter(a => sel.has(a.key)); }
+    const keys = assets.map(a => a.key);
     const labels = {}, colors = {}; for (const a of assets) { labels[a.key] = a.label; colors[a.key] = a.color; }
     let lo = 0, hi = allDates.length - 1;
     if (range && range.s) while (lo < allDates.length && allDates[lo] < range.s) lo++;
@@ -227,17 +230,18 @@
   }
 
   // ── d-객체 빌더: payload(전체 월수익) + range(s,e) → 정량분석 객체 ─────────
-  function buildAnalytics(payload, range) {
-    const ctx = _sliceCtx(payload, range);
+  function buildAnalytics(payload, range, selectedKeys) {
+    const ctx = _sliceCtx(payload, range, selectedKeys);
     const { R, keys, labels, colors, dates, assets, ppy, rf } = ctx;
     const n = dates.length;
+    const fullSet = !selectedKeys || selectedKeys.length >= (payload.assets || []).length;
     const risk_return = [], vols = {};
     for (let k = 0; k < keys.length; k++) { const st = riskStats(R[k], ppy, rf); vols[keys[k]] = st.ann_vol; risk_return.push({ key: keys[k], label: labels[keys[k]], color: colors[keys[k]], ...st }); }
     const rp = riskParityWeights(vols);
     const defW = ((payload.preset_defs && payload.preset_defs[payload.default_preset]) || {}).weights || {};
     const risk_parity = keys.map(k => ({ key: k, label: labels[k], color: colors[k], vol: rp[k].vol, weight: rp[k].weight, target: +(defW[k] || 0) }));
     const correlation = correlationMatrix(R, keys);
-    const mc = monteCarloFrontier(R, keys, labels, colors, ppy, rf, 6000, 12345, payload.preset_defs, 2000);
+    const mc = monteCarloFrontier(R, keys, labels, colors, ppy, rf, 6000, 12345, fullSet ? payload.preset_defs : null, 2000);
     let marko = null;
     if (n >= 12) { marko = markowitzFrontier(R, keys, labels, colors, ppy, rf, mc.points, mc._bestW); if (marko) marko.dates = dates; }
     const frontier = { n_sims: mc.n_sims, points: mc.points, curve: mc.curve, max_sharpe: mc.max_sharpe, min_var: mc.min_var, single_asset: mc.single_asset, presets: mc.presets, markowitz: marko };
@@ -249,8 +253,8 @@
   }
 
   // ── 전략 탐색기: 위험성향 슬라이더(효율적 비중) + 임의 비중 평가(프론티어 위 점 찍기) ──
-  function makeExplorer(payload, range) {
-    const ctx = _sliceCtx(payload, range);
+  function makeExplorer(payload, range, selectedKeys) {
+    const ctx = _sliceCtx(payload, range, selectedKeys);
     const { R, keys, labels, colors, ppy, rf } = ctx;
     const K = R.length, T = R[0] ? R[0].length : 0;
     const mu = R.map(meanArr), S = covMatrix(R, mu);

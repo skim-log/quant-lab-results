@@ -37,6 +37,7 @@ const state = {
   playground: false, panel: null, _pgWired: false,  // 플레이그라운드 상태
   analyticsActive: false, analyticsPayload: null, _analyticsCur: null,   // 정량분석 기간조절 재계산(월수익 행렬 보관)
   explorerCtx: null, explorer: null, _expWired: false,   // 전략 탐색기(위험성향 슬라이더·내 비중 점)
+  selectedAssets: [], _assetWired: false,                // 정량분석 분석 자산 선택(부분집합)
   sort: { col: null, dir: -1 },  // 성과표 리더보드 정렬(열 클릭). dir: -1=내림차순
 };
 
@@ -281,9 +282,16 @@ function renderAnnual(rows) {
   Plotly.react('chart-annual', traces, layout, PLOTCFG);
 }
 
+// MDD 열을 CAGR 바로 뒤로 재배치(가독성). 둘 다 있을 때만.
+function _mddAfterCagr(cols) {
+  if (!cols || !cols.includes('CAGR') || !cols.includes('MDD')) return cols;
+  const c = cols.filter(x => x !== 'MDD');
+  c.splice(c.indexOf('CAGR') + 1, 0, 'MDD');
+  return c;
+}
 function renderTable(rows, fullPeriod) {
   const d = state.data;
-  const cols = d.table_columns;
+  const cols = _mddAfterCagr(d.table_columns);
   const pct = new Set(d.pct_cols);
   const ratio = new Set(d.ratio_cols);
 
@@ -1111,18 +1119,73 @@ function enterAnalytics(payload) {
     setActivePreset(0);
   }
   state._analyticsCur = payload.currency || '';
+  // 분석 자산: 새 진입이면 전체, 통화 토글이면 기존 선택 유지(같은 8키).
+  const allKeys = (payload.assets || []).map(a => a.key);
+  if (!wasAnalytics || !(state.selectedAssets || []).length) state.selectedAssets = allKeys.slice();
+  renderAssetSelector();
   recomputeAnalytics();
 }
 
-// 선택 구간(start/end) → 클라이언트 재계산(상관·프론티어·접점·결과지표·리스크패리티).
+// 정량분석 전통 포트폴리오 유니버스 프리셋(자산 부분집합). keys=null → 전체.
+const ANALYTICS_UNIVERSES = [
+  { label: '전체 (8자산)', keys: null, tip: '8자산 전부' },
+  { label: '미국 60/40', keys: ['us_stock', 'us_bond'], tip: '미국 주식·장기국채(클래식 60/40)' },
+  { label: '영구 포트폴리오', keys: ['us_stock', 'us_bond', 'gold'], tip: '해리 브라운 — 주식·장기채·금(+현금)' },
+  { label: '올웨더 근사', keys: ['us_stock', 'us_bond', 'gold', 'silver'], tip: '레이 달리오 풍 — 주식·채권·금·은' },
+  { label: '글로벌 주식', keys: ['us_stock', 'kr_stock', 'cn_stock', 'in_stock'], tip: '미·한·중·인 주식' },
+  { label: '글로벌 주식+채권', keys: ['us_stock', 'kr_stock', 'cn_stock', 'in_stock', 'us_bond', 'kr_bond'], tip: '4국 주식 + 미·한 채권' },
+];
+
+function renderAssetSelector() {
+  const p = state.analyticsPayload; if (!p) return;
+  const uh = document.getElementById('an-universe'), ah = document.getElementById('an-assets');
+  if (uh && !uh.dataset.built) {
+    uh.innerHTML = ANALYTICS_UNIVERSES.map((u, i) => `<button type="button" data-univ="${i}" title="${u.tip || ''}">${u.label}</button>`).join('');
+    uh.dataset.built = '1';
+  }
+  if (ah) {
+    const sel = new Set(state.selectedAssets);
+    ah.innerHTML = (p.assets || []).map(a => {
+      const col = a.color || (typeof CAT_COLOR !== 'undefined' && CAT_COLOR[a.key]) || 'var(--muted)';
+      return `<label class="an-asset${sel.has(a.key) ? ' on' : ''}"><input type="checkbox" data-asset="${a.key}"${sel.has(a.key) ? ' checked' : ''}/>` +
+        `<span class="swatch" style="background:${col}"></span>${a.label}</label>`;
+    }).join('');
+  }
+  if (!state._assetWired) {
+    if (ah) ah.addEventListener('change', e => {
+      const cb = e.target.closest('input[data-asset]'); if (!cb) return;
+      const s = new Set(state.selectedAssets); cb.checked ? s.add(cb.dataset.asset) : s.delete(cb.dataset.asset);
+      state.selectedAssets = (p.assets || []).map(a => a.key).filter(k => s.has(k));
+      recomputeAnalytics(); renderAssetSelector();
+    });
+    if (uh) uh.addEventListener('click', e => {
+      const b = e.target.closest('button[data-univ]'); if (!b) return;
+      const all = (p.assets || []).map(a => a.key), u = ANALYTICS_UNIVERSES[+b.dataset.univ];
+      state.selectedAssets = (u.keys || all).filter(k => all.includes(k));
+      renderAssetSelector(); recomputeAnalytics();
+    });
+    state._assetWired = true;
+  }
+}
+
+// 선택 구간(start/end) + 선택 자산 → 클라이언트 재계산(상관·프론티어·접점·결과지표·리스크패리티).
 function recomputeAnalytics() {
   const p = state.analyticsPayload; if (!p) return;
+  const allKeys = (p.assets || []).map(a => a.key);
+  const sel = (state.selectedAssets && state.selectedAssets.length) ? state.selectedAssets : allKeys;
+  const an = document.getElementById('an-assets-note');
+  if (sel.length < 2) {                       // 프론티어엔 2개 이상 필요 — 직전 뷰 유지
+    if (an) { an.classList.remove('hidden'); an.textContent = '분석할 자산을 2개 이상 선택하세요.'; }
+    return;
+  }
+  if (an) an.classList.add('hidden');
   const { s, e } = currentWindow();
-  const d = ANALYTICS.buildAnalytics(p, { s, e });
+  const d = ANALYTICS.buildAnalytics(p, { s, e }, sel);
   state.data = d; state.explorer = null;     // 탐색기 마커는 아래에서 재설정
-  const full = isFullPeriod(s, e);
+  const full = isFullPeriod(s, e), subset = sel.length < allKeys.length;
   document.getElementById('meta').textContent =
-    `${d.title || '정량분석'} · ${d.n_months}개월 · ${d.period}` + (full ? ' (전체기간)' : ' · 조절구간 즉시 재계산');
+    `${d.title || '정량분석'} · ${d.n_months}개월 · ${d.period}` + (full ? ' (전체기간)' : ' · 조절구간') +
+    (subset ? ` · ${sel.length}자산 선택` : '');
   renderAnalytics(d);
   const note = document.getElementById('an-range-note');
   if (note) {
@@ -1130,8 +1193,8 @@ function recomputeAnalytics() {
     note.classList.toggle('hidden', !small);
     if (small) note.textContent = `⚠️ 표본 ${d.n_months}개월 — 구간이 짧아 효율적 프론티어·접점이 불안정할 수 있습니다(24개월 이상 권장).`;
   }
-  // 전략 탐색기: 같은 구간으로 재생성 → 기본(접점) 비중·슬라이더 세팅 → 렌더
-  state.explorerCtx = ANALYTICS.makeExplorer(p, { s, e });
+  // 전략 탐색기: 같은 구간·자산으로 재생성 → 기본(접점) 비중·슬라이더 세팅 → 렌더
+  state.explorerCtx = ANALYTICS.makeExplorer(p, { s, e }, sel);
   initExplorer();
   renderExplorer();
 }
@@ -1397,8 +1460,10 @@ async function loadMultiDatasets(files, title) {
         if (merged.series.some(x => x.name === s.name)) continue;   // 이름 중복(벤치마크) 1회만
         merged.series.push(s);
       }
-      Object.assign(merged.table_display, d.table_display || {});
-      Object.assign(merged.metrics_raw, d.metrics_raw || {});
+      // first-wins: 벤치마크(KOSPI 등)는 시리즈를 첫 데이터셋만 채택하므로 표/지표도 같은
+      // 데이터셋 행을 써야 곡선=표가 일치(데이터셋마다 벤치마크를 자기 구간으로 재정규화하기 때문).
+      for (const [k, v] of Object.entries(d.table_display || {})) if (!(k in merged.table_display)) merged.table_display[k] = v;
+      for (const [k, v] of Object.entries(d.metrics_raw || {})) if (!(k in merged.metrics_raw)) merged.metrics_raw[k] = v;
     }
     state.data = merged;
     state.colToMetric = buildColToMetric(merged);

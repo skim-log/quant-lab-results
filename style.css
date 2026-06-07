@@ -441,6 +441,16 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
 .wbar-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; opacity: 0.9; }
 .wbar-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--fg); }
 
+/* ---- 정량분석 자산 선택 ---- */
+.an-select { margin: 0.5rem 0 0.3rem; padding: 0.6rem 0.8rem; background: var(--surface-2); border-radius: var(--radius-sm); }
+.an-select-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.4rem; }
+.an-select-row > .muted { min-width: 84px; font-size: 0.8rem; }
+.an-assets { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.an-asset { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.22rem 0.55rem; font-size: 0.82rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--muted); cursor: pointer; user-select: none; }
+.an-asset.on { color: var(--fg); border-color: var(--accent); }
+.an-asset input { margin: 0; accent-color: var(--accent); }
+
 /* ---- 전략 탐색기 ---- */
 .exp-risk { display: flex; align-items: center; gap: 0.6rem; margin: 0.6rem 0 0.3rem; flex-wrap: wrap; }
 .exp-risk input[type="range"] { flex: 1; min-width: 160px; max-width: 380px; accent-color: var(--accent); }
