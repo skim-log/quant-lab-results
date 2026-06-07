@@ -441,6 +441,18 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
 .wbar-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 999px; opacity: 0.9; }
 .wbar-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--fg); }
 
+/* ---- 전략 탐색기 ---- */
+.exp-risk { display: flex; align-items: center; gap: 0.6rem; margin: 0.6rem 0 0.3rem; flex-wrap: wrap; }
+.exp-risk input[type="range"] { flex: 1; min-width: 160px; max-width: 380px; accent-color: var(--accent); }
+#exp-risk-readout { font-variant-numeric: tabular-nums; font-size: 0.82rem; }
+.exp-quick { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin: 0.4rem 0 0.6rem; }
+.exp-quick button { padding: 0.3rem 0.7rem; font-size: 0.82rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--fg); cursor: pointer; }
+.exp-quick button:hover { border-color: var(--accent); }
+#exp-result { grid-template-columns: minmax(240px, 380px); }
+.exp-gap { margin-top: 0.5rem; padding-top: 0.4rem; border-top: 1px solid var(--border); font-size: 0.78rem; }
+.exp-gap.warn { color: var(--neg); }
+.exp-gap.ok { color: var(--pos); }
+
 /* ---- 추세 경보 소제목 · 백테스트 컨트롤 ---- */
 .trend-sub { font-size: 1rem; font-weight: 700; margin: 1.2rem 0 0.4rem; }
 .bt-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem; margin: 0.4rem 0 0.2rem; }

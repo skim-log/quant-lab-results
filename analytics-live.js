@@ -213,8 +213,8 @@
     return { method: 'markowitz_js', curve_mv: curve, tangency: tRec, gmv: gRec, alternatives: alts, dates: null };
   }
 
-  // ── d-객체 빌더: payload(전체 월수익) + range(s,e) → 정량분석 객체 ─────────
-  function buildAnalytics(payload, range) {
+  // payload(전체 월수익) + range(s,e) → 슬라이스 컨텍스트(buildAnalytics·makeExplorer 공용)
+  function _sliceCtx(payload, range) {
     const allDates = payload.dates || [], assets = payload.assets || [], keys = assets.map(a => a.key);
     const labels = {}, colors = {}; for (const a of assets) { labels[a.key] = a.label; colors[a.key] = a.color; }
     let lo = 0, hi = allDates.length - 1;
@@ -223,7 +223,14 @@
     const idx = []; for (let i = lo; i <= hi; i++) idx.push(i);
     const dates = idx.map(i => allDates[i]);
     const R = keys.map(k => idx.map(i => (payload.returns[k] || [])[i]));
-    const ppy = payload.periods_per_year || 12, rf = payload.rf != null ? payload.rf : 0.02, n = dates.length;
+    return { R, keys, labels, colors, dates, assets, ppy: payload.periods_per_year || 12, rf: payload.rf != null ? payload.rf : 0.02 };
+  }
+
+  // ── d-객체 빌더: payload(전체 월수익) + range(s,e) → 정량분석 객체 ─────────
+  function buildAnalytics(payload, range) {
+    const ctx = _sliceCtx(payload, range);
+    const { R, keys, labels, colors, dates, assets, ppy, rf } = ctx;
+    const n = dates.length;
     const risk_return = [], vols = {};
     for (let k = 0; k < keys.length; k++) { const st = riskStats(R[k], ppy, rf); vols[keys[k]] = st.ann_vol; risk_return.push({ key: keys[k], label: labels[keys[k]], color: colors[keys[k]], ...st }); }
     const rp = riskParityWeights(vols);
@@ -241,7 +248,47 @@
     };
   }
 
-  const API = { buildAnalytics, riskStats, correlationMatrix, riskParityWeights, monteCarloFrontier, markowitzFrontier, simplexProject, extractFrontier };
+  // ── 전략 탐색기: 위험성향 슬라이더(효율적 비중) + 임의 비중 평가(프론티어 위 점 찍기) ──
+  function makeExplorer(payload, range) {
+    const ctx = _sliceCtx(payload, range);
+    const { R, keys, labels, colors, ppy, rf } = ctx;
+    const K = R.length, T = R[0] ? R[0].length : 0;
+    const mu = R.map(meanArr), S = covMatrix(R, mu);
+    if (K) { const tr = S.reduce((a, row, i) => a + row[i], 0), ridge = (tr / K) * 1e-8; for (let i = 0; i < K; i++) S[i][i] += ridge; }
+    const sumMu = mu.reduce((a, b) => a + b, 0), sumMu2 = mu.reduce((a, b) => a + b * b, 0);
+    const record = w => {
+      const pr = portReturns(R, w), st = riskStats(pr, ppy, rf), wt = {};
+      for (let k = 0; k < K; k++) if (w[k] > 1e-6) wt[keys[k]] = w[k];
+      const nav = []; let acc = 1; for (const r of pr) { acc *= 1 + r; nav.push(Math.round(acc * 1e6) / 1e6); }
+      return { ret: st.ann_return, vol: st.ann_vol, sharpe: st.sharpe, weights: wt, stats: st, nav };
+    };
+    const wGmv = T >= 3 ? pgdGMV(S) : new Array(K).fill(1 / K);
+    let wTan = wGmv;
+    if (T >= 3) { const starts = [new Array(K).fill(1 / K), wGmv.slice()]; for (let k = 0; k < K; k++) { const e = new Array(K).fill(0); e[k] = 1; starts.push(e); } wTan = pgdMaxSharpe(S, mu, rf, starts, R, ppy); }
+    const gmvRet = dot(mu, wGmv), maxRet = K ? Math.max.apply(null, mu) : 0;
+    const curve = [];                       // 효율 갭(frontierReturnAt)용 경계 샘플
+    if (T >= 3 && maxRet > gmvRet) for (let i = 0; i < 36; i++) {
+      const t = gmvRet + (maxRet - gmvRet) * i / 35, w = pgdTarget(S, mu, t, sumMu, sumMu2);
+      const st = riskStats(portReturns(R, w), ppy, rf); curve.push([st.ann_vol, st.ann_return]);
+    }
+    curve.sort((a, b) => a[0] - b[0]);
+    const asW = wObj => { const w = keys.map(k => +(wObj[k] || 0)); const s = w.reduce((a, b) => a + b, 0); return s > 0 ? w.map(x => x / s) : new Array(K).fill(1 / K); };
+    return {
+      keys, labels, colors, nMonths: T, gmvReturn: gmvRet, maxReturn: maxRet, tangencyReturn: dot(mu, wTan),
+      gmv: record(wGmv), tangency: record(wTan), equalWeight: record(new Array(K).fill(1 / K)),
+      efficientForReturn(target) { const t = Math.max(gmvRet, Math.min(maxRet, target)); return record(T >= 3 ? pgdTarget(S, mu, t, sumMu, sumMu2) : new Array(K).fill(1 / K)); },
+      evalWeights(wObj) { return record(asW(wObj)); },
+      frontierReturnAt(vol) {
+        if (!curve.length) return null;
+        if (vol <= curve[0][0]) return curve[0][1];
+        if (vol >= curve[curve.length - 1][0]) return curve[curve.length - 1][1];
+        for (let i = 1; i < curve.length; i++) if (curve[i][0] >= vol) { const [v0, r0] = curve[i - 1], [v1, r1] = curve[i]; return r0 + (vol - v0) / ((v1 - v0) || 1) * (r1 - r0); }
+        return curve[curve.length - 1][1];
+      },
+    };
+  }
+
+  const API = { buildAnalytics, makeExplorer, riskStats, correlationMatrix, riskParityWeights, monteCarloFrontier, markowitzFrontier, simplexProject, extractFrontier };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;   // node(검증)
   root.ANALYTICS = API;                                                        // 브라우저 전역
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -36,6 +36,7 @@ const state = {
   nav: { super: '', category: '', group: '', currency: '' },  // 4축 네비(대분류→소분류→그룹→통화)
   playground: false, panel: null, _pgWired: false,  // 플레이그라운드 상태
   analyticsActive: false, analyticsPayload: null, _analyticsCur: null,   // 정량분석 기간조절 재계산(월수익 행렬 보관)
+  explorerCtx: null, explorer: null, _expWired: false,   // 전략 탐색기(위험성향 슬라이더·내 비중 점)
   sort: { col: null, dir: -1 },  // 성과표 리더보드 정렬(열 클릭). dir: -1=내림차순
 };
 
@@ -1118,7 +1119,7 @@ function recomputeAnalytics() {
   const p = state.analyticsPayload; if (!p) return;
   const { s, e } = currentWindow();
   const d = ANALYTICS.buildAnalytics(p, { s, e });
-  state.data = d;
+  state.data = d; state.explorer = null;     // 탐색기 마커는 아래에서 재설정
   const full = isFullPeriod(s, e);
   document.getElementById('meta').textContent =
     `${d.title || '정량분석'} · ${d.n_months}개월 · ${d.period}` + (full ? ' (전체기간)' : ' · 조절구간 즉시 재계산');
@@ -1129,6 +1130,10 @@ function recomputeAnalytics() {
     note.classList.toggle('hidden', !small);
     if (small) note.textContent = `⚠️ 표본 ${d.n_months}개월 — 구간이 짧아 효율적 프론티어·접점이 불안정할 수 있습니다(24개월 이상 권장).`;
   }
+  // 전략 탐색기: 같은 구간으로 재생성 → 기본(접점) 비중·슬라이더 세팅 → 렌더
+  state.explorerCtx = ANALYTICS.makeExplorer(p, { s, e });
+  initExplorer();
+  renderExplorer();
 }
 
 function renderAnalytics(d) {
@@ -1212,12 +1217,79 @@ function renderFrontier(d) {
   if (mv) traces.push({ type: 'scatter', mode: 'markers', name: mvName, x: [mv.vol * 100], y: [mv.ret * 100],
     marker: { size: 13, symbol: 'diamond', color: '#10b981', line: { width: 1, color: cssVar('--chart-paper') } },
     hovertemplate: `${mvName}<br>CAGR %{y:.1f}% · 변동성 %{x:.1f}%` + (mv.stats ? ` · MDD ${(mv.stats.mdd * 100).toFixed(1)}%` : '') + '<extra></extra>' });
+  const exp = state.explorer;             // 전략 탐색기: 내 포트폴리오 점(◇)
+  if (exp && exp.mine) traces.push({ type: 'scatter', mode: 'markers', name: '내 포트폴리오',
+    x: [exp.mine.vol * 100], y: [exp.mine.ret * 100],
+    marker: { size: 16, symbol: 'diamond-open', color: '#e11d48', line: { width: 2.5, color: '#e11d48' } },
+    hovertemplate: '내 포트폴리오<br>CAGR %{y:.1f}% · 변동성 %{x:.1f}%<extra></extra>' });
   const layout = baseLayout('', '');
   layout.xaxis = { title: { text: '연환산 변동성 %', font: { color: muted } }, gridcolor: grid, zerolinecolor: grid, tickfont: { color: muted }, zeroline: false };
   layout.yaxis = { title: { text: '연환산 수익률 %', font: { color: muted } }, gridcolor: grid, zerolinecolor: grid, tickfont: { color: muted } };
   layout.hovermode = 'closest';
   layout.legend = { orientation: 'h', y: -0.16, font: { size: 10, color: fg } };
   Plotly.react('an-frontier', traces, layout, PLOTCFG);
+}
+
+// ── 전략 탐색기 (위험성향 슬라이더 + 내 비중 점 찍기) ───────────────────────
+function _expInputs() { return Array.from(document.querySelectorAll('#exp-weights input')); }
+function _expSetWeights(wObj) { _expInputs().forEach(i => { i.value = ((wObj[i.dataset.asset] || 0) * 100).toFixed(1); }); }
+function _expNormalize() { const inps = _expInputs(); let s = 0; inps.forEach(i => s += parseFloat(i.value) || 0); if (s > 0) inps.forEach(i => i.value = ((parseFloat(i.value) || 0) / s * 100).toFixed(1)); }
+function _expReadWeights() { const w = {}; let s = 0; _expInputs().forEach(i => { const v = (parseFloat(i.value) || 0) / 100; w[i.dataset.asset] = v; s += v; }); return { w, s }; }
+
+function initExplorer() {
+  const ex = state.explorerCtx, host = document.getElementById('exp-weights');
+  if (!ex || !host) return;
+  host.innerHTML = ex.keys.map((k, j) => {
+    const col = ((state.data.assets || []).find(a => a.key === k) || {}).color || (typeof CAT_COLOR !== 'undefined' && CAT_COLOR[k]) || PALETTE[j % PALETTE.length];
+    return `<label class="pg-w"><span class="swatch" style="background:${col}"></span>${ex.labels[k]}` +
+      `<input type="number" data-asset="${k}" min="0" max="100" step="0.5" value="0" /></label>`;
+  }).join('');
+  _expSetWeights(ex.tangency.weights);    // 기본 = 접점(Max Sharpe)
+  const rng = document.getElementById('exp-risk');
+  if (rng && ex.maxReturn > ex.gmvReturn) {
+    const t = (ex.tangencyReturn - ex.gmvReturn) / (ex.maxReturn - ex.gmvReturn);
+    rng.value = String(Math.round(Math.max(0, Math.min(1, t)) * 100));
+  }
+  if (!state._expWired) {
+    host.addEventListener('input', renderExplorer);
+    if (rng) rng.addEventListener('input', onRiskSlider);
+    const nb = document.getElementById('exp-normalize'); if (nb) nb.addEventListener('click', () => { _expNormalize(); renderExplorer(); });
+    document.querySelectorAll('#explorer-section [data-set]').forEach(b => b.addEventListener('click', () => applyExpPreset(b.dataset.set)));
+    state._expWired = true;
+  }
+}
+function onRiskSlider() {
+  const ex = state.explorerCtx; if (!ex) return;
+  const t = (+document.getElementById('exp-risk').value) / 100;
+  const target = ex.gmvReturn + t * (ex.maxReturn - ex.gmvReturn);
+  _expSetWeights(ex.efficientForReturn(target).weights);
+  renderExplorer();
+}
+function applyExpPreset(which) {
+  const ex = state.explorerCtx; if (!ex) return;
+  const p = { tangency: ex.tangency, gmv: ex.gmv, equal: ex.equalWeight }[which];
+  if (p) { _expSetWeights(p.weights); renderExplorer(); }
+}
+function renderExplorer() {
+  const ex = state.explorerCtx; if (!ex) return;
+  const { w, s } = _expReadWeights();
+  const sumEl = document.getElementById('exp-sum');
+  if (sumEl) { sumEl.textContent = `합계 ${(s * 100).toFixed(1)}%`; sumEl.className = 'pg-sum' + (Math.abs(s - 1) <= 0.001 ? ' ok' : ' warn'); }
+  const mine = ex.evalWeights(w); const st = mine.stats;
+  state.explorer = { mine: { vol: mine.vol, ret: mine.ret } };
+  const fr = ex.frontierReturnAt(mine.vol), gap = fr != null ? fr - mine.ret : null;
+  const gapTxt = gap == null ? '' : (gap <= 0.0005
+    ? '✓ 효율적 경계 위 — 같은 위험에서 거의 최적'
+    : `효율 갭 −${(gap * 100).toFixed(2)}%p · 같은 위험(${_apct(mine.vol)})에서 경계 최대수익 ${_apct(fr)}`);
+  const ro = document.getElementById('exp-risk-readout');
+  if (ro) ro.textContent = `→ 변동성 ${_apct(mine.vol)} · 수익(CAGR) ${_apct(mine.ret)} · Sharpe ${_anum(mine.sharpe)}`;
+  document.getElementById('exp-result').innerHTML =
+    `<div class="fstat-card"><div class="fstat-h"><span class="swatch" style="background:#e11d48"></span>내 포트폴리오</div>` +
+    `<div class="fstat-grid"><div><b>${_apct(mine.ret)}</b><span>CAGR</span></div><div><b>${_apct(mine.vol)}</b><span>변동성</span></div>` +
+    `<div><b>${_anum(mine.sharpe)}</b><span>Sharpe</span></div><div><b>${_anum(st.sortino)}</b><span>Sortino</span></div>` +
+    `<div><b>${_apct(st.mdd)}</b><span>MDD</span></div><div><b>${_apct(st.total_return)}</b><span>총수익</span></div></div>` +
+    `<div class="exp-gap ${gap != null && gap > 0.0005 ? 'warn' : 'ok'}">${gapTxt}</div></div>`;
+  if (state.data) renderFrontier(state.data);   // 프론티어에 ◇ 내 점 갱신
 }
 
 // 포트폴리오 결과 카드(접점·GMV·강건 대안) + 성장 곡선. (마코위츠 없으면 MC max_sharpe/min_var 폴백.)

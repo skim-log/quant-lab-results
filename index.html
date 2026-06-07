@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=213fee4c" />
+  <link rel="stylesheet" href="style.css?v=b160ce48" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -128,6 +128,26 @@
         <p class="period-note">각 최적 포트폴리오로 <strong>매월 리밸런싱·비용 미반영</strong> 가정, 8자산 공통구간(<span id="an-fstats-period"></span>) 투자 시 결과. 평균-분산 접점은 기대수익 추정오차에 민감 → 강건 대안(최소분산·리스크패리티·동일가중)도 함께 보세요.</p>
         <div id="an-frontier-stats" class="ext-cards"></div>
         <div id="an-frontier-growth" class="chart" style="height:300px;margin-top:0.6rem"></div>
+      </section>
+      <section class="panel" id="explorer-section">
+        <h2>전략 탐색기 <span class="muted">(위험 성향 → 최적 비중 · 내 비중 점 찍기)</span></h2>
+        <p class="period-note"><strong>위험 성향</strong> 슬라이더를 움직이면 그 위험 수준의 <strong>효율적 최적 비중</strong>이 자동 표시됩니다(보수적=최소분산 ↔ 공격적=고수익). 비중을 직접 바꾸면 <strong>내 포트폴리오</strong>가 위 프론티어에 ◇ 점으로 찍히고, 효율적 경계 대비 갭을 알려줍니다.</p>
+        <div class="exp-risk">
+          <span class="muted">보수적</span>
+          <input type="range" id="exp-risk" min="0" max="100" value="50" />
+          <span class="muted">공격적</span>
+          <span id="exp-risk-readout" class="muted"></span>
+        </div>
+        <div class="exp-quick">
+          <span class="muted">빠른 설정:</span>
+          <button type="button" data-set="tangency">접점(Max Sharpe)</button>
+          <button type="button" data-set="gmv">최소분산</button>
+          <button type="button" data-set="equal">동일가중</button>
+          <button type="button" id="exp-normalize">합계 100%로</button>
+          <span id="exp-sum" class="pg-sum"></span>
+        </div>
+        <div id="exp-weights" class="pg-weights"></div>
+        <div id="exp-result" class="ext-cards"></div>
       </section>
       <section class="panel">
         <h2>리스크 패리티 <span class="muted">(역변동성 비중)</span></h2>
@@ -361,8 +381,8 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=213fee4c" defer></script>
-  <script src="analytics-live.js?v=213fee4c" defer></script>
-  <script src="app.js?v=213fee4c" defer></script>
+  <script src="alloc.js?v=b160ce48" defer></script>
+  <script src="analytics-live.js?v=b160ce48" defer></script>
+  <script src="app.js?v=b160ce48" defer></script>
 </body>
 </html>
