@@ -1060,11 +1060,12 @@ function enterParadise() {
     _attachComma('para-save', paradiseRefresh);
     ['para-years', 'para-nom', 'para-infl'].forEach(id =>
       document.getElementById(id).addEventListener('input', paradiseRefresh));
+    document.getElementById('para-timing').addEventListener('change', paradiseRefresh);
     // 몬테카를로 모드 토글 + MC 입력
     document.querySelectorAll('#para-mode button').forEach(b =>
       b.addEventListener('click', () => setParadiseMode(b.dataset.mode)));
     _attachComma('mc-withdraw', paradiseRefresh);
-    ['mc-paths', 'mc-sigma'].forEach(id => document.getElementById(id).addEventListener('input', paradiseRefresh));
+    ['mc-paths', 'mc-sigma', 'mc-wyears'].forEach(id => document.getElementById(id).addEventListener('input', paradiseRefresh));
     document.getElementById('mc-src').addEventListener('change', () => {
       document.getElementById('mc-strat-wrap').classList.toggle('hidden', document.getElementById('mc-src').value !== 'boot');
       paradiseRefresh();
@@ -1091,12 +1092,13 @@ function renderParadise() {
   if (hint) hint.textContent = `월 ${_krwCompact(save / 12)} × 12 · 매년 물가만큼 증가 가정`;
   const r = 1 + _pgv('para-nom', 10) / 100, g = 1 + _pgv('para-infl', 2.5) / 100;
   const realRate = g > 0 ? r / g - 1 : r - g;
+  const due = document.getElementById('para-timing').value === 'begin' ? r : 1;  // 연초=annuity-due ⇒ ×(1+r)
   const xs = [], assetSeq = [], saveSeq = [];
   for (let n = 1; n <= years; n++) {
     xs.push(n);
     assetSeq.push(start * Math.pow(r, n));
-    saveSeq.push(Math.abs(r - g) < 1e-9 ? save * n * Math.pow(r, n - 1)
-      : save * (Math.pow(r, n) - Math.pow(g, n)) / (r - g));
+    saveSeq.push(due * (Math.abs(r - g) < 1e-9 ? save * n * Math.pow(r, n - 1)
+      : save * (Math.pow(r, n) - Math.pow(g, n)) / (r - g)));
   }
   const endAsset = (assetSeq[years - 1] || start) + (saveSeq[years - 1] || 0);
   const todayPP = endAsset / Math.pow(g, years);
@@ -1135,10 +1137,13 @@ async function _mcBootReturns(file) {
   } catch (e) { return null; }
 }
 function mcRetirement(o) {
-  const N = Math.max(1, Math.round(o.years)) * 12, K = Math.min(5000, Math.max(200, Math.round(o.paths)));
+  // 2단계: ① 축적(accM개월, 매월 연간저축/12 투입 + 무작위 수익) → ② 인출(wdM개월, 무작위 수익 후 연인출액/12 차감).
+  const accM = Math.max(0, Math.round(o.accumYears)) * 12, wdM = Math.max(0, Math.round(o.withdrawYears)) * 12;
+  const N = Math.max(1, accM + wdM), K = Math.min(5000, Math.max(200, Math.round(o.paths)));
   const rng = _mulberry32(12345);
   const muM = Math.pow(1 + o.mu, 1 / 12) - 1, sigM = o.sigma / Math.sqrt(12), inflM = Math.pow(1 + o.inflation, 1 / 12) - 1;
-  const w0 = o.annualWithdraw / 12;
+  const s0 = (o.save || 0) / 12, w0 = o.annualWithdraw / 12;   // 저축·인출 모두 오늘 가치 → 인플레만큼 증가
+  const begin = o.timing === 'begin';
   const boot = o.source === 'boot' && o.hist && o.hist.length;
   const byMonth = Array.from({ length: N + 1 }, () => []);
   let survived = 0;
@@ -1147,9 +1152,14 @@ function mcRetirement(o) {
     byMonth[0].push(bal);
     for (let t = 1; t <= N; t++) {
       const r = boot ? o.hist[Math.floor(rng() * o.hist.length)] : muM + sigM * _rngNormal(rng);
-      const w = w0 * Math.pow(1 + inflM, t - 1);
-      bal = bal * (1 + r) - w;
-      if (bal <= 0) { bal = 0; alive = false; }
+      const infl = Math.pow(1 + inflM, t - 1);
+      if (t <= accM) {                                   // 축적: 저축 투입 + 성장 (연초=투입 후 성장)
+        const c = s0 * infl;
+        bal = begin ? (bal + c) * (1 + r) : bal * (1 + r) + c;
+      } else {                                           // 인출: 성장 − 인출
+        bal = bal * (1 + r) - w0 * infl;
+        if (bal <= 0) { bal = 0; alive = false; }
+      }
       byMonth[t].push(bal);
     }
     if (alive) survived++;
@@ -1157,24 +1167,26 @@ function mcRetirement(o) {
   const pct = (arr, q) => percentile([...arr].sort((a, b) => a - b), q);
   const p10 = [], p50 = [], p90 = [];
   for (let t = 0; t <= N; t++) { p10.push(pct(byMonth[t], 0.1)); p50.push(pct(byMonth[t], 0.5)); p90.push(pct(byMonth[t], 0.9)); }
-  return { successRate: survived / K, p10, p50, p90, months: N, bootUsed: boot };
+  return { successRate: wdM > 0 ? survived / K : 1, p10, p50, p90, months: N, accMonths: accM, withdrawMonths: wdM, bootUsed: boot };
 }
 async function renderParadiseMC() {
-  const start = _pgv('para-asset', 0), years = Math.max(1, Math.round(_pgv('para-years', 20)));
+  const start = _pgv('para-asset', 0), save = _pgv('para-save', 18000000);
+  const accumYears = Math.max(0, Math.round(_pgv('para-years', 20))), withdrawYears = Math.max(0, Math.round(_pgv('mc-wyears', 30)));
   const mu = _pgv('para-nom', 10) / 100, sigma = _pgv('mc-sigma', 15) / 100, infl = _pgv('para-infl', 2.5) / 100;
   const withdraw = _pgv('mc-withdraw', 24000000), paths = _pgv('mc-paths', 2000);
+  const timing = document.getElementById('para-timing').value;
   const source = document.getElementById('mc-src').value;
   let hist = null;
   if (source === 'boot') { const f = document.getElementById('mc-strat').value; if (f) hist = await _mcBootReturns(f); }
-  const res = mcRetirement({ start, years, mu, sigma, inflation: infl, annualWithdraw: withdraw, paths, source, hist });
-  const accum = withdraw < 0;
+  const res = mcRetirement({ start, accumYears, withdrawYears, save, mu, sigma, inflation: infl, annualWithdraw: withdraw, paths, source, hist, timing });
+  const npaths = Math.min(5000, Math.max(200, Math.round(paths))), dist = res.bootUsed ? '부트스트랩' : '정규';
   const card = (lab, v, sub) => `<div class="ext-card"><div class="lab">${lab}</div><div class="val">${v}</div><div class="sub">${sub || ''}</div></div>`;
   document.getElementById('mc-cards').innerHTML =
-    card(accum ? '적립 경로(고갈 없음)' : '자금 생존율', (res.successRate * 100).toFixed(0) + '%',
-      `${years}년 · ${Math.min(5000, Math.max(200, Math.round(paths)))}경로` + (res.bootUsed ? ' · 부트스트랩' : ' · 정규')) +
-    card('중앙값 잔액 (p50)', _krwCompact(res.p50[res.months]), '명목') +
-    card('하위 10% (p10)', _krwCompact(res.p10[res.months]), '비관 시나리오') +
-    card('상위 10% (p90)', _krwCompact(res.p90[res.months]), '낙관 시나리오');
+    card('자금 생존율', (res.successRate * 100).toFixed(0) + '%',
+      `인출 ${withdrawYears}년 · ${npaths}경로 · ${dist}`) +
+    card('은퇴 시점 자산 (p50)', _krwCompact(res.p50[res.accMonths]), `축적 ${accumYears}년 · 명목`) +
+    card('종료 잔액 (p50)', _krwCompact(res.p50[res.months]), '명목') +
+    card('종료 하위 10% (p10)', _krwCompact(res.p10[res.months]), '비관 시나리오');
   const xs = res.p50.map((_, t) => t / 12), muted = cssVar('--chart-muted');
   const traces = [
     { type: 'scatter', mode: 'lines', x: xs, y: res.p10, line: { width: 0 }, hoverinfo: 'skip', showlegend: false },
@@ -1183,6 +1195,11 @@ async function renderParadiseMC() {
   ];
   const layout = baseLayout('자금 경로 분포 (백분위 밴드)', '잔액 (원)');
   layout.xaxis = { title: { text: '연차', font: { color: muted } }, gridcolor: cssVar('--chart-grid'), tickfont: { color: muted } };
+  if (res.accMonths > 0 && res.withdrawMonths > 0) {   // 축적·인출 경계에 '은퇴' 점선
+    const rx = res.accMonths / 12;
+    layout.shapes = [{ type: 'line', x0: rx, x1: rx, yref: 'paper', y0: 0, y1: 1, line: { color: muted, width: 1, dash: 'dash' } }];
+    layout.annotations = [{ x: rx, yref: 'paper', y: 1, yanchor: 'bottom', text: '은퇴', showarrow: false, font: { color: muted, size: 11 } }];
+  }
   Plotly.react('mc-fan', traces, layout, PLOTCFG);
 }
 

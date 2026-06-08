@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="quant-lab">
+  <defs>
+    <linearGradient id="ql-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#1e3a8a"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="64" height="64" rx="14" fill="url(#ql-bg)"/>
+  <!-- 액체 (녹색) -->
+  <path d="M20.2 39 L43.8 39 L48.5 47 Q50 50 47 50 L17 50 Q14 50 15.5 47 Z" fill="#10b981"/>
+  <!-- 플라스크 외곽 (흰색) -->
+  <g fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M26 16 L27 27 L15.5 47 Q14 50 17 50 L47 50 Q50 50 48.5 47 L37 27 L38 16"/>
+    <path d="M23.5 16 L40.5 16"/>
+  </g>
+  <!-- 우상향 추세선 (금색) -->
+  <g fill="none" stroke="#facc15" stroke-width="3.6" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M12 41 L24 34 L36 25 L52 13"/>
+    <path d="M43.5 12.5 L52 13 L51.5 21.5"/>
+  </g>
+</svg>

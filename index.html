@@ -7,6 +7,8 @@
   <meta name="description" content="한국 대형주 모멘텀 · 미국 레버리지(TQQQ) 전략 백테스트 결과" />
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
   <meta name="theme-color" content="#0f1419" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="icon" href="favicon.svg" sizes="any" />
   <!-- 무플래시 테마: CSS 적용 전에 저장값/시스템설정으로 data-theme 확정 -->
   <script>
     (function () {
@@ -22,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=1e2e041c" />
+  <link rel="stylesheet" href="style.css?v=c417b83f" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -199,12 +201,16 @@
           <label>은퇴까지/기간(년) <input type="number" id="para-years" value="20" min="1" /></label>
           <label>명목 수익률(%) <input type="number" id="para-nom" value="10" step="0.5" /></label>
           <label>인플레이션(%) <input type="number" id="para-infl" value="2.5" step="0.5" /></label>
+          <label>저축 시점 <select id="para-timing">
+            <option value="begin">연초(기본)</option>
+            <option value="end">연말</option></select></label>
         </div>
 
         <div id="para-det">
           <div id="para-results" class="ext-cards"></div>
           <div class="tool-explain">
-            <p><strong>공식</strong> <code>자산 × (1+r)^n + 저축 × ((1+r)^n − (1+i)^n) / (r − i)</code></p>
+            <p><strong>공식</strong> <code>자산 × (1+r)^n + 저축 × D × ((1+r)^n − (1+i)^n) / (r − i)</code></p>
+            <p><strong>저축 시점</strong> <code>연초</code>면 그 해 저축이 1년치 수익을 더 받아 <code>D = (1+r)</code>(annuity-due), <code>연말</code>이면 <code>D = 1</code>.</p>
             <p><strong>전제</strong> 저축액은 오늘 가치 기준이며 매년 인플레이션만큼 증가.</p>
             <p><strong>월 수입</strong> <code>오늘 가치 환산 자산 × ((1+r)/(1+i) − 1) / 12</code> (r=명목수익률, i=인플레이션, n=연차)</p>
           </div>
@@ -214,8 +220,9 @@
 
         <div id="para-mc" class="hidden">
           <div class="pg-controls">
+            <label>은퇴 후 인출 기간(년) <input type="number" id="mc-wyears" value="30" min="0" /></label>
             <label>연 인출액(원) <input type="text" inputmode="numeric" id="mc-withdraw" value="24,000,000" />
-              <small class="pg-hint">음수면 적립(저축). 오늘 가치 → 매년 인플레만큼 증가</small></label>
+              <small class="pg-hint">오늘 가치 → 매년 인플레만큼 증가</small></label>
             <label>경로 수 <input type="number" id="mc-paths" value="2000" min="200" max="5000" step="500" /></label>
             <label>수익 분포 <select id="mc-src">
               <option value="param">모수 (정규: 명목수익·변동성)</option>
@@ -226,7 +233,8 @@
           <div id="mc-cards" class="ext-cards"></div>
           <div id="mc-fan" class="chart" style="height:380px;margin-top:0.6rem"></div>
           <div class="tool-explain">
-            <p><strong>몬테카를로</strong> 매월 수익을 무작위로 수천 번 뽑아 인출(인플레 반영) 경로를 시뮬 → <strong>자금 생존율</strong>(고갈하지 않은 경로 비율)과 잔액 백분위(p10·중앙·p90)를 봅니다.</p>
+            <p><strong>2단계 모델</strong> ① <strong>축적</strong>(은퇴까지/기간 동안 보유자산 + 연간저축을 무작위 수익으로 불림) → ② <strong>인출</strong>(은퇴 후 인출 기간 동안 매월 수익 적용 후 연 인출액을 인플레만큼 늘려 빼냄). 수천 경로를 돌립니다.</p>
+            <p><strong>자금 생존율</strong> = 인출 단계에서 고갈하지 않은 경로 비율. <strong>은퇴 시점 자산(p50)</strong> = 축적 결과 중앙값(저축+수익 반영). 잔액 백분위(p10·중앙·p90)는 팬차트로.</p>
             <p><strong>모수</strong> = 명목수익률을 평균, 입력 변동성을 표준편차로 한 정규분포. <strong>부트스트랩</strong> = 선택 전략의 과거 월수익을 복원추출(시드 고정).</p>
           </div>
           <p class="tool-disclaimer">⚠️ 과거 분포·정규 근사는 미래를 보장하지 않으며, 수익 시퀀스 위험(초기 폭락)·꼬리위험을 과소평가할 수 있습니다.</p>
@@ -514,8 +522,8 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=1e2e041c" defer></script>
-  <script src="analytics-live.js?v=1e2e041c" defer></script>
-  <script src="app.js?v=1e2e041c" defer></script>
+  <script src="alloc.js?v=c417b83f" defer></script>
+  <script src="analytics-live.js?v=c417b83f" defer></script>
+  <script src="app.js?v=c417b83f" defer></script>
 </body>
 </html>
