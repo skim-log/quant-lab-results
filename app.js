@@ -141,7 +141,7 @@ function isFullPeriod(s, e) { return s <= state.globalStart && e >= state.global
 // ---------------------------------------------------------------------------
 const STRAT_DESC = {
   '매수후보유': '시작 시점에 전액 매수해 끝까지 보유(벤치마크).',
-  'DCA (월적립)': '매월 일정액 분할 매수(정액적립식) — 진입 타이밍 분산.',
+  'DCA (월적립)': '매월 일정액 분할 매수(정액적립식) — 진입 타이밍 분산. 수익곡선(TWR)은 자산 수익률이라 매수후보유와 거의 겹침 — 적립 효과는 아래 적립식 패널과 표의 XIRR로 본다.',
   'TQQQ 매수후보유': 'TQQQ(나스닥100 3배 레버리지) 매수후보유 — 변동성·낙폭 매우 큼.',
   'QQQ 매수후보유': 'QQQ(나스닥100) 매수후보유.',
   'S&P500 매수후보유': 'S&P500 매수후보유(저변동 기준선).',
@@ -155,7 +155,7 @@ const CAT_BLURB = {
   dynamic: '신호(모멘텀·추세)로 매달 비중을 바꾸는 동적 자산배분.',
   static: '고정 비중 정적 자산배분(주기 리밸런싱 + 표류 밴드).',
   momentum: '개별 시장 모멘텀·레버리지 전략 비교(위험=TWR, 수익=XIRR).',
-  crypto: '암호화폐 전략: 매수후보유·DCA·이동평균선 추세(20/60/120/200일 × 달러·원화 신호).',
+  crypto: '암호화폐 전략: 매수후보유·DCA·이동평균선 추세(20/60/120/200일 × 달러·원화 신호). 곡선=TWR(위험비교), 적립 수익=XIRR.',
   analytics: '8자산 월수익 기반 정량분석 — 상관·효율적 프론티어·리스크패리티·위험수익(무위험 2%).',
   compare: '여러 전략을 한 곡선에 오버레이 비교(통화 토글 + 지표 열 클릭 정렬 리더보드).',
 };
@@ -216,12 +216,44 @@ function render() {
   renderRolling(rows);        // 분석 강화(모든 백테스트 뷰): 롤링 수익률
   renderTopDD(rows);          //   최대 낙폭 Top-N
   renderMonthlyHeatmap(rows); //   월별 수익률 히트맵
+  renderCryptoDca(rows);      //   코인 전용: 적립식(DCA) 납입 vs 평가액·XIRR (TWR 곡선이 겹치는 이유 해설)
 
   const note = isFullPeriod(s, e)
     ? `전체 기간 (${state.globalStart} ~ ${state.globalEnd})`
     : `선택 구간 (${s} ~ ${e}) · 재정규화된 뷰 — 전체기간 전용 지표는 "—"`;
   document.getElementById('period-note').textContent = note;
   renderDescription();
+}
+
+// 코인 적립식(DCA) — 매월 동일액 적립 시 납입누계 vs 평가액 + XIRR(금액가중). 메인 곡선은 TWR(현금흐름
+// 중립)이라 매수후보유와 DCA가 겹쳐 보이는데, 적립의 실제 효과를 금액가중으로 보완 표시(순수 클라이언트).
+function renderCryptoDca(rows) {
+  const sec = document.getElementById('cryptodca-section');
+  if (!sec) return;
+  const bh = (rows || []).find(r => r.name === '매수후보유');   // 현재 통화·구간의 자산 성장 곡선
+  if (state.nav.category !== 'crypto' || !bh || !bh.nav || bh.nav.length < 2) { sec.classList.add('hidden'); return; }
+  const ccy = state.nav.currency || 'usd';
+  const amt = ccy === 'usd' ? 1000 : 1000000;   // 매월 동일액 가정(XIRR·납입대비 비율은 금액 스케일에 불변)
+  // dcaResult는 데이터점마다 1회 매수 → 일별 곡선을 월말로 리샘플해 '월 적립'으로 변환
+  const mEnd = new Map();
+  for (let i = 0; i < bh.dates.length; i++) mEnd.set(bh.dates[i].slice(0, 7), { d: bh.dates[i], v: bh.nav[i] });
+  const mk = [...mEnd.keys()].sort();
+  const mdates = mk.map(k => mEnd.get(k).d), mnav = mk.map(k => mEnd.get(k).v);
+  if (mnav.length < 2) { sec.classList.add('hidden'); return; }
+  const dca = dcaResult(mdates, mnav, amt);      // 기존 적립식 엔진 재사용 (app.js dcaResult)
+  const unit = ccy === 'usd' ? '$' : '₩', hov = ccy === 'usd' ? '$%{y:,.0f}' : '%{y:,.0f}원';
+  const card = (l, v, s) => `<div class="ext-card"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s || ''}</div></div>`;
+  document.getElementById('cryptodca-cards').innerHTML =
+    card('최종 평가액', _moneyCompact(dca.final, ccy), `${dca.dates.length}개월 적립`) +
+    card('총 납입액', _moneyCompact(dca.totalInvested, ccy), `매월 ${_moneyCompact(amt, ccy)} 가정`) +
+    card('평가손익', _moneyCompact(dca.final - dca.totalInvested, ccy), '') +
+    card('XIRR (금액가중)', fmtPct(dca.xirr), '연율 · 적립 수익률');
+  const muted = cssVar('--chart-muted');
+  Plotly.react('chart-cryptodca', [
+    { type: 'scatter', mode: 'lines', name: '평가액', x: dca.dates, y: dca.value, line: { width: 2, color: cssVar('--accent') }, hovertemplate: hov + '<extra>평가액</extra>' },
+    { type: 'scatter', mode: 'lines', name: '납입 누계', x: dca.dates, y: dca.invested, line: { width: 1.4, color: muted, dash: 'dot' }, hovertemplate: hov + '<extra>납입</extra>' },
+  ], baseLayout('적립식 — 매월 동일액 적립 시 납입 누계 vs 평가액', `금액 (${unit})`), PLOTCFG);
+  sec.classList.remove('hidden');
 }
 
 // 현재 테마의 CSS 토큰 값을 읽어옴(다크/라이트 전환 시 render() 가 새 값으로 차트를 다시 그림).
@@ -1030,6 +1062,15 @@ function _krwCompact(n) {
   if (a >= 1e8) return s + (a / 1e8).toFixed(a >= 1e9 ? 0 : 1) + '억';
   if (a >= 1e4) return s + Math.round(a / 1e4).toLocaleString('ko-KR') + '만';
   return Math.round(n).toLocaleString('ko-KR') + '원';
+}
+function _moneyCompact(n, ccy) {            // 통화별 금액 축약(KRW=_krwCompact, USD=$K/M/B)
+  if (n === null || n === undefined || isNaN(n)) return '–';
+  if (ccy !== 'usd') return _krwCompact(n);
+  const a = Math.abs(n), s = n < 0 ? '-' : '';
+  if (a >= 1e9) return s + '$' + (a / 1e9).toFixed(2) + 'B';
+  if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(2) + 'M';
+  if (a >= 1e3) return s + '$' + (a / 1e3).toFixed(1) + 'K';
+  return s + '$' + Math.round(a).toLocaleString('en-US');
 }
 function _pgv(id, def) { const v = parseFloat(String(document.getElementById(id).value).replace(/,/g, '')); return isNaN(v) ? def : v; }
 

@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=a6296440" />
+  <link rel="stylesheet" href="style.css?v=4095ee17" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -440,6 +440,15 @@
       <div id="chart-annual" class="chart"></div>
     </section>
 
+    <!-- 코인 전용: 적립식(DCA) 납입 vs 평가액 + XIRR — 메인 곡선(TWR)이 매수후보유와 겹치는 이유 해설 -->
+    <section id="cryptodca-section" class="panel hidden">
+      <h2>적립식(DCA) <span class="muted">(납입 누계 vs 평가액 · 금액가중)</span></h2>
+      <p class="period-note">위 수익곡선은 <strong>TWR(시간가중)</strong>이라 매수후보유와 DCA가 자산 수익률만 따라 거의 겹칩니다.
+        적립의 실제 효과는 <strong>매월 동일액을 꾸준히 넣었을 때</strong>의 평가액과 <strong>XIRR(금액가중 수익률)</strong>로 드러납니다(현재 토글 통화 기준).</p>
+      <div id="cryptodca-cards" class="ext-cards"></div>
+      <div id="chart-cryptodca" class="chart"></div>
+    </section>
+
     <!-- 분석 강화: 롤링 수익률 · 최대 낙폭 Top-N · 월별 수익률 히트맵 (모든 백테스트 데이터셋, 브라우저 계산) -->
     <section id="rolling-section" class="panel hidden">
       <h2>롤링 수익률 <span class="muted">(N년 이동창 CAGR 분포)</span></h2>
@@ -544,8 +553,8 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=a6296440" defer></script>
-  <script src="analytics-live.js?v=a6296440" defer></script>
-  <script src="app.js?v=a6296440" defer></script>
+  <script src="alloc.js?v=4095ee17" defer></script>
+  <script src="analytics-live.js?v=4095ee17" defer></script>
+  <script src="app.js?v=4095ee17" defer></script>
 </body>
 </html>
