@@ -1240,53 +1240,113 @@ function _fgGauge(title, value, cls, subhtml) {
     (cls && cls.d ? `<div class="fg-desc">${cls.d}</div>` : '') + (subhtml || '') + `</div>`;
 }
 
+// 시장심리 추세 차트 — 분류 임계와 동일한 컬러 존(_vixClass/_dxyClass/_gsrClass/_fgClass 대응)
+const VIX_ZONES = [[0, 15, '#10b981'], [15, 20, '#84cc16'], [20, 30, '#ea580c'], [30, 40, '#dc2626'], [40, 200, '#991b1b']];
+const DXY_ZONES = [[0, 95, '#10b981'], [95, 105, '#6b7280'], [105, 200, '#ea580c']];
+const GSR_ZONES = [[0, 50, '#10b981'], [50, 80, '#6b7280'], [80, 400, '#ea580c']];
+const CRYPTO_ZONES = [[0, 25, '#dc2626'], [25, 45, '#ea580c'], [45, 55, '#6b7280'], [55, 75, '#84cc16'], [75, 100, '#10b981']];
+
+// 범용 추세 라인 차트(+ 선택적 임계 컬러 존). points: [{t,v}]. 숨김 div 0폭 회피 위해 보일 때 호출.
+function _sentiChart(elId, title, points, zones, opts = {}) {
+  const pts = (points || []).filter(p => p && p.v != null);
+  if (!pts.length) { setHidden(elId, true); return; }
+  const layout = baseLayout(title, opts.ytitle || '');
+  if (opts.yrange) layout.yaxis.range = opts.yrange;
+  if (zones) layout.shapes = zones.map(([y0, y1, c]) =>
+    ({ type: 'rect', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0, y1, fillcolor: c, opacity: 0.1, line: { width: 0 }, layer: 'below' }));
+  Plotly.react(elId, [{ type: 'scatter', mode: 'lines', x: pts.map(p => p.t), y: pts.map(p => p.v),
+    line: { color: cssVar('--chart-fg'), width: 2 }, hovertemplate: '%{y:,.2f}<extra>%{x}</extra>' }], layout, PLOTCFG);
+  setHidden(elId, false);
+}
+
+// 금·은 가격 2축(스케일 차이 큼: 금 ~$수천/oz · 은 ~$수십/oz)
+function _metalPriceChart(elId, gold, silver) {
+  const g = (gold || []).filter(p => p && p.v != null), s = (silver || []).filter(p => p && p.v != null);
+  if (!g.length && !s.length) { setHidden(elId, true); return; }
+  const muted = cssVar('--chart-muted');
+  const layout = baseLayout('금·은 가격 (5년)', '금 $/oz');
+  layout.yaxis2 = { title: { text: '은 $/oz', font: { color: muted } }, overlaying: 'y', side: 'right', showgrid: false, tickfont: { color: muted } };
+  const tr = [];
+  if (g.length) tr.push({ type: 'scatter', mode: 'lines', name: '금', x: g.map(p => p.t), y: g.map(p => p.v), line: { color: '#f59e0b', width: 2 }, hovertemplate: '금 $%{y:,.0f}<extra></extra>' });
+  if (s.length) tr.push({ type: 'scatter', mode: 'lines', name: '은', x: s.map(p => p.t), y: s.map(p => p.v), yaxis: 'y2', line: { color: '#9ca3af', width: 2 }, hovertemplate: '은 $%{y:,.2f}<extra></extra>' });
+  Plotly.react(elId, tr, layout, PLOTCFG);
+  setHidden(elId, false);
+}
+
+function _cryptoFgChart(elId, cf) {
+  if (!cf || !cf.history || !cf.history.length) { setHidden(elId, true); return; }
+  const pts = [...cf.history].reverse().map(p => ({ t: new Date(p.timestamp * 1000).toISOString().slice(0, 10), v: p.value }));
+  _sentiChart(elId, '크립토 공포·탐욕 30일', pts, CRYPTO_ZONES, { ytitle: '지수', yrange: [0, 100] });
+}
+
+// 카드 1장 HTML(색·라벨·설명·임계)
+function _sentiCard(title, val, cls, hint, thresh) {
+  const col = cls ? cls.c : 'var(--fg)';
+  return `<div class="senti-card"><div class="senti-t">${title}</div>` +
+    `<div class="senti-v" style="color:${col}">${val}</div>` +
+    `<div class="senti-l" style="color:${col}">${cls ? cls.l : ''}</div>` +
+    (cls && cls.d ? `<div class="senti-s">${cls.d}</div>` : (hint ? `<div class="senti-s">${hint}</div>` : '')) +
+    (thresh ? `<div class="senti-th">${thresh}</div>` : '') + `</div>`;
+}
+
 function renderSentiment(d) {
-  // ① CNN·크립토 공포탐욕 게이지 바 (+ CNN 이전값 그리드)
-  let fg = '';
+  // 게이지·카드(순수 HTML)를 주제별 컨테이너에 분배 — 차트는 setSentimentView 에서 보일 때 렌더
+  // 미국 증시: CNN 공포·탐욕 게이지 + VIX 카드
+  let usFg = '';
   if (d.cnn_fg && d.cnn_fg.score != null) {
     const prev = [['전일', d.cnn_fg.previous_close], ['1주전', d.cnn_fg.previous_1_week], ['1달전', d.cnn_fg.previous_1_month]]
       .filter(([, v]) => v != null).map(([k, v]) => `<span><b>${_anum(v, 0)}</b> ${k}</span>`).join('');
-    fg += _fgGauge('CNN 공포·탐욕', d.cnn_fg.score, _fgClass(d.cnn_fg.score),
+    usFg = _fgGauge('CNN 공포·탐욕', d.cnn_fg.score, _fgClass(d.cnn_fg.score),
       `<div class="fg-prev">🇺🇸 미국 주식${d.cnn_fg.rating ? ' · ' + d.cnn_fg.rating : ''}${prev ? ' · ' + prev : ''}</div>`);
   }
+  document.getElementById('senti-fg-us').innerHTML = usFg;
+  document.getElementById('senti-cards-us').innerHTML =
+    _sentiCard('VIX 변동성', _anum(d.vix), _vixClass(d.vix), 'S&P500 향후 30일 내재변동성', '평온&lt;15 · 정상15-20 · 불안20-30 · 공포30-40 · 패닉≥40');
+
+  // 달러·환율: DXY 카드
+  document.getElementById('senti-cards-fx').innerHTML =
+    _sentiCard('달러 인덱스 (DXY)', _anum(d.dxy), _dxyClass(d.dxy), '6통화 대비 달러 강도', '약달러&lt;95 · 정상95-105 · 강달러≥105');
+
+  // 귀금속: 금/은비 카드 + 금 김프 카드
+  let metalCards = _sentiCard('금/은 비율', _anum(d.gold_silver_ratio), _gsrClass(d.gold_silver_ratio),
+    `금 $${_anum(d.gold, 0)} · 은 $${_anum(d.silver)}`, 'Silver&lt;50 · 정상50-80 · Gold≥80(위험회피)');
+  if (d.gold_kimchi) metalCards += _sentiCard('금 김프', _apct(d.gold_kimchi.premium_pct / 100), _kimchiClass(d.gold_kimchi.premium_pct),
+    'KRX 금 vs 국제(USD 환산)', '양수=한국이 비쌈');
+  document.getElementById('senti-cards-metal').innerHTML = metalCards;
+
+  // 코인: 크립토 공포·탐욕 게이지 + 비트 김프 카드
+  let coinFg = '';
   if (d.crypto_fg && d.crypto_fg.value != null) {
-    fg += _fgGauge('크립토 공포·탐욕', d.crypto_fg.value, _fgClass(d.crypto_fg.value),
+    coinFg = _fgGauge('크립토 공포·탐욕', d.crypto_fg.value, _fgClass(d.crypto_fg.value),
       `<div class="fg-prev">🪙 코인${d.crypto_fg.classification ? ' · ' + d.crypto_fg.classification : ''}</div>`);
   }
-  document.getElementById('senti-fg').innerHTML = fg;
-
-  // ② 크립토 공포탐욕 30일 추이 (컬러 존 배경)
-  const cf = d.crypto_fg;
-  if (cf && cf.history && cf.history.length) {
-    const h = [...cf.history].reverse();
-    const x = h.map(p => new Date(p.timestamp * 1000).toISOString().slice(0, 10)), y = h.map(p => p.value);
-    const layout = baseLayout('크립토 공포·탐욕 30일', '지수'); layout.yaxis.range = [0, 100];
-    const zones = [[0, 25, '#dc2626'], [25, 45, '#ea580c'], [45, 55, '#6b7280'], [55, 75, '#84cc16'], [75, 100, '#10b981']];
-    layout.shapes = zones.map(([y0, y1, c]) => ({ type: 'rect', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0, y1, fillcolor: c, opacity: 0.12, line: { width: 0 }, layer: 'below' }));
-    Plotly.react('senti-chart', [{ type: 'scatter', mode: 'lines', x, y, line: { color: cssVar('--chart-fg'), width: 2 } }], layout, PLOTCFG);
-    setHidden('senti-chart', false);
-  } else setHidden('senti-chart', true);
-
-  // ③ VIX·DXY·금/은비·김프 카드 (색·라벨·설명·임계)
-  const cards = [];
-  const card = (title, val, cls, hint, thresh) => {
-    const col = cls ? cls.c : 'var(--fg)';
-    cards.push(`<div class="senti-card"><div class="senti-t">${title}</div>` +
-      `<div class="senti-v" style="color:${col}">${val}</div>` +
-      `<div class="senti-l" style="color:${col}">${cls ? cls.l : ''}</div>` +
-      (cls && cls.d ? `<div class="senti-s">${cls.d}</div>` : (hint ? `<div class="senti-s">${hint}</div>` : '')) +
-      (thresh ? `<div class="senti-th">${thresh}</div>` : '') + `</div>`);
-  };
-  card('VIX 변동성', _anum(d.vix), _vixClass(d.vix), 'S&P500 향후 30일 내재변동성', '평온&lt;15 · 정상15-20 · 불안20-30 · 공포30-40 · 패닉≥40');
-  card('달러 인덱스 (DXY)', _anum(d.dxy), _dxyClass(d.dxy), '6통화 대비 달러 강도', '약달러&lt;95 · 정상95-105 · 강달러≥105');
-  card('금/은 비율', _anum(d.gold_silver_ratio), _gsrClass(d.gold_silver_ratio), `금 $${_anum(d.gold, 0)} · 은 $${_anum(d.silver)}`, 'Silver&lt;50 · 정상50-80 · Gold≥80(위험회피)');
-  if (d.btc_kimchi) card('비트코인 김프', _apct(d.btc_kimchi.premium_pct / 100), _kimchiClass(d.btc_kimchi.premium_pct), `업비트 ${_krwCompact(d.btc_kimchi.upbit_krw)}`, '정상|값|&lt;10% · 과열15-20% · 극단≥20%');
-  if (d.gold_kimchi) card('금 김프', _apct(d.gold_kimchi.premium_pct / 100), _kimchiClass(d.gold_kimchi.premium_pct), 'KRX 금 vs 국제(USD 환산)', '양수=한국이 비쌈');
-  document.getElementById('senti-cards').innerHTML = cards.join('');
+  document.getElementById('senti-fg-coin').innerHTML = coinFg;
+  document.getElementById('senti-cards-coin').innerHTML = d.btc_kimchi
+    ? _sentiCard('비트코인 김프', _apct(d.btc_kimchi.premium_pct / 100), _kimchiClass(d.btc_kimchi.premium_pct),
+        `업비트 ${_krwCompact(d.btc_kimchi.upbit_krw)}`, '정상|값|&lt;10% · 과열15-20% · 극단≥20%') : '';
 
   const errs = Object.keys(d.errors || {});
   document.getElementById('senti-note').textContent = errs.length
     ? `미수신 지표: ${errs.join(', ')} (소스 일시 차단/지역제한 가능 — best-effort)` : '';
+
+  if (!state._sentiWired) {                  // 내부 탭 1회 와이어링(낙원계산기 모드 토글과 동일 방식)
+    document.querySelectorAll('#senti-subtabs button').forEach(b =>
+      b.addEventListener('click', () => setSentimentView(b.dataset.view)));
+    state._sentiWired = true;
+  }
+  setSentimentView(state.sentimentView || 'us');
+}
+
+function setSentimentView(view) {
+  state.sentimentView = view;
+  ['us', 'fx', 'metal', 'coin'].forEach(v => setHidden('senti-' + v, v !== view));
+  document.querySelectorAll('#senti-subtabs button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  const d = state.tool && state.tool.data; if (!d) return;
+  const S = d.series || {};
+  if (view === 'us') _sentiChart('chart-vix', 'VIX 변동성 (5년)', S.vix, VIX_ZONES, { ytitle: 'VIX' });
+  else if (view === 'fx') _sentiChart('chart-dxy', '달러 인덱스 DXY (5년)', S.dxy, DXY_ZONES, { ytitle: 'DXY' });
+  else if (view === 'metal') { _sentiChart('chart-gsr', '금/은 비율 (5년)', S.gold_silver_ratio, GSR_ZONES, { ytitle: '배' }); _metalPriceChart('chart-metal', S.gold, S.silver); }
+  else if (view === 'coin') _cryptoFgChart('chart-crypto', d.crypto_fg);
 }
 
 const TREND_CT = [

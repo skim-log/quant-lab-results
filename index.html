@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=c417b83f" />
+  <link rel="stylesheet" href="style.css?v=a6296440" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -246,10 +246,32 @@
     <div id="sentiment-section" class="hidden">
       <section class="panel">
         <h2>시장 심리 <span class="muted">(공포·탐욕·변동성·김프)</span></h2>
-        <p class="period-note">시장 참여자들의 공포·탐욕·변동성을 측정한 종합 지표. CNN·크립토 공포탐욕 지수, VIX, 달러 인덱스(DXY), 금/은 비율, 김치프리미엄. 매일 갱신(빌드타임).</p>
-        <div id="senti-fg"></div>
-        <div id="senti-chart" class="chart hidden" style="height:260px;margin-top:0.6rem"></div>
-        <div id="senti-cards" class="senti-cards"></div>
+        <p class="period-note">시장 참여자들의 공포·탐욕·변동성을 측정한 종합 지표. 주제별 탭으로 나눠 봅니다 — VIX·달러 인덱스(DXY)·금/은 비율은 <strong>5년 추세 차트</strong>, 김프·CNN 공포탐욕은 현재값 카드. 매일 갱신(빌드타임).</p>
+        <div id="senti-subtabs" class="bt-toggle" style="margin-bottom:1rem">
+          <button type="button" data-view="us" class="active">미국 증시</button>
+          <button type="button" data-view="fx">달러·환율</button>
+          <button type="button" data-view="metal">귀금속</button>
+          <button type="button" data-view="coin">코인</button>
+        </div>
+        <div id="senti-us" class="senti-panel">
+          <div id="senti-fg-us"></div>
+          <div id="senti-cards-us" class="senti-cards"></div>
+          <div id="chart-vix" class="chart hidden" style="height:300px;margin-top:0.7rem"></div>
+        </div>
+        <div id="senti-fx" class="senti-panel hidden">
+          <div id="senti-cards-fx" class="senti-cards"></div>
+          <div id="chart-dxy" class="chart hidden" style="height:300px;margin-top:0.7rem"></div>
+        </div>
+        <div id="senti-metal" class="senti-panel hidden">
+          <div id="senti-cards-metal" class="senti-cards"></div>
+          <div id="chart-gsr" class="chart hidden" style="height:300px;margin-top:0.7rem"></div>
+          <div id="chart-metal" class="chart hidden" style="height:300px;margin-top:0.7rem"></div>
+        </div>
+        <div id="senti-coin" class="senti-panel hidden">
+          <div id="senti-fg-coin"></div>
+          <div id="senti-cards-coin" class="senti-cards"></div>
+          <div id="chart-crypto" class="chart hidden" style="height:280px;margin-top:0.7rem"></div>
+        </div>
         <p id="senti-note" class="period-note"></p>
         <p class="tool-disclaimer">⚠️ 시장 심리 지표는 참고용. 매수·매도 결정의 단일 근거로 사용 X. 역사적으로 극공포/극탐욕은 추세 반전 시그널이 되기도 하지만 100% 정확하진 않음.</p>
       </section>
@@ -522,8 +544,8 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=c417b83f" defer></script>
-  <script src="analytics-live.js?v=c417b83f" defer></script>
-  <script src="app.js?v=c417b83f" defer></script>
+  <script src="alloc.js?v=a6296440" defer></script>
+  <script src="analytics-live.js?v=a6296440" defer></script>
+  <script src="app.js?v=a6296440" defer></script>
 </body>
 </html>
