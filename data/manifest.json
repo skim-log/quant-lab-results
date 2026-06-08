@@ -424,6 +424,22 @@
     "file": "us_hfea_usd.json"
   },
   {
+    "id": "multi_momentum_globaleq_krw",
+    "category": "momentum",
+    "group": "글로벌 주식 모멘텀 (국가 로테이션)",
+    "currency": "krw",
+    "label": "모멘텀 · 글로벌 주식 모멘텀 (국가 로테이션) (KRW)",
+    "file": "multi_momentum_globaleq_krw.json"
+  },
+  {
+    "id": "multi_momentum_globaleq_usd",
+    "category": "momentum",
+    "group": "글로벌 주식 모멘텀 (국가 로테이션)",
+    "currency": "usd",
+    "label": "모멘텀 · 글로벌 주식 모멘텀 (국가 로테이션) (USD)",
+    "file": "multi_momentum_globaleq_usd.json"
+  },
+  {
     "id": "us_real_krw",
     "category": "momentum",
     "group": "미국 TQQQ (실제)",
@@ -454,6 +470,22 @@
     "currency": "usd",
     "label": "모멘텀 · 미국 TQQQ (합성) (USD)",
     "file": "us_synth_usd.json"
+  },
+  {
+    "id": "us_idxmom_krw",
+    "category": "momentum",
+    "group": "미국 지수 모멘텀 (QQQ·S&P500)",
+    "currency": "krw",
+    "label": "모멘텀 · 미국 지수 모멘텀 (QQQ·S&P500) (KRW)",
+    "file": "us_idxmom_krw.json"
+  },
+  {
+    "id": "us_idxmom_usd",
+    "category": "momentum",
+    "group": "미국 지수 모멘텀 (QQQ·S&P500)",
+    "currency": "usd",
+    "label": "모멘텀 · 미국 지수 모멘텀 (QQQ·S&P500) (USD)",
+    "file": "us_idxmom_usd.json"
   },
   {
     "id": "kr_all",
