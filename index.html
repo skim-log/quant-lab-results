@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=4095ee17" />
+  <link rel="stylesheet" href="style.css?v=833a49f2" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -401,6 +401,9 @@
       <h2>전략 블렌딩 · 적립식</h2>
       <p class="period-note">여러 전략을 비중 결합(일시불 또는 주기 리밸런싱)한 곡선·지표를 계산하고, 월 적립식(XIRR)도 모델링.
         같은 통화의 전략끼리만 합성됩니다(전략 NAV를 월말 정렬·공통구간 리베이스).</p>
+      <h3 class="reco-presets-title">추천 전략</h3>
+      <p class="period-note">기존 전략들을 큐레이션한 조합입니다. 카드를 누르면 아래 블렌드 입력에 자동 적용·실행됩니다(수치는 원화 기준 참고치).</p>
+      <div id="blend-reco-presets" class="reco-cards"></div>
       <div class="bt-controls">
         <span class="muted">통화</span>
         <div id="blend-ccy" class="bt-toggle"><button type="button" data-ccy="krw" class="active">원화</button><button type="button" data-ccy="usd">달러</button></div>
@@ -553,8 +556,8 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=4095ee17" defer></script>
-  <script src="analytics-live.js?v=4095ee17" defer></script>
-  <script src="app.js?v=4095ee17" defer></script>
+  <script src="alloc.js?v=833a49f2" defer></script>
+  <script src="analytics-live.js?v=833a49f2" defer></script>
+  <script src="app.js?v=833a49f2" defer></script>
 </body>
 </html>

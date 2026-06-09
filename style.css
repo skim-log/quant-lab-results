@@ -231,6 +231,7 @@ body:not(.blend-mode) #blend-frontier-section { display: none; }
 body.blend-mode #strategies, body.blend-mode .ctl-cur { display: none !important; }
 #blend-corr { min-height: 320px; }
 #blend-frontier { height: 420px; }
+.reco-presets-title { margin: 0.6rem 0 0.1rem; font-size: 1rem; }
 .reco-cards { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0.2rem 0 0.8rem; }
 .reco-card {
   flex: 1 1 16rem; border: 1px solid var(--border); border-radius: var(--radius-sm);

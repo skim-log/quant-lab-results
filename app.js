@@ -2222,6 +2222,37 @@ function _addBlendRow() {
   document.getElementById('blend-pick').insertAdjacentHTML('beforeend', _blendRowHtml(opts, opts[0].file, 0));
   _wireBlendRows(); _updateBlendSum();
 }
+// 추천 전략: 기존 전략들을 큐레이션한 블렌드 프리셋. base tag(통화접미사 제외) → ${base}_${ccy}.json 로 해석.
+const RECO_LABEL = {
+  multi_dynamic_baa_b: 'BAA 균형', multi_dynamic_daa_g12: 'DAA-G12',
+  multi_dynamic_nrp: '리스크패리티', multi_dynamic_baa_g: 'BAA 공격', multi_dynamic_adm: 'ADM(가속듀얼)',
+};
+const RECO_BLENDS = [
+  { key: 'safe', title: '🛡 안전형', rebal: 'quarterly', desc: '낮은 MDD 우선',
+    statKrw: 'CAGR≈9.9% · MDD≈−13.4% · Sharpe 0.93',
+    legs: [{ base: 'multi_dynamic_baa_b', w: 40 }, { base: 'multi_dynamic_daa_g12', w: 30 }, { base: 'multi_dynamic_nrp', w: 30 }] },
+  { key: 'balanced', title: '⚖ 균형형 (~15%)', rebal: 'quarterly', desc: '적당한 수익·적당한 MDD',
+    statKrw: 'CAGR≈15.2% · MDD≈−17.8% · Sharpe 1.10',
+    legs: [{ base: 'multi_dynamic_baa_g', w: 60 }, { base: 'multi_dynamic_adm', w: 40 }] },
+];
+function renderRecoPresets() {                   // 추천 카드 렌더(통화 무관 정적 텍스트)
+  const el = document.getElementById('blend-reco-presets'); if (!el) return;
+  const card = r => `<div class="reco-card"><div class="reco-head">` +
+    `<span class="reco-title">${r.title}</span>` +
+    `<button type="button" class="reco-apply" data-reco-preset="${r.key}">적용</button></div>` +
+    `<div class="reco-w">${r.legs.map(l => `${RECO_LABEL[l.base] || l.base} ${l.w}%`).join(' · ')}</div>` +
+    `<div class="reco-stat">${r.desc} · ${r.statKrw}</div></div>`;
+  el.innerHTML = RECO_BLENDS.map(card).join('');
+}
+function applyRecoPreset(key) {                   // 추천 조합을 블렌드 입력에 채우고 실행
+  const r = RECO_BLENDS.find(x => x.key === key); if (!r) return;
+  const opts = _blendOptions(), optFiles = new Set(opts.map(o => o.file));
+  const legs = r.legs.map(l => ({ file: `${l.base}_${state.blendCcy}.json`, w: l.w })).filter(l => optFiles.has(l.file));
+  if (!legs.length) { setStatus('추천 전략 데이터셋을 현재 통화에서 찾을 수 없습니다.', true); return; }
+  document.getElementById('blend-pick').innerHTML = legs.map(l => _blendRowHtml(opts, l.file, l.w)).join('');
+  document.getElementById('blend-rebal').value = r.rebal;
+  _wireBlendRows(); _updateBlendSum(); runBlend();
+}
 function enterBlend() {
   setAnalyticsMode(false); setToolsMode(false);
   state.playground = false; state.allocCtx = null; _showAllocRebal(false);
@@ -2246,8 +2277,12 @@ function enterBlend() {
     document.getElementById('blend-reco').addEventListener('click', e => {   // 추천 비중 적용(위임)
       const b = e.target.closest('button[data-reco]'); if (b) applyBlendWeights(b.dataset.reco);
     });
+    document.getElementById('blend-reco-presets').addEventListener('click', e => {   // 추천 전략 적용(위임)
+      const b = e.target.closest('button[data-reco-preset]'); if (b) applyRecoPreset(b.dataset.recoPreset);
+    });
     state._blendWired = true;
   }
+  renderRecoPresets();
   _populateBlendRows();
   runBlend();
 }
