@@ -1,21 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="quant-lab">
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="quant-lab">
+  <!-- 배경: 인디고 바이올렛 그라데이션 (rebalancer 테라코타 #c98b6b 와 구분) -->
   <defs>
     <linearGradient id="ql-bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3b82f6"/>
-      <stop offset="1" stop-color="#1e3a8a"/>
+      <stop offset="0" stop-color="#4f46e5"/>
+      <stop offset="1" stop-color="#3730a3"/>
     </linearGradient>
   </defs>
-  <rect x="0" y="0" width="64" height="64" rx="14" fill="url(#ql-bg)"/>
-  <!-- 액체 (녹색) -->
-  <path d="M20.2 39 L43.8 39 L48.5 47 Q50 50 47 50 L17 50 Q14 50 15.5 47 Z" fill="#10b981"/>
-  <!-- 플라스크 외곽 (흰색) -->
-  <g fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round">
-    <path d="M26 16 L27 27 L15.5 47 Q14 50 17 50 L47 50 Q50 50 48.5 47 L37 27 L38 16"/>
-    <path d="M23.5 16 L40.5 16"/>
-  </g>
-  <!-- 우상향 추세선 (금색) -->
-  <g fill="none" stroke="#facc15" stroke-width="3.6" stroke-linejoin="round" stroke-linecap="round">
-    <path d="M12 41 L24 34 L36 25 L52 13"/>
-    <path d="M43.5 12.5 L52 13 L51.5 21.5"/>
+  <rect width="512" height="512" rx="96" fill="url(#ql-bg)"/>
+
+  <!-- 80% 축소 + 중앙 정렬 (rebalancer 원본 기하 유지) -->
+  <g transform="translate(51.2 51.2) scale(0.8)">
+    <!-- 막대 — 흰색: 1,3,5,7번째 -->
+    <g fill="#ffffff">
+      <polygon points="80,440 120,440 120,282 80,326"/>
+      <polygon points="184,440 224,440 224,267 184,229"/>
+      <polygon points="288,440 328,440 328,289 288,328"/>
+      <polygon points="392,440 432,440 432,177 392,220"/>
+    </g>
+    <!-- 막대 — 연한 회색: 2,4,6번째 -->
+    <g fill="#e5e7eb">
+      <polygon points="132,440 172,440 172,223 132,268"/>
+      <polygon points="236,440 276,440 276,317 236,278"/>
+      <polygon points="340,440 380,440 380,233 340,276"/>
+    </g>
+    <!-- 트렌딩 라인 -->
+    <polyline points="50,240 175,100 290,210 420,70"
+      fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- 우상단 화살표 -->
+    <polyline points="360,70 420,70 420,130"
+      fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 </svg>
