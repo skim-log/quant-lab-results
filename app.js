@@ -158,6 +158,7 @@ const CAT_BLURB = {
   crypto: '암호화폐 전략: 매수후보유·DCA·이동평균선 추세(20/60/120/200일 × 달러·원화 신호). 곡선=TWR(위험비교), 적립 수익=XIRR.',
   analytics: '8자산 월수익 기반 정량분석 — 상관·효율적 프론티어·리스크패리티·위험수익(무위험 2%).',
   compare: '여러 전략을 한 곡선에 오버레이 비교(통화 토글 + 지표 열 클릭 정렬 리더보드).',
+  realestate: '국내 아파트 지수(한국부동산원·KB) 백테스트. 비용·세금 차감 후 매수후보유·전세vs매매·갭투자·지역 모멘텀. 월간·비유동 자료라 지수 평활로 변동성·Sharpe 해석에 주의.',
 };
 function stratDesc(name) {
   if (!name) return '';
@@ -932,17 +933,17 @@ function clearPresetActive() {
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
 const CAT_ORDER = { dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, crypto: 3,
-  paradise: 7, sentiment: 8, trend: 9, reliability: 10 };
+  realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10 };
 const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
-  crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩',
+  crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩', realestate: '부동산',
   paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도' };
 // 4대분류: 자산배분(8자산) / 주식·레버리지(한국 모멘텀·미국 TQQQ) / 코인(BTC/ETH/XRP) /
 //          도구·지표(계산기·심리·경보·데이터정확도). 코인은 전통자산과 위험특성이 달라 독립 영역.
 const SUPER_OF = { dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
-  momentum: 'strat', crypto: 'coin',
+  momentum: 'strat', crypto: 'coin', realestate: 're',
   paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools' };
-const SUPER_ORDER = { alloc: 0, strat: 1, coin: 2, tools: 3 };
-const SUPER_LABEL = { alloc: '자산배분', strat: '주식·레버리지', coin: '코인', tools: '도구·지표' };
+const SUPER_ORDER = { alloc: 0, strat: 1, coin: 2, re: 3, tools: 4 };
+const SUPER_LABEL = { alloc: '자산배분', strat: '주식·레버리지', coin: '코인', re: '부동산', tools: '도구·지표' };
 
 function catsPresent() {
   return [...new Set(state.manifest.map(m => m.category))]

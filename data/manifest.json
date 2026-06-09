@@ -560,6 +560,38 @@
     "file": "multi_analytics_usd.json"
   },
   {
+    "id": "re_gap",
+    "category": "realestate",
+    "group": "갭투자 레버리지",
+    "currency": "krw",
+    "label": "부동산 · 갭투자 레버리지 (KRW)",
+    "file": "re_gap.json"
+  },
+  {
+    "id": "re_buyhold",
+    "category": "realestate",
+    "group": "매매 Buy&Hold",
+    "currency": "krw",
+    "label": "부동산 · 매매 Buy&Hold (KRW)",
+    "file": "re_buyhold.json"
+  },
+  {
+    "id": "re_rentbuy",
+    "category": "realestate",
+    "group": "전세 vs 매매",
+    "currency": "krw",
+    "label": "부동산 · 전세 vs 매매 (KRW)",
+    "file": "re_rentbuy.json"
+  },
+  {
+    "id": "re_region",
+    "category": "realestate",
+    "group": "지역 모멘텀 로테이션",
+    "currency": "krw",
+    "label": "부동산 · 지역 모멘텀 로테이션 (KRW)",
+    "file": "re_region.json"
+  },
+  {
     "id": "compare_usd",
     "category": "compare",
     "group": "전체 전략 비교",
