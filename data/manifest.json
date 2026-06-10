@@ -608,6 +608,54 @@
     "file": "re_buyhold.json"
   },
   {
+    "id": "re_molit_부산_timing",
+    "category": "realestate",
+    "group": "부산 매매 타이밍 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 부산 매매 타이밍 전략 (실거래) (KRW)",
+    "file": "re_molit_부산_timing.json"
+  },
+  {
+    "id": "re_molit_부산",
+    "category": "realestate",
+    "group": "부산 시군구 매매 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 부산 시군구 매매 (실거래) (KRW)",
+    "file": "re_molit_부산.json"
+  },
+  {
+    "id": "re_molit_부산_select",
+    "category": "realestate",
+    "group": "부산 시군구 선택 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 부산 시군구 선택 전략 (실거래) (KRW)",
+    "file": "re_molit_부산_select.json"
+  },
+  {
+    "id": "re_molit_서울_timing",
+    "category": "realestate",
+    "group": "서울 매매 타이밍 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 서울 매매 타이밍 전략 (실거래) (KRW)",
+    "file": "re_molit_서울_timing.json"
+  },
+  {
+    "id": "re_molit_서울",
+    "category": "realestate",
+    "group": "서울 시군구 매매 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 서울 시군구 매매 (실거래) (KRW)",
+    "file": "re_molit_서울.json"
+  },
+  {
+    "id": "re_molit_서울_select",
+    "category": "realestate",
+    "group": "서울 시군구 선택 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 서울 시군구 선택 전략 (실거래) (KRW)",
+    "file": "re_molit_서울_select.json"
+  },
+  {
     "id": "re_rentbuy",
     "category": "realestate",
     "group": "전세 vs 매매",
