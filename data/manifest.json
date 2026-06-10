@@ -592,6 +592,14 @@
     "file": "re_region.json"
   },
   {
+    "id": "re_regioncompare",
+    "category": "realestate",
+    "group": "지역별 매매 비교",
+    "currency": "krw",
+    "label": "부동산 · 지역별 매매 비교 (KRW)",
+    "file": "re_regioncompare.json"
+  },
+  {
     "id": "compare_usd",
     "category": "compare",
     "group": "전체 전략 비교",
