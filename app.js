@@ -184,6 +184,16 @@ function renderDescription() {
     else if (d.rebalance) txt += (txt ? ' · ' : '') + `리밸런싱: ${REBAL_KOR[d.rebalance] || d.rebalance}`
       + (d.band_ratio != null ? (d.band_ratio > 0 ? ` (밴드 ±${(d.band_ratio * 100).toFixed(0)}%)` : ' (밴드 없음)') : '');
   }
+  // (가) 데이터 신선도: 현 데이터셋 시계열의 최신 끝날짜 + 빌드 생성일 표기 → 갱신이 멈추면(stale) 눈에 띔.
+  if (d && Array.isArray(d.series) && d.series.length) {
+    let last = '';
+    for (const ser of d.series) {
+      const end = (ser.period || '').split('~')[1];
+      if (end && end > last) last = end;
+    }
+    if (last) txt += (txt ? ' · ' : '') + `📅 데이터 기준 ${last}`
+      + (d.generated_at ? ` (갱신 ${d.generated_at})` : '');
+  }
   el.textContent = txt;
   el.classList.toggle('hidden', !txt);
 }
