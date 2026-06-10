@@ -176,6 +176,38 @@
     "file": "multi_dynamic_nrp_usd.json"
   },
   {
+    "id": "multi_dynamic_gold_real_rate_krw",
+    "category": "dynamic",
+    "group": "실질금리 금타이밍",
+    "currency": "krw",
+    "label": "동적 자산배분 · 실질금리 금타이밍 (KRW)",
+    "file": "multi_dynamic_gold_real_rate_krw.json"
+  },
+  {
+    "id": "multi_dynamic_gold_real_rate_usd",
+    "category": "dynamic",
+    "group": "실질금리 금타이밍",
+    "currency": "usd",
+    "label": "동적 자산배분 · 실질금리 금타이밍 (USD)",
+    "file": "multi_dynamic_gold_real_rate_usd.json"
+  },
+  {
+    "id": "multi_dynamic_gold_real_rate_etf_krw",
+    "category": "dynamic",
+    "group": "실질금리 금타이밍 (ETF)",
+    "currency": "krw",
+    "label": "동적 자산배분 · 실질금리 금타이밍 (ETF) (KRW)",
+    "file": "multi_dynamic_gold_real_rate_etf_krw.json"
+  },
+  {
+    "id": "multi_dynamic_gold_real_rate_etf_usd",
+    "category": "dynamic",
+    "group": "실질금리 금타이밍 (ETF)",
+    "currency": "usd",
+    "label": "동적 자산배분 · 실질금리 금타이밍 (ETF) (USD)",
+    "file": "multi_dynamic_gold_real_rate_etf_usd.json"
+  },
+  {
     "id": "multi_dynamic_all_krw",
     "category": "dynamic",
     "group": "전체",
@@ -618,6 +650,8 @@
       "multi_dynamic_trend_usd.json",
       "multi_dynamic_vaa_g4_usd.json",
       "multi_dynamic_nrp_usd.json",
+      "multi_dynamic_gold_real_rate_usd.json",
+      "multi_dynamic_gold_real_rate_etf_usd.json",
       "multi_dynamic_all_usd.json",
       "multi_dynamic_absmom_usd.json",
       "multi_dynamic_kr_us_mom6_usd.json",
@@ -654,6 +688,8 @@
       "multi_dynamic_trend_krw.json",
       "multi_dynamic_vaa_g4_krw.json",
       "multi_dynamic_nrp_krw.json",
+      "multi_dynamic_gold_real_rate_krw.json",
+      "multi_dynamic_gold_real_rate_etf_krw.json",
       "multi_dynamic_all_krw.json",
       "multi_dynamic_absmom_krw.json",
       "multi_dynamic_kr_us_mom6_krw.json",
