@@ -1072,6 +1072,7 @@ function setCurrency(cur) {
   if (entry.mode === 'paradise') return enterParadise();
   if (entry.mode === 'sentiment' || entry.mode === 'trend' || entry.mode === 'reliability')
     return loadTool(entry, entry.mode);
+  if (entry.mode === 'molit_explore') return loadTool(entry, 'molit_explore');  // 시군구 조회(거래량·전세가율·실거래표)
   // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
   if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
   else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
@@ -1090,7 +1091,7 @@ function setAnalyticsMode(on) {
 function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
   document.body.classList.toggle('tools-mode', !!on);
   if (on) document.body.classList.remove('analytics-mode');
-  ['paradise', 'sentiment', 'trend', 'reliability'].forEach(t => {
+  ['paradise', 'sentiment', 'trend', 'reliability', 'molit_explore'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.classList.toggle('hidden', !(on && t === tool));
   });
@@ -1302,8 +1303,51 @@ async function loadTool(entry, kind) {
     document.getElementById('meta').textContent = `${entry.group} · 생성일 ${d.generated_at || '-'}`;
     if (kind === 'sentiment') renderSentiment(d);
     else if (kind === 'reliability') renderReliability(d);
+    else if (kind === 'molit_explore') renderMolitExplore(d);
     else renderTrend(d);
   } catch (e) { setStatus(entry.group + ' 로딩 실패: ' + e.message, true); }
+}
+
+// ---------------------------------------------------------------------------
+// 시군구 조회 (molit_explore) — 거래량·전세가율 월간 추이(절대값) + 최근 실거래 상세표.
+// 곡선 백테스트가 아니라 raw 레벨/표라 전용 렌더(도구 모드처럼 백테스트 섹션 숨김).
+// ---------------------------------------------------------------------------
+function _meLayout(title, ysuffix) {
+  return {
+    title: { text: title, font: { size: 13, color: cssVar('--fg') } },
+    margin: { l: 52, r: 14, t: 36, b: 38 }, paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    xaxis: { type: 'date', gridcolor: cssVar('--chart-grid'), linecolor: cssVar('--chart-grid'),
+             tickfont: { color: cssVar('--chart-muted') } },
+    yaxis: { gridcolor: cssVar('--chart-grid'), ticksuffix: ysuffix || '',
+             tickfont: { color: cssVar('--chart-muted') } },
+    legend: { font: { size: 10, color: cssVar('--chart-muted') }, orientation: 'h' },
+    showlegend: true, hovermode: 'x unified',
+  };
+}
+
+function renderMolitExplore(d) {
+  const dates = d.dates || [], regions = d.regions || [];
+  const cfg = { displaylogo: false, responsive: true };
+  const line = (key, suffix) => regions.map((r, i) => ({
+    type: 'scatter', mode: 'lines', name: r, x: dates, y: (d[key][r] || []),
+    line: { width: 1.3, color: PALETTE[i % PALETTE.length] },
+    hovertemplate: `${r} %{x|%Y-%m}: %{y}${suffix}<extra></extra>`,
+  }));
+  Plotly.react('me-volume', line('volume', '건'), _meLayout('월별 거래량 (건)', ''), cfg);
+  Plotly.react('me-jeonse', line('jeonse_ratio', '%'), _meLayout('전세가율 추이 (전세 ㎡보증금 / 매매 ㎡가, %)', '%'), cfg);
+
+  const rows = (d.recent || []).map(t =>
+    `<tr><td>${t.region}</td><td class="name">${t.apt}</td><td>${t.umd || '-'}</td>` +
+    `<td>${t.area}㎡</td><td>${t.floor == null ? '-' : t.floor + '층'}</td>` +
+    `<td>${t.build == null ? '-' : t.build}</td><td>${(t.price / 10000).toFixed(1)}억</td></tr>`).join('');
+  const head = '<tr><th>구</th><th class="name">단지</th><th>법정동</th><th>전용</th><th>층</th><th>건축년</th><th>거래가</th></tr>';
+  document.getElementById('me-recent').innerHTML =
+    `<table class="metrics"><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+  document.getElementById('me-recent-cap').textContent =
+    `최근 실거래 — ${d.recent_ym || '-'} 거래금액 상위 ${(d.recent || []).length}건 (국토교통부 실거래가)`;
+  document.getElementById('me-desc').textContent =
+    `${d.city} 시군구별 월간 거래량·전세가율 추이(실거래 집계) + 최근 실거래 상세. ` +
+    '⚠ 시군구 월별값은 거래 단지 구성에 따라 출렁임(구성편향)·소지역 희박월 주의.';
 }
 
 // 시장심리 분류 (signals.py와 동일 임계·설명) — {l:라벨, c:색, d:설명}.

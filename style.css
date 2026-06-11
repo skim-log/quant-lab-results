@@ -401,7 +401,8 @@ body.analytics-mode .ctl-check { display: none !important; }
 body:not(.tools-mode) #paradise-section,
 body:not(.tools-mode) #sentiment-section,
 body:not(.tools-mode) #trend-section,
-body:not(.tools-mode) #reliability-section { display: none; }
+body:not(.tools-mode) #reliability-section,
+body:not(.tools-mode) #molit_explore-section { display: none; }
 body.tools-mode main > section:not(.controls) { display: none !important; }
 body.tools-mode .ctl-period, body.tools-mode #strategies,
 body.tools-mode .ctl-check, body.tools-mode .ctl-cur,

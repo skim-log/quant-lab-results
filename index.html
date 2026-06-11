@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=99c9bfd2" />
+  <link rel="stylesheet" href="style.css?v=e55e5555" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -383,6 +383,18 @@
       </section>
     </div>
 
+    <!-- 시군구 조회 (molit_explore): 거래량·전세가율 추이 + 최근 실거래 상세표 -->
+    <div id="molit_explore-section" class="hidden">
+      <section class="panel">
+        <h2>시군구 조회 <span class="muted">(거래량·전세가율·최근 실거래)</span></h2>
+        <p id="me-desc" class="period-note"></p>
+        <div id="me-volume" style="height:340px"></div>
+        <div id="me-jeonse" style="height:340px;margin-top:12px"></div>
+        <p id="me-recent-cap" class="period-note" style="margin-top:14px"></p>
+        <div id="me-recent" class="table-wrap"></div>
+      </section>
+    </div>
+
     <!-- 플레이그라운드: 임의 비중 즉석 백테스트 (panel.json 데이터셋에서만 표시) -->
     <section id="playground" class="panel hidden">
       <h2>사용자 입력 — 임의 비중 백테스트 <span class="muted">(브라우저에서 즉석 실행)</span></h2>
@@ -566,8 +578,8 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=99c9bfd2" defer></script>
-  <script src="analytics-live.js?v=99c9bfd2" defer></script>
-  <script src="app.js?v=99c9bfd2" defer></script>
+  <script src="alloc.js?v=e55e5555" defer></script>
+  <script src="analytics-live.js?v=e55e5555" defer></script>
+  <script src="app.js?v=e55e5555" defer></script>
 </body>
 </html>
