@@ -30,7 +30,10 @@
     return hit;
   }
 
-  /** prices: {id:[KRW월봉|null]} (master 축), weights: {id:비중}. opts:{rebalance,bandRatio,costs}. */
+  /** prices: {id:[KRW월봉|null]} (master 축), weights: {id:비중}.
+   *  opts: {rebalance, bandRatio, costs, maSignal}.
+   *  maSignal(선택): {id:[1|0|null]} — master 축 월말 200일선 신호(panel.json ma_signal).
+   *    null·미제공 자산 → 1(보유)로 간주(Python 미러). maSignal 미전달 시 기존 동작과 비트 동일. */
   function runBacktest(dates, prices, ids, weights, opts) {
     const comm = opts.costs.commission_rate, slip = opts.costs.slippage_side;
     const tax = opts.costs.sell_tax || 0;
@@ -50,9 +53,20 @@
     const mask = periodicMask(wd, opts.rebalance);
     const px = {}; sel.forEach(id => { px[id] = win.map(t => prices[id][t]); });
 
+    // MA 신호: master 축 → 창 축. null·미제공 → 1(보유). (Python ma_filter 미러)
+    let sig = null;
+    if (opts.maSignal) {
+      sig = {};
+      sel.forEach(id => {
+        const arr = opts.maSignal[id];
+        sig[id] = win.map(t => (arr && arr[t] != null) ? arr[t] : 1);
+      });
+    }
+
     const navArr = [], events = [];
     let wPrev = {}; sel.forEach(id => { wPrev[id] = 0; });
     let cashW = 1.0, nav = 1.0;
+    let lastTarget = null;                     // 마지막 적용 목표(밴드 비교·복원 기준)
     for (let k = 0; k < wd.length; k++) {
       const grown = {}; let gsum = 0;
       sel.forEach(id => {
@@ -64,11 +78,16 @@
       nav *= total;
       const wDrift = {}; sel.forEach(id => { wDrift[id] = total > 0 ? grown[id] / total : 0; });
 
+      // 신호 플립(주기 미발생 달에도 새 목표행 주입) — maSignal 있을 때만.
+      const flip = sig && k > 0 && sel.some(id => sig[id][k] !== sig[id][k - 1]);
       let target = null, trigger = null;
-      if (mask[k]) { target = w; trigger = 'periodic'; }
-      else if (useBand && k > 0) {
-        const breach = sel.some(id => w[id] > 0 && Math.abs(wDrift[id] - w[id]) > w[id] * bandRatio);
-        if (breach) { target = w; trigger = 'band'; }
+      if (mask[k] || flip) {                   // (주기 ∪ 플립) → 새 목표행
+        target = {}; sel.forEach(id => { target[id] = sig ? w[id] * sig[id][k] : w[id]; });
+        trigger = mask[k] ? 'periodic' : 'ma';
+      } else if (useBand && k > 0 && lastTarget) {
+        const breach = sel.some(id => lastTarget[id] > 0 &&
+          Math.abs(wDrift[id] - lastTarget[id]) > lastTarget[id] * bandRatio);
+        if (breach) { target = Object.assign({}, lastTarget); trigger = 'band'; }
       }
       if (target === null) {
         wPrev = wDrift; cashW = total > 0 ? cashGrown / total : 1;
@@ -79,6 +98,7 @@
         nav *= (1 - cost);
         wPrev = Object.assign({}, target);
         let ts = 0; sel.forEach(id => { ts += target[id]; }); cashW = 1 - ts;
+        lastTarget = target;
         if (buys + sells > 1e-9) events.push({ date: wd[k].slice(0, 7), trigger, turnover: buys + sells });
       }
       navArr.push(nav);

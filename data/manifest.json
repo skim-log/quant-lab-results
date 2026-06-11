@@ -600,6 +600,30 @@
     "file": "re_gap.json"
   },
   {
+    "id": "re_molit_광주_timing",
+    "category": "realestate",
+    "group": "광주 매매 타이밍 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 광주 매매 타이밍 전략 (실거래) (KRW)",
+    "file": "re_molit_광주_timing.json"
+  },
+  {
+    "id": "re_molit_광주",
+    "category": "realestate",
+    "group": "광주 시군구 매매 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 광주 시군구 매매 (실거래) (KRW)",
+    "file": "re_molit_광주.json"
+  },
+  {
+    "id": "re_molit_광주_select",
+    "category": "realestate",
+    "group": "광주 시군구 선택 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 광주 시군구 선택 전략 (실거래) (KRW)",
+    "file": "re_molit_광주_select.json"
+  },
+  {
     "id": "re_molit_대구_timing",
     "category": "realestate",
     "group": "대구 매매 타이밍 전략 (실거래)",
@@ -622,6 +646,22 @@
     "currency": "krw",
     "label": "부동산 · 대구 시군구 선택 전략 (실거래) (KRW)",
     "file": "re_molit_대구_select.json"
+  },
+  {
+    "id": "re_molit_대전_timing",
+    "category": "realestate",
+    "group": "대전 매매 타이밍 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대전 매매 타이밍 전략 (실거래) (KRW)",
+    "file": "re_molit_대전_timing.json"
+  },
+  {
+    "id": "re_molit_대전",
+    "category": "realestate",
+    "group": "대전 시군구 매매 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대전 시군구 매매 (실거래) (KRW)",
+    "file": "re_molit_대전.json"
   },
   {
     "id": "re_buyhold",

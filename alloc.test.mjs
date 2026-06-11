@@ -28,8 +28,12 @@ const TOL = 1e-6;
 let maxErr = 0, fails = 0;
 
 for (const c of fix.cases) {
+  if (c.ma && !panel.ma_signal) {
+    console.error(`✗ ${c.name}: 픽스처에 ma_signal 없음 — export_parity.py 재실행`); fails++; continue;
+  }
   const res = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, c.weights,
-    { rebalance: c.rebalance, bandRatio: c.band, costs: panel.costs });
+    { rebalance: c.rebalance, bandRatio: c.band, costs: panel.costs,
+      maSignal: c.ma ? panel.ma_signal : undefined });
   if (!res) { console.error(`✗ ${c.name}: JS 엔진 null`); fails++; continue; }
   const fxWin = res.win.map(t => panel.fx[t]);
   for (const [ccy, expected] of [['krw', c.krw_nav], ['usd', c.usd_nav]]) {
@@ -43,6 +47,20 @@ for (const c of fix.cases) {
     if (e > TOL) { console.error(`✗ ${c.name}/${ccy}: 최대오차 ${e.toExponential(3)} > ${TOL}`); fails++; }
     else console.log(`  ✓ ${c.name}/${ccy}  n=${got.length}  maxErr=${e.toExponential(2)}`);
   }
+}
+
+// 후방호환 자기검증: 전부-1(상시 보유) 신호는 maSignal 미전달과 비트 동일해야 함(엔진 리팩터 무해 증명).
+{
+  const base = fix.cases.find(c => !c.ma) || fix.cases[0];
+  const allOnes = {}; ids.forEach(id => { allOnes[id] = panel.dates.map(() => 1); });
+  const r0 = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, base.weights,
+    { rebalance: base.rebalance, bandRatio: base.band, costs: panel.costs });
+  const r1 = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, base.weights,
+    { rebalance: base.rebalance, bandRatio: base.band, costs: panel.costs, maSignal: allOnes });
+  let se = 0;
+  for (let i = 0; i < r0.navKrw.length; i++) se = Math.max(se, Math.abs(r0.navKrw[i] - r1.navKrw[i]));
+  if (se > 0) { console.error(`✗ 자기검증(전부-1 신호 ≠ 무신호): 최대오차 ${se.toExponential(3)}`); fails++; }
+  else console.log(`  ✓ 자기검증(전부-1 신호 = 무신호)  maxErr=0`);
 }
 
 console.log(`\n패리티: 전체 최대오차 ${maxErr.toExponential(3)}, 실패 ${fails}건`);

@@ -160,9 +160,15 @@ const CAT_BLURB = {
   compare: '여러 전략을 한 곡선에 오버레이 비교(통화 토글 + 지표 열 클릭 정렬 리더보드).',
   realestate: '국내 아파트 지수(한국부동산원·KB) 백테스트. 비용·세금 차감 후 매수후보유·전세vs매매·갭투자·지역 모멘텀. 월간·비유동 자료라 지수 평활로 변동성·Sharpe 해석에 주의.',
 };
+const MA_SUFFIX = ' · MA200';   // Python 곡선명 접미사(f"{name} · MA200")와 동일
 function stratDesc(name) {
   if (!name) return '';
   if (STRAT_DESC[name]) return STRAT_DESC[name];
+  if (name.endsWith(MA_SUFFIX)) {
+    const base = stratDesc(name.slice(0, -MA_SUFFIX.length));
+    return '200일 이동평균선 필터 — 자산별 월말 가격이 200일선 위일 때만 보유, 아래면 그 자산 비중은 '
+      + '현금(0%·무이자)으로 이동.' + (base ? ' ' + base : '');
+  }
   const m = name.match(/^(\d+)일선 · (달러|원화)신호$/);
   if (m) return `${m[1]}일 이동평균선 추세 — ${m[2]} 가격이 ${m[1]}일선 위면 100% 보유, 아래면 현금(신호는 ${m[2]} 기준).`;
   if (name.includes('매수후보유')) return '매수 후 보유(벤치마크).';
@@ -183,6 +189,7 @@ function renderDescription() {
     if (d.kind === 'dynamic') txt += (txt ? ' · ' : '') + '신호 기반 매월 리밸런싱';
     else if (d.rebalance) txt += (txt ? ' · ' : '') + `리밸런싱: ${REBAL_KOR[d.rebalance] || d.rebalance}`
       + (d.band_ratio != null ? (d.band_ratio > 0 ? ` (밴드 ±${(d.band_ratio * 100).toFixed(0)}%)` : ' (밴드 없음)') : '');
+    if (d.ma_on) txt += (txt ? ' · ' : '') + '200일선 필터 ON';
   }
   // (가) 데이터 신선도: 현 데이터셋 시계열의 최신 끝날짜 + 빌드 생성일 표기 → 갱신이 멈추면(stale) 눈에 띔.
   if (d && Array.isArray(d.series) && d.series.length) {
@@ -429,6 +436,7 @@ function renderExtras(rows, s, e) {
   renderCurrent();
   renderExtCards(rows, s, e);
   renderBandAB();
+  renderMaAB();
   renderEvents(s, e);
   renderDiag();
   // 자산배분 데이터셋이 아니면(KR/US 등) 모든 전용 패널 숨김은 각 함수가 처리.
@@ -694,27 +702,50 @@ function renderMonthlyHeatmap(rows) {
   Plotly.react('chart-monthly-hm', [trace], layout, PLOTCFG);
 }
 
+// 지표별 ON/OFF/차이 표(밴드 A/B·MA A/B 공용). better<0 = 작을수록 좋음(연변동성).
+const _AB_DEFS = [
+  ['CAGR', 'CAGR', 'pct', 1], ['MDD', 'MDD', 'pct', 1], ['연변동성', 'ann_vol', 'pct', -1],
+  ['Sharpe', 'sharpe', 'ratio', 1], ['Sortino', 'sortino', 'ratio', 1],
+  ['Calmar', 'calmar', 'ratio', 1], ['월승률', 'win_rate', 'pct', 1],
+];
+function _renderAbTable(tableId, ab, onLabel, offLabel) {
+  const f = (k, v) => k === 'pct' ? fmtPct(v) : fmtRatio(v);
+  const rowsH = _AB_DEFS.map(([lab, key, kind, better]) => {
+    const on = ab.on[key], off = ab.off[key];
+    const diff = (on - off) * better;   // >0 → ON 이 더 나음
+    const cls = Math.abs(on - off) < 1e-9 ? '' : (diff > 0 ? 'pos' : 'neg');
+    const diffTxt = kind === 'pct' ? fmtPct(on - off) : fmtRatio(on - off);
+    return `<tr><td class="name">${lab}</td><td data-label="${onLabel}">${f(kind, on)}</td><td data-label="${offLabel}">${f(kind, off)}</td>` +
+           `<td class="${cls}" data-label="차이">${diffTxt}</td></tr>`;
+  }).join('');
+  document.getElementById(tableId).innerHTML =
+    `<thead><tr><th class="name">지표</th><th>${onLabel}</th><th>${offLabel}</th><th>차이</th></tr></thead>` +
+    '<tbody>' + rowsH + '</tbody>';
+}
+
 function renderBandAB() {
   const ab = state.data.band_ab;
   if (!ab || !ab.on || !ab.off) { setHidden('bandab-section', true); return; }
   setHidden('bandab-section', false);
-  const defs = [
-    ['CAGR', 'CAGR', 'pct', 1], ['MDD', 'MDD', 'pct', 1], ['연변동성', 'ann_vol', 'pct', -1],
-    ['Sharpe', 'sharpe', 'ratio', 1], ['Sortino', 'sortino', 'ratio', 1],
-    ['Calmar', 'calmar', 'ratio', 1], ['월승률', 'win_rate', 'pct', 1],
-  ];
-  const f = (k, v) => k === 'pct' ? fmtPct(v) : fmtRatio(v);
-  const rowsH = defs.map(([lab, key, kind, better]) => {
-    const on = ab.on[key], off = ab.off[key];
-    const diff = (on - off) * better;   // >0 → 밴드 ON 이 더 나음
-    const cls = Math.abs(on - off) < 1e-9 ? '' : (diff > 0 ? 'pos' : 'neg');
-    const diffTxt = kind === 'pct' ? fmtPct(on - off) : fmtRatio(on - off);
-    return `<tr><td class="name">${lab}</td><td data-label="밴드 ON">${f(kind, on)}</td><td data-label="밴드 OFF">${f(kind, off)}</td>` +
-           `<td class="${cls}" data-label="차이">${diffTxt}</td></tr>`;
-  }).join('');
-  document.getElementById('bandab-table').innerHTML =
-    '<thead><tr><th class="name">지표</th><th>밴드 ON</th><th>밴드 OFF</th><th>차이</th></tr></thead>' +
-    '<tbody>' + rowsH + '</tbody>';
+  _renderAbTable('bandab-table', ab, '밴드 ON', '밴드 OFF');
+}
+
+function renderMaAB() {
+  const ab = state.data.ma_ab;
+  if (!ab || !ab.on || !ab.off) { setHidden('maab-section', true); return; }
+  setHidden('maab-section', false);
+  _renderAbTable('maab-table', ab, '필터 ON', '필터 OFF');
+  const mf = state.data.ma_filter, note = document.getElementById('maab-note');
+  if (note) {
+    if (mf && mf.assets) {
+      const parts = Object.entries(mf.assets).map(([id, a]) => {
+        const pct = a.pct_in_market != null ? `${(a.pct_in_market * 100).toFixed(0)}% 보유` : '';
+        const src = a.source === 'daily' ? `일봉 ${a.daily_since || ''}~` : (a.source === 'exempt' ? '필터 면제' : '월봉 근사');
+        return `${CAT_LABEL[id] || id} ${pct} (${src})`;
+      });
+      note.textContent = `${mf.window || 200}일선 신호 — ` + parts.join(' · ');
+    } else note.textContent = '';
+  }
 }
 
 function renderEvents(s, e) {
@@ -833,6 +864,8 @@ async function loadDataset(file) {
       if (sel) sel.value = state.allocCtx.defaultRebal;
       if (bon) bon.checked = hasBand;
       if (bnd) { bnd.value = (hasBand ? state.allocCtx.defaultBand * 100 : 20).toFixed(0); bnd.disabled = !hasBand; }
+      const ma = document.getElementById('alloc-ma');
+      if (ma) ma.checked = false;     // 기본 OFF(사전계산 뷰엔 MA200 곡선·ma_ab가 이미 포함)
       _showAllocRebal(true);
     }
   } catch (err) {
@@ -912,10 +945,11 @@ function wireControls() {
   });
   // 정적 자산배분 리밸런싱 주기·밴드 → 즉석 재계산
   const arb = document.getElementById('alloc-rebal'), abd = document.getElementById('alloc-band'),
-        abon = document.getElementById('alloc-band-on');
+        abon = document.getElementById('alloc-band-on'), ama = document.getElementById('alloc-ma');
   if (arb) arb.addEventListener('change', onAllocRebalChange);
   if (abd) abd.addEventListener('change', onAllocRebalChange);
   if (abon) abon.addEventListener('change', onAllocRebalChange);
+  if (ama) ama.addEventListener('change', onAllocRebalChange);
   // 분석 강화: 롤링 창 길이 · 낙폭표 곡선 선택
   const rwin = document.getElementById('rolling-window'), tddc = document.getElementById('topdd-curve');
   if (rwin) rwin.addEventListener('change', () => { state.rolling = { years: Number(rwin.value) || 0 }; render(); });
@@ -1974,11 +2008,19 @@ function enterPlayground(panel) {
   sEl.min = state.globalStart; sEl.max = state.globalEnd; eEl.min = state.globalStart; eEl.max = state.globalEnd;
   sEl.value = state.globalStart; eEl.value = state.globalEnd;
   setActivePreset(0);
+  // 200일선 필터 체크박스: 신호 없는(구버전) 패널이면 숨김
+  const pgMa = document.getElementById('pg-ma');
+  if (pgMa) {
+    const has = !!panel.ma_signal;
+    if (!has) pgMa.checked = false;
+    if (pgMa.parentElement) pgMa.parentElement.classList.toggle('hidden', !has);
+  }
   // 핸들러 (1회 바인딩)
   if (!state._pgWired) {
     document.getElementById('pg-weights').addEventListener('input', runPlayground);
     document.getElementById('pg-rebalance').addEventListener('change', runPlayground);
     document.getElementById('pg-band').addEventListener('input', runPlayground);
+    if (pgMa) pgMa.addEventListener('change', runPlayground);
     document.getElementById('pg-normalize').addEventListener('click', () => { _pgNormalize(); runPlayground(); });
     document.getElementById('pg-presets').addEventListener('click', (e) => {
       const b = e.target.closest('button'); if (!b) return;
@@ -2006,17 +2048,26 @@ function _pgNormalize() {
 function _allocRun(panel, w, rebalance, band, ccy, opts) {
   opts = opts || {};
   const ids = panel.assets.map(a => a.id);
-  const res = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, w, { rebalance, bandRatio: band, costs: panel.costs });
+  const baseOpts = { rebalance, bandRatio: band, costs: panel.costs };
+  const res = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, w, baseOpts);
   if (!res) { setStatus('선택한 자산의 공통 데이터가 부족합니다(비중>0 자산을 확인하세요).', true); return false; }
   setStatus('');
   const fxWin = res.win.map(t => panel.fx[t]);
-  const curves = [{ name: opts.selfName || '내 배분', dates: res.dates, nav: ALLOC.navToCcy(res.navKrw, fxWin, ccy) }];
+  const self = opts.selfName || '내 배분';
+  const curves = [{ name: self, dates: res.dates, nav: ALLOC.navToCcy(res.navKrw, fxWin, ccy) }];
+  if (opts.maSignal) {                                 // 200일선 필터 ON → 두 변형 모두 표시
+    const resMa = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, w,
+      Object.assign({ maSignal: opts.maSignal }, baseOpts));
+    if (resMa) curves.push({ name: self + MA_SUFFIX, dates: resMa.dates,
+                             nav: ALLOC.navToCcy(resMa.navKrw, resMa.win.map(t => panel.fx[t]), ccy) });
+  }
   for (const [name, b] of Object.entries(panel.benchmarks || {})) {
     curves.push({ name, dates: res.dates, nav: ALLOC.benchCurve(b.price, b.ccy, panel.fx, ccy, res.win) });
   }
   state.data = _synthDataset(curves, opts.title || '사용자 배분');
   state.data.target_weights = res.weights;            // 정규화 비중 → 구성 표
   state.data.rebalance = rebalance; state.data.band_ratio = band;   // 설명에 주기 표기
+  state.data.ma_on = !!opts.maSignal;                 // 설명 배지
   if (opts.desc != null) state.data.description = opts.desc;
   state.colToMetric = buildColToMetric(state.data);
   buildStrategyList(state.data);
@@ -2032,7 +2083,10 @@ function runPlayground() {
   document.getElementById('pg-sum').className = 'pg-sum' + (Math.abs(sum - 1) <= 0.001 ? ' ok' : ' warn');
   const rebalance = document.getElementById('pg-rebalance').value;
   const band = (parseFloat(document.getElementById('pg-band').value) || 0) / 100;
-  _allocRun(panel, w, rebalance, band, state.nav.currency || 'krw', { selfName: '내 배분', title: '사용자 배분' });
+  const maEl = document.getElementById('pg-ma');
+  const maOn = !!(maEl && maEl.checked && panel.ma_signal);
+  _allocRun(panel, w, rebalance, band, state.nav.currency || 'krw',
+    { selfName: '내 배분', title: '사용자 배분', maSignal: maOn ? panel.ma_signal : null });
 }
 
 // 정적 프리셋 리밸런싱 셀렉터 ─────────────────────────────────────────────
@@ -2056,16 +2110,30 @@ async function runRebalSweep() {
   setStatus('스윕 계산 중…');
   const panel = await _ensurePanel();
   if (!panel) { setStatus('panel.json 로드 실패 — 스윕 불가', true); return; }
+  const maEl = document.getElementById('alloc-ma');
+  const maSignal = (maEl && maEl.checked && panel.ma_signal) ? panel.ma_signal : null;
   const ids = panel.assets.map(a => a.id), ccy = state.nav.currency || 'krw', ppy = panel.periods_per_year || 12;
   const grid = SWEEP_BANDS.map(band => SWEEP_REBALS.map(rebalance => {
-    const res = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, ctx.weights, { rebalance, bandRatio: band, costs: panel.costs });
+    const res = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, ctx.weights,
+      { rebalance, bandRatio: band, costs: panel.costs, maSignal });
     if (!res) return null;
     const nav = ALLOC.navToCcy(res.navKrw, res.win.map(t => panel.fx[t]), ccy);
     return computeMetrics(res.dates, nav, ppy);
   }));
-  state.sweep = { grid };
+  state.sweep = { grid, ma: !!maSignal };
+  const note = document.getElementById('sweep-ma-note');
+  if (note) note.textContent = maSignal ? '(200일선 필터 적용)' : '';
   setStatus('');
   renderSweep();
+}
+// MA 토글로 기존 스윕이 무의미해지면 결과 비움(재실행 유도).
+function _staleSweepCheck(maOn) {
+  if (state.sweep && state.sweep.ma !== maOn) {
+    state.sweep = null;
+    const t = document.getElementById('sweep-table'); if (t) t.innerHTML = '';
+    const c = document.getElementById('chart-sweep'); if (c) c.innerHTML = '';
+    const n = document.getElementById('sweep-ma-note'); if (n) n.textContent = '';
+  }
 }
 function renderSweep() {
   if (!state.sweep) return;
@@ -2112,15 +2180,24 @@ async function onAllocRebalChange() {
   const bandOn = document.getElementById('alloc-band-on').checked;
   document.getElementById('alloc-band').disabled = !bandOn;   // 끄면 % 입력 비활성
   const band = bandOn ? (parseFloat(document.getElementById('alloc-band').value) || 0) / 100 : 0;
-  if (rebalance === ctx.defaultRebal && Math.abs(band - ctx.defaultBand) < 1e-9) {
-    return loadDataset(ctx.file);   // 기본값 → 사전계산 풀 뷰 복원
+  const maEl = document.getElementById('alloc-ma');
+  const maOn = !!(maEl && maEl.checked);
+  if (rebalance === ctx.defaultRebal && Math.abs(band - ctx.defaultBand) < 1e-9 && !maOn) {
+    return loadDataset(ctx.file);   // 기본값 + 필터 OFF → 사전계산 풀 뷰 복원(MA200 곡선·ma_ab 포함)
   }
   setStatus('재계산 중…');
   const panel = await _ensurePanel();
   if (!panel) { setStatus('panel.json 로드 실패 — 기본(분기) 결과만 가능', true); return; }
+  if (maOn && !panel.ma_signal) {   // 구버전 panel.json 가드
+    if (maEl) maEl.checked = false;
+    setStatus('panel.json에 200일선 신호가 없어 필터를 사용할 수 없습니다(데이터 재배포 필요).', true);
+    return;
+  }
   const name = _allocName(ctx.base, rebalance, band);   // 선택 주기를 이름에 반영
+  const title = name + (maOn ? MA_SUFFIX : '');
   _allocRun(panel, ctx.weights, rebalance, band, state.nav.currency || 'krw',
-    { selfName: name, title: name, desc: ctx.desc });
+    { selfName: name, title, desc: ctx.desc, maSignal: maOn ? panel.ma_signal : null });
+  _staleSweepCheck(maOn);
   _showAllocRebal(true);            // render 후에도 컨트롤 유지
 }
 
