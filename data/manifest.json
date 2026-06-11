@@ -600,6 +600,30 @@
     "file": "re_gap.json"
   },
   {
+    "id": "re_molit_대구_timing",
+    "category": "realestate",
+    "group": "대구 매매 타이밍 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대구 매매 타이밍 전략 (실거래) (KRW)",
+    "file": "re_molit_대구_timing.json"
+  },
+  {
+    "id": "re_molit_대구",
+    "category": "realestate",
+    "group": "대구 시군구 매매 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대구 시군구 매매 (실거래) (KRW)",
+    "file": "re_molit_대구.json"
+  },
+  {
+    "id": "re_molit_대구_select",
+    "category": "realestate",
+    "group": "대구 시군구 선택 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대구 시군구 선택 전략 (실거래) (KRW)",
+    "file": "re_molit_대구_select.json"
+  },
+  {
     "id": "re_buyhold",
     "category": "realestate",
     "group": "매매 Buy&Hold",
@@ -654,6 +678,30 @@
     "currency": "krw",
     "label": "부동산 · 서울 시군구 선택 전략 (실거래) (KRW)",
     "file": "re_molit_서울_select.json"
+  },
+  {
+    "id": "re_molit_인천_timing",
+    "category": "realestate",
+    "group": "인천 매매 타이밍 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 인천 매매 타이밍 전략 (실거래) (KRW)",
+    "file": "re_molit_인천_timing.json"
+  },
+  {
+    "id": "re_molit_인천",
+    "category": "realestate",
+    "group": "인천 시군구 매매 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 인천 시군구 매매 (실거래) (KRW)",
+    "file": "re_molit_인천.json"
+  },
+  {
+    "id": "re_molit_인천_select",
+    "category": "realestate",
+    "group": "인천 시군구 선택 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 인천 시군구 선택 전략 (실거래) (KRW)",
+    "file": "re_molit_인천_select.json"
   },
   {
     "id": "re_rentbuy",
