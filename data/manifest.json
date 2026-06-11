@@ -664,6 +664,14 @@
     "file": "re_molit_대전.json"
   },
   {
+    "id": "re_molit_대전_select",
+    "category": "realestate",
+    "group": "대전 시군구 선택 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대전 시군구 선택 전략 (실거래) (KRW)",
+    "file": "re_molit_대전_select.json"
+  },
+  {
     "id": "re_buyhold",
     "category": "realestate",
     "group": "매매 Buy&Hold",
@@ -718,6 +726,30 @@
     "currency": "krw",
     "label": "부동산 · 서울 시군구 선택 전략 (실거래) (KRW)",
     "file": "re_molit_서울_select.json"
+  },
+  {
+    "id": "re_molit_울산_timing",
+    "category": "realestate",
+    "group": "울산 매매 타이밍 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 울산 매매 타이밍 전략 (실거래) (KRW)",
+    "file": "re_molit_울산_timing.json"
+  },
+  {
+    "id": "re_molit_울산",
+    "category": "realestate",
+    "group": "울산 시군구 매매 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 울산 시군구 매매 (실거래) (KRW)",
+    "file": "re_molit_울산.json"
+  },
+  {
+    "id": "re_molit_울산_select",
+    "category": "realestate",
+    "group": "울산 시군구 선택 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 울산 시군구 선택 전략 (실거래) (KRW)",
+    "file": "re_molit_울산_select.json"
   },
   {
     "id": "re_molit_인천_timing",
