@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=e55e5555" />
+  <link rel="stylesheet" href="style.css?v=c8c7698d" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -90,7 +90,7 @@
           </select></label>
           <label class="band-on"><input type="checkbox" id="alloc-band-on" checked /> 밴드</label>
           <label>±<input type="number" id="alloc-band" min="0" max="100" step="1" value="20" style="width:3.4rem" />%</label>
-          <label class="ma-on" title="자산별로 가격이 200일 이동평균선 위일 때만 보유, 아래면 그 자산 비중은 현금(0%·무이자)으로"><input type="checkbox" id="alloc-ma" /> 200일선 필터</label>
+          <label class="ma-on" title="자산별로 가격이 200일 이동평균선 위일 때만 보유, 아래면 그 자산 비중은 현금(0%·무이자)으로. 판단은 리밸 주기와 무관하게 매월(월말). 자세한 설명은 아래 '200일선 필터 A/B' 패널 참조"><input type="checkbox" id="alloc-ma" /> 200일선 필터</label>
           <span class="muted">밴드 끄면 주기 리밸만(표류 트리거 없음). 바꾸면 즉석 재계산(기본값+필터 OFF면 상세 패널 복원)</span>
         </div>
       </div>
@@ -525,6 +525,26 @@
       <p class="period-note">같은 비중·주기·밴드에 200일 이동평균선 필터만 토글한 전체기간 비교 (초록 = 필터가 더 나음).
         필터 ON이면 자산별로 월말 가격이 200일선 아래일 때 그 비중을 0%·무이자 현금으로 이동.</p>
       <p id="maab-note" class="period-note"></p>
+      <details class="theory">
+        <summary>💡 200일선 필터는 어떻게 작동하나 (판단 시점·리밸런싱 관계)</summary>
+        <div class="theory-body">
+          <h4>매월 판단 — 리밸런싱 주기와 별개</h4>
+          <p>200일선 위/아래 판단은 <strong>선택한 리밸런싱 주기(분기·반기·연)와 무관하게 매월(월말) 이뤄집니다.</strong>
+            어떤 자산이 200일선을 <strong>아래로 돌파하면 그 달에 즉시 현금화</strong>하고, 다시 위로 올라오면 그 달에 다시 매수합니다 —
+            다음 분기/반기를 기다리지 않습니다. (추세 이탈 시 빨리 빠져나와 낙폭을 줄이는 것이 추세 필터의 목적입니다.)</p>
+          <h4>리밸런싱 주기의 역할</h4>
+          <p>주기(분기·반기·연)는 <strong>보유 중인 자산들의 비중을 목표 비율로 되돌리는(표류 보정) 일정</strong>만 정합니다.
+            현금↔자산 전환은 그 일정과 무관하게 매달 반응합니다.</p>
+          <h4>신호가 바뀐 달엔 전체 리밸런싱</h4>
+          <p>어떤 자산이든 200일선을 돌파한 달에는 <strong>그 자산만이 아니라 포트폴리오 전체를 목표비중으로 다시 맞춥니다</strong>(밴드 트리거와 같은 방식).
+            따라서 시장이 출렁여 신호가 자주 뒤집히면 <strong>경우에 따라 매월 리밸런싱이 되는 격</strong>이고, 추세가 안정적이면(돌파 없음) 고른 주기대로만 돕니다.
+            거래비용은 실제 매매분에만 부과됩니다.</p>
+          <h4>신호 산출 · 폴백</h4>
+          <p>자산별 <strong>일봉 종가 &gt; 200일 단순이동평균</strong>을 그 달 마지막 거래일 기준으로 평가합니다(미래 정보 미사용).
+            일봉이 없는 자산(한국채)·일봉 시작 이전 구간은 <strong>월봉 10개월 이동평균</strong>으로 대체하고, 데이터가 부족하면 보유로 둡니다. 현금은 필터 대상에서 제외(상시 보유).
+            아래 표의 자산별 ‘보유율·소스’로 각 자산이 어떤 신호를 썼는지 확인할 수 있습니다.</p>
+        </div>
+      </details>
       <div class="table-wrap"><table id="maab-table"></table></div>
     </section>
 
@@ -578,8 +598,8 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=e55e5555" defer></script>
-  <script src="analytics-live.js?v=e55e5555" defer></script>
-  <script src="app.js?v=e55e5555" defer></script>
+  <script src="alloc.js?v=c8c7698d" defer></script>
+  <script src="analytics-live.js?v=c8c7698d" defer></script>
+  <script src="app.js?v=c8c7698d" defer></script>
 </body>
 </html>
