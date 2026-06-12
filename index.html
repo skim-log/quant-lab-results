@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=c8c7698d" />
+  <link rel="stylesheet" href="style.css?v=33eb67af" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -395,6 +395,34 @@
       </section>
     </div>
 
+    <!-- 단지 조회 (molit_apt): 개별 아파트 가격추이·전세가율 + 매수후보유 백테스트(브라우저 계산) -->
+    <div id="molit_apt-section" class="hidden">
+      <section class="panel">
+        <h2>단지 조회 <span class="muted">(개별 아파트 — 추이·전세가율·백테스트)</span></h2>
+        <p id="ma-desc" class="period-note"></p>
+        <div class="pg-controls">
+          <label>구 <select id="ma-gu"></select></label>
+          <label>단지 <input type="text" id="ma-apt" list="ma-apt-list" placeholder="단지명 검색"
+                            autocomplete="off" style="min-width:15rem" />
+            <datalist id="ma-apt-list"></datalist></label>
+          <span id="ma-bands" class="bt-toggle"></span>
+        </div>
+        <div id="ma-top" class="exp-quick"></div>
+        <p id="ma-meta" class="period-note"></p>
+        <div id="ma-price" style="height:380px"></div>
+        <div id="ma-jr" style="height:300px;margin-top:12px"></div>
+        <h2 style="margin-top:18px">매수후보유 백테스트 <span class="muted" id="ma-bt-cost"></span></h2>
+        <div class="bt-controls">
+          <label>매수 시점 <select id="ma-bt-start"></select></label>
+        </div>
+        <p id="ma-bt-note" class="period-note"></p>
+        <div id="ma-bt-cards" class="ext-cards"></div>
+        <div id="ma-bt" style="height:330px;margin-top:10px"></div>
+        <p id="ma-tx-cap" class="period-note" style="margin-top:14px"></p>
+        <div id="ma-tx" class="table-wrap"></div>
+      </section>
+    </div>
+
     <!-- 플레이그라운드: 임의 비중 즉석 백테스트 (panel.json 데이터셋에서만 표시) -->
     <section id="playground" class="panel hidden">
       <h2>사용자 입력 — 임의 비중 백테스트 <span class="muted">(브라우저에서 즉석 실행)</span></h2>
@@ -598,8 +626,9 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=c8c7698d" defer></script>
-  <script src="analytics-live.js?v=c8c7698d" defer></script>
-  <script src="app.js?v=c8c7698d" defer></script>
+  <script src="alloc.js?v=33eb67af" defer></script>
+  <script src="re_apt.js?v=33eb67af" defer></script>
+  <script src="analytics-live.js?v=33eb67af" defer></script>
+  <script src="app.js?v=33eb67af" defer></script>
 </body>
 </html>

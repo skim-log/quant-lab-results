@@ -715,6 +715,14 @@
     "file": "re_buyhold.json"
   },
   {
+    "id": "re_macrotiming",
+    "category": "realestate",
+    "group": "매크로 레짐 × 갭 (미분양·금리·전세가율)",
+    "currency": "krw",
+    "label": "부동산 · 매크로 레짐 × 갭 (미분양·금리·전세가율) (KRW)",
+    "file": "re_macrotiming.json"
+  },
+  {
     "id": "re_molit_부산_timing",
     "category": "realestate",
     "group": "부산 매매 타이밍 전략 (실거래)",
@@ -746,6 +754,15 @@
     "label": "부동산 · 부산 시군구 조회 (거래량·전세가율·실거래) (KRW)",
     "file": "re_molit_부산_explore.json",
     "mode": "molit_explore"
+  },
+  {
+    "id": "re_molit_서울_apt",
+    "category": "realestate",
+    "group": "서울 단지 조회 (개별 아파트)",
+    "currency": "krw",
+    "label": "부동산 · 서울 단지 조회 (개별 아파트) (KRW)",
+    "file": "re_molit_서울_apt.json",
+    "mode": "molit_apt"
   },
   {
     "id": "re_molit_서울_timing",

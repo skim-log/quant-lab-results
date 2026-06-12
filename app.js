@@ -44,6 +44,10 @@ const state = {
   paraMode: 'det', mcBoot: null,                         // 낙원계산기 모드(결정론/몬테카를로)·부트스트랩 캐시
   blendCcy: 'krw', blendMode: 'lump', blendCache: null, _blendWired: false,  // 전략 블렌딩·적립식
   sort: { col: null, dir: -1 },  // 성과표 리더보드 정렬(열 클릭). dir: -1=내림차순
+  apt: { index: null, bundles: {}, txCache: {},          // 단지 조회(molit_apt) — 구별 번들 레이지 캐시
+         txFail: {}, _inflight: {},                      // 거래상세 실패 표시·중복 fetch 방지
+         sel: { sgg: '', ci: -1, band: null, startMi: null },
+         preselect: null, _wired: false },
 };
 
 // ---------------------------------------------------------------------------
@@ -158,7 +162,7 @@ const CAT_BLURB = {
   crypto: '암호화폐 전략: 매수후보유·DCA·이동평균선 추세(20/60/120/200일 × 달러·원화 신호). 곡선=TWR(위험비교), 적립 수익=XIRR.',
   analytics: '8자산 월수익 기반 정량분석 — 상관·효율적 프론티어·리스크패리티·위험수익(무위험 2%).',
   compare: '여러 전략을 한 곡선에 오버레이 비교(통화 토글 + 지표 열 클릭 정렬 리더보드).',
-  realestate: '국내 아파트 지수(한국부동산원·KB) 백테스트. 비용·세금 차감 후 매수후보유·전세vs매매·갭투자(정적·갭×추세 타이밍)·지역 모멘텀. 월간·비유동 자료라 지수 평활로 변동성·Sharpe 해석에 주의.',
+  realestate: '국내 아파트 지수(한국부동산원·KB) 백테스트. 비용·세금 차감 후 매수후보유·전세vs매매·갭투자(정적·갭×추세·매크로 레짐 게이트)·지역 모멘텀. 월간·비유동 자료라 지수 평활로 변동성·Sharpe 해석에 주의.',
 };
 const MA_SUFFIX = ' · MA200';   // Python 곡선명 접미사(f"{name} · MA200")와 동일
 function stratDesc(name) {
@@ -911,6 +915,8 @@ function applyTheme(theme, persist) {
     if (t.kind === 'paradise') paradiseRefresh();
     else if (t.kind === 'sentiment') renderSentiment(t.data);
     else if (t.kind === 'trend') renderTrend(t.data);
+    else if (t.kind === 'molit_explore') renderMolitExplore(t.data);   // 테마 토글 시 차트 재채색
+    else if (t.kind === 'molit_apt') renderAptAll();
   } else if (state.data) {
     if (state.data.kind === 'analytics') renderAnalytics(state.data);
     else { render(); if (state.sweep) renderSweep(); if (state.blendFrontier) _drawBlendFrontier(); }   // 스윕·블렌드 프론티어도 새 테마로 재색
@@ -1074,6 +1080,7 @@ function setCurrency(cur) {
   if (entry.mode === 'sentiment' || entry.mode === 'trend' || entry.mode === 'reliability')
     return loadTool(entry, entry.mode);
   if (entry.mode === 'molit_explore') return loadTool(entry, 'molit_explore');  // 시군구 조회(거래량·전세가율·실거래표)
+  if (entry.mode === 'molit_apt') return loadTool(entry, 'molit_apt');          // 단지 조회(개별 아파트 추이·백테스트)
   // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
   if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
   else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
@@ -1092,7 +1099,7 @@ function setAnalyticsMode(on) {
 function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
   document.body.classList.toggle('tools-mode', !!on);
   if (on) document.body.classList.remove('analytics-mode');
-  ['paradise', 'sentiment', 'trend', 'reliability', 'molit_explore'].forEach(t => {
+  ['paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.classList.toggle('hidden', !(on && t === tool));
   });
@@ -1305,6 +1312,7 @@ async function loadTool(entry, kind) {
     if (kind === 'sentiment') renderSentiment(d);
     else if (kind === 'reliability') renderReliability(d);
     else if (kind === 'molit_explore') renderMolitExplore(d);
+    else if (kind === 'molit_apt') enterMolitApt(d);
     else renderTrend(d);
   } catch (e) { setStatus(entry.group + ' 로딩 실패: ' + e.message, true); }
 }
@@ -1337,18 +1345,394 @@ function renderMolitExplore(d) {
   Plotly.react('me-volume', line('volume', '건'), _meLayout('월별 거래량 (건)', ''), cfg);
   Plotly.react('me-jeonse', line('jeonse_ratio', '%'), _meLayout('전세가율 추이 (전세 ㎡보증금 / 매매 ㎡가, %)', '%'), cfg);
 
+  const aptEntry = state.manifest.find(mf => mf.mode === 'molit_apt' && mf.group.startsWith(d.city));
   const rows = (d.recent || []).map(t =>
-    `<tr><td>${t.region}</td><td class="name">${t.apt}</td><td>${t.umd || '-'}</td>` +
+    `<tr><td>${t.region}</td><td class="name">${aptEntry
+      ? `<a href="#" class="me-apt-link" data-region="${t.region}" data-apt="${t.apt}"` +
+        ` data-umd="${t.umd || ''}" data-area="${t.area}">${t.apt}</a>`
+      : t.apt}</td><td>${t.umd || '-'}</td>` +
     `<td>${t.area}㎡</td><td>${t.floor == null ? '-' : t.floor + '층'}</td>` +
     `<td>${t.build == null ? '-' : t.build}</td><td>${(t.price / 10000).toFixed(1)}억</td></tr>`).join('');
   const head = '<tr><th>구</th><th class="name">단지</th><th>법정동</th><th>전용</th><th>층</th><th>건축년</th><th>거래가</th></tr>';
   document.getElementById('me-recent').innerHTML =
     `<table class="metrics"><thead>${head}</thead><tbody>${rows}</tbody></table>`;
+  document.getElementById('me-recent').onclick = (e) => {     // 단지 클릭 → 단지 조회 뷰로 점프
+    const a = e.target.closest('a.me-apt-link');
+    if (!a) return;
+    e.preventDefault();
+    _jumpToApt(d.city, a.dataset.region, a.dataset.apt, a.dataset.umd, parseFloat(a.dataset.area));
+  };
   document.getElementById('me-recent-cap').textContent =
     `최근 실거래 — ${d.recent_ym || '-'} 거래금액 상위 ${(d.recent || []).length}건 (국토교통부 실거래가)`;
   document.getElementById('me-desc').textContent =
     `${d.city} 시군구별 월간 거래량·전세가율 추이(실거래 집계) + 최근 실거래 상세. ` +
-    '⚠ 시군구 월별값은 거래 단지 구성에 따라 출렁임(구성편향)·소지역 희박월 주의.';
+    '⚠ 시군구 월별값은 거래 단지 구성에 따라 출렁임(구성편향)·소지역 희박월 주의.' +
+    (aptEntry ? ' 단지명을 클릭하면 단지 조회(추이·백테스트)로 이동합니다.' : '');
+}
+
+// ---------------------------------------------------------------------------
+// 단지 조회 (molit_apt) — 개별 아파트 월 중위가 추이·전세가율 + 매수후보유 백테스트.
+// 인덱스 payload(도시) → 구 선택 시 data/apt/{sgg}.json 레이지 로드(캐시), 단지 선택 시
+// 거래상세 data/apt/{sgg}_tx.json 로드. NAV 수학은 web/re_apt.js(RE_APT — Python 패리티 검증).
+// ---------------------------------------------------------------------------
+function _aptKeyJs(s) {                                  // src/data/re/apt.py name_key 미러
+  return String(s).normalize('NFC').replace(/\s+/g, '').toLowerCase();
+}
+function _aptMiIso(mi) {                                 // 월 인덱스 → ISO(월초; 차트 월 표시용)
+  const d = state.apt.index;
+  const t = +d.months0.slice(0, 4) * 12 + (+d.months0.slice(5, 7) - 1) + mi;
+  return Math.floor(t / 12) + '-' + String(t % 12 + 1).padStart(2, '0') + '-01';
+}
+function _aptBundle() { const s = state.apt; return s.sel.sgg ? s.bundles[s.sel.sgg] : null; }
+function _aptComplex() {
+  const b = _aptBundle(), s = state.apt.sel;
+  return (b && s.ci >= 0) ? b.complexes[s.ci] : null;
+}
+function _aptBand() {
+  const c = _aptComplex(), s = state.apt.sel;
+  return c ? c.bands.find(x => x.b === s.band) : null;
+}
+async function _aptFetchJson(file, cacheName, sgg) {
+  const cache = state.apt[cacheName];
+  if (cache[sgg]) return cache[sgg];
+  const fl = state.apt._inflight, key = cacheName + ':' + sgg;   // 동시 중복 다운로드 방지
+  if (!fl[key]) {
+    fl[key] = fetch('data/' + file, { cache: 'no-cache' })
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(d => { cache[sgg] = d; return d; })
+      .finally(() => { delete fl[key]; });
+  }
+  return fl[key];
+}
+
+function enterMolitApt(d) {
+  state.apt.index = d;
+  document.getElementById('ma-desc').textContent =
+    `${d.city} 개별 단지 실거래 — 구 → 단지 → 전용면적 순으로 고르면 월 중위가 추이·전세가율과 ` +
+    '매수후보유 백테스트(브라우저 계산)를 보여줍니다. ⚠ 단지 월 중위가는 층·동·상태 미통제 ' +
+    '(동일주택 반복거래 지수가 아님) — 구성편향 주의.';
+  document.getElementById('ma-bt-cost').textContent =
+    `(취득 ${(d.costs.entry * 100).toFixed(1)}% + 보유세 연 ${(d.costs.holding_annual * 100).toFixed(2)}% 차감 — 브라우저 계산)`;
+  document.getElementById('ma-gu').innerHTML =
+    d.regions.map(r => `<option value="${r.sgg}">${r.name} (${r.complexes}단지)</option>`).join('');
+  if (!state.apt._wired) { _wireApt(); state.apt._wired = true; }
+  const pre = state.apt.preselect;
+  state.apt.preselect = null;
+  let sgg = d.regions.length ? d.regions[0].sgg : '';
+  if (pre) { const r = d.regions.find(x => x.name === pre.region); if (r) sgg = r.sgg; }
+  else if (state.apt.sel.sgg && d.regions.some(r => r.sgg === state.apt.sel.sgg)) sgg = state.apt.sel.sgg;  // 재진입 유지
+  document.getElementById('ma-gu').value = sgg;
+  _aptSelectGu(sgg, pre);
+}
+
+function _wireApt() {
+  document.getElementById('ma-gu').addEventListener('change', e => _aptSelectGu(e.target.value, null));
+  const input = document.getElementById('ma-apt');
+  input.addEventListener('change', _aptResolveInput);            // IME 안전 — 확정은 change 에서만
+  input.addEventListener('keydown', e => {
+    if (e.isComposing || e.keyCode === 229) return;              // 한글 조합 중 Enter 무시
+    if (e.key === 'Enter') { e.preventDefault(); _aptResolveInput(); }
+  });
+  document.getElementById('ma-bt-start').addEventListener('change', e => {
+    state.apt.sel.startMi = e.target.value === '' ? null : parseInt(e.target.value, 10);
+    _renderAptBacktest();
+  });
+}
+
+async function _aptSelectGu(sgg, pre) {
+  const d = state.apt.index;
+  if (!d) return;
+  const region = d.regions.find(r => r.sgg === sgg);
+  if (!region) return;
+  state.apt.sel = { sgg, ci: -1, band: null, startMi: null };
+  setStatus('단지 번들 불러오는 중…');
+  let b;
+  try { b = await _aptFetchJson(region.file, 'bundles', sgg); }
+  catch (e) {                                                    // 스테일 응답이 활성 뷰를 덮지 않게
+    if (state.apt.sel.sgg === sgg) setStatus(`${region.name} 단지 번들 로딩 실패: ${e.message}`, true);
+    return;
+  }
+  if (state.apt.sel.sgg !== sgg) return;                         // 로딩 중 구 변경 — 무시
+  setStatus('');
+  document.getElementById('ma-apt-list').innerHTML =             // 거래수순(번들 정렬) + 동명 구분
+    b.complexes.map(c => `<option value="${c.apt} (${c.umd})"></option>`).join('');
+  document.getElementById('ma-apt').value = '';
+  const top = document.getElementById('ma-top');
+  top.innerHTML = b.complexes.slice(0, 10)
+    .map((c, i) => `<button type="button" data-ci="${i}">${c.apt}</button>`).join('');
+  top.querySelectorAll('button').forEach(btn =>
+    btn.addEventListener('click', () => { state.apt.sel.band = null; _aptSelectComplex(+btn.dataset.ci); }));
+  let ci = -1;
+  if (pre) {                                                     // explore 표 클릭 프리셀렉트
+    const k = _aptKeyJs(pre.apt);
+    ci = b.complexes.findIndex(c => _aptKeyJs(c.apt) === k && (!pre.umd || c.umd === pre.umd));
+    if (ci < 0) ci = b.complexes.findIndex(c => _aptKeyJs(c.apt) === k);
+    if (ci >= 0 && pre.area != null && !isNaN(pre.area)) {
+      // explore 표 면적은 1자리 반올림(84.97→85.0)이라 floor 가 경계에서 빗나감 —
+      // 대표 전용면적이 가장 가까운 밴드로 매칭(±1㎡ 이내일 때만).
+      let best = null, dmin = Infinity;
+      for (const x of b.complexes[ci].bands) {
+        const dd = Math.abs(x.area - pre.area);
+        if (dd < dmin) { dmin = dd; best = x.b; }
+      }
+      if (best != null && dmin <= 1) state.apt.sel.band = best;
+    }
+  }
+  if (ci >= 0) _aptSelectComplex(ci);
+  else _aptClearView();
+}
+
+function _aptSelectComplex(ci) {
+  const b = _aptBundle();
+  if (!b || !b.complexes[ci]) return;
+  const c = b.complexes[ci];
+  state.apt.sel.ci = ci;
+  if (!c.bands.some(x => x.b === state.apt.sel.band)) {          // 기본 = 매매 최다 밴드
+    let best = c.bands[0], bestN = -1;
+    for (const bd of c.bands) {
+      const n = bd.sale.n.reduce((a, x) => a + x, 0);
+      if (n > bestN) { bestN = n; best = bd; }
+    }
+    state.apt.sel.band = best.b;
+  }
+  state.apt.sel.startMi = null;
+  document.getElementById('ma-apt').value = `${c.apt} (${c.umd})`;
+  _renderAptBands();
+  renderAptAll();
+  _aptEnsureTx();                                                // 거래상세 비동기 — 도착 시 갱신
+}
+
+function _aptResolveInput() {
+  const b = _aptBundle();
+  if (!b) return;
+  const v = document.getElementById('ma-apt').value.trim();
+  if (!v) return;
+  const exact = b.complexes.findIndex(c => `${c.apt} (${c.umd})` === v);
+  if (exact >= 0) { state.apt.sel.band = null; return _aptSelectComplex(exact); }
+  const k = _aptKeyJs(v.replace(/\s*\(.*\)\s*$/, ''));           // "(법정동)" 접미 제거 후 prefix 매칭
+  const hits = b.complexes.reduce((acc, c, i) => (_aptKeyJs(c.apt).startsWith(k) && acc.push(i), acc), []);
+  if (hits.length === 1) { state.apt.sel.band = null; _aptSelectComplex(hits[0]); }
+}
+
+async function _aptEnsureTx() {
+  const d = state.apt.index, sgg = state.apt.sel.sgg;
+  const region = d && d.regions.find(r => r.sgg === sgg);
+  if (!region || state.apt.txCache[sgg]) return;
+  delete state.apt.txFail[sgg];                                  // 재선택 시 재시도 허용
+  try { await _aptFetchJson(region.tx_file, 'txCache', sgg); }
+  catch (e) { state.apt.txFail[sgg] = true; }                    // 거래상세 없음 — 시계열만 표시
+  if (state.apt.sel.sgg === sgg) renderAptAll();                 // 도착/실패 후 산점도·표·캡션 갱신
+}
+
+function _aptClearView() {
+  state.apt.sel.ci = -1; state.apt.sel.band = null; state.apt.sel.startMi = null;
+  document.getElementById('ma-bands').innerHTML = '';
+  document.getElementById('ma-meta').textContent = '단지명을 검색하거나 위 상위 단지 버튼을 누르세요.';
+  ['ma-price', 'ma-jr', 'ma-bt'].forEach(id => { const el = document.getElementById(id); if (el) Plotly.purge(el); });
+  document.getElementById('ma-jr').style.display = 'none';
+  document.getElementById('ma-bt-cards').innerHTML = '';
+  document.getElementById('ma-bt-note').textContent = '';
+  document.getElementById('ma-bt-start').innerHTML = '';
+  document.getElementById('ma-tx').innerHTML = '';
+  document.getElementById('ma-tx-cap').textContent = '';
+}
+
+function _renderAptBands() {
+  const c = _aptComplex(), el = document.getElementById('ma-bands');
+  if (!c) { el.innerHTML = ''; return; }
+  el.innerHTML = c.bands.map(bd => {
+    const n = bd.sale.n.reduce((a, x) => a + x, 0);
+    return `<button type="button" data-b="${bd.b}" class="${bd.b === state.apt.sel.band ? 'active' : ''}">` +
+      `${bd.area}㎡ (${n}건)</button>`;
+  }).join('');
+  el.querySelectorAll('button').forEach(btn => btn.addEventListener('click', () => {
+    state.apt.sel.band = parseInt(btn.dataset.b, 10);
+    state.apt.sel.startMi = null;
+    _renderAptBands();
+    renderAptAll();
+  }));
+}
+
+function renderAptAll() {
+  const d = state.apt.index, b = _aptBundle(), c = _aptComplex(), bd = _aptBand();
+  if (!d || !b || !c || !bd) return;
+  document.getElementById('ma-meta').textContent =
+    `${b.name} ${c.umd} · ${c.apt} · 전용 ${bd.area}㎡ · 건축 ${c.build == null ? '-' : c.build}년 · ` +
+    `누적 매매 ${c.sale_n.toLocaleString()}건 / 전세 ${c.jeonse_n.toLocaleString()}건`;
+  _renderAptPrice();
+  _renderAptJr();
+  _renderAptStartOptions();
+  _renderAptBacktest();
+  _renderAptTx();
+}
+
+function _renderAptPrice() {
+  const b = _aptBundle(), bd = _aptBand();
+  if (!bd) return;
+  const traces = [{
+    type: 'scatter', mode: 'lines+markers', name: '단지 중위 ㎡가',
+    x: bd.sale.mi.map(_aptMiIso), y: bd.sale.px.map(p => +(p / bd.area).toFixed(1)),
+    customdata: bd.sale.n, line: { width: 2, color: cssVar('--accent') }, marker: { size: 5 },
+    hovertemplate: '%{x|%Y-%m} %{y}만원/㎡ (%{customdata}건)<extra>단지</extra>',
+  }];
+  const tx = state.apt.txCache[state.apt.sel.sgg];
+  if (tx) {                                                      // 개별 실거래 산점(매매)
+    const xs = [], ys = [], cd = [];
+    for (let i = 0; i < tx.tx.ci.length; i++) {
+      if (tx.tx.ci[i] !== state.apt.sel.ci || tx.tx.side[i] !== 0) continue;
+      if (Math.floor(tx.tx.area[i] / 10) !== bd.b || tx.tx.price[i] == null) continue;
+      xs.push(_aptMiIso(tx.tx.mi[i]).slice(0, 8) + String(tx.tx.day[i] || 15).padStart(2, '0'));
+      ys.push(+(tx.tx.price[i] / (tx.tx.area[i] / 10)).toFixed(1));
+      cd.push([tx.tx.floor[i] == null ? '-' : tx.tx.floor[i] + '층', (tx.tx.price[i] / 10000).toFixed(1)]);
+    }
+    if (xs.length) traces.push({
+      type: 'scatter', mode: 'markers', name: `실거래 (최근 ${tx.window_years}년)`,
+      x: xs, y: ys, customdata: cd, marker: { size: 5, opacity: 0.45, color: PALETTE[3] },
+      hovertemplate: '%{x|%Y-%m-%d} · %{customdata[0]} · %{customdata[1]}억<extra></extra>',
+    });
+  }
+  traces.push({
+    type: 'scatter', mode: 'lines', name: `${b.name} 중위`, connectgaps: false,
+    x: b.gu.sale_ppa.map((_, i) => _aptMiIso(i)), y: b.gu.sale_ppa,
+    line: { width: 1.2, dash: 'dot', color: cssVar('--chart-muted') },
+    hovertemplate: '%{x|%Y-%m} %{y}만원/㎡<extra>' + b.name + '</extra>',
+  });
+  Plotly.react('ma-price', traces,
+    _meLayout('매매 중위 ㎡가 (만원/㎡) — 마커=실거래 발생월', ''), { displaylogo: false, responsive: true });
+}
+
+function _renderAptJr() {
+  const d = state.apt.index, b = _aptBundle(), bd = _aptBand();
+  const el = document.getElementById('ma-jr');
+  const hasJ = bd && bd.jeonse.mi.length > 0;
+  el.style.display = hasJ ? '' : 'none';
+  if (!hasJ) return;
+  // 단지 전세가율 = 전세 중위보증금 / 매매 평활레벨(같은 달, 희박월은 직전가) ×100
+  const dense = RE_APT.denseSeries(bd.sale, d.n_months, { smooth: d.smooth });
+  const xs = [], ys = [];
+  for (let k = 0; k < bd.jeonse.mi.length; k++) {
+    const lvl = dense[bd.jeonse.mi[k]];
+    if (lvl == null) continue;
+    xs.push(_aptMiIso(bd.jeonse.mi[k]));
+    ys.push(+((bd.jeonse.depo[k] / lvl) * 100).toFixed(1));
+  }
+  const traces = [
+    { type: 'scatter', mode: 'lines+markers', name: '단지 전세가율', x: xs, y: ys,
+      line: { width: 2, color: cssVar('--accent') }, marker: { size: 5 },
+      hovertemplate: '%{x|%Y-%m} %{y}%<extra>단지</extra>' },
+    { type: 'scatter', mode: 'lines', name: `${b.name} 중위`, connectgaps: false,
+      x: b.gu.jeonse_ratio.map((_, i) => _aptMiIso(i)), y: b.gu.jeonse_ratio,
+      line: { width: 1.2, dash: 'dot', color: cssVar('--chart-muted') },
+      hovertemplate: '%{x|%Y-%m} %{y}%<extra>' + b.name + '</extra>' }];
+  Plotly.react('ma-jr', traces,
+    _meLayout('전세가율 (전세 중위보증금 / 매매 평활가, %)', '%'), { displaylogo: false, responsive: true });
+}
+
+function _renderAptStartOptions() {
+  const bd = _aptBand(), sel = document.getElementById('ma-bt-start');
+  if (!bd) { sel.innerHTML = ''; return; }
+  sel.innerHTML = bd.sale.mi.map(mi => `<option value="${mi}">${_aptMiIso(mi).slice(0, 7)}</option>`).join('');
+  if (state.apt.sel.startMi == null || !bd.sale.mi.includes(state.apt.sel.startMi))
+    state.apt.sel.startMi = bd.sale.mi[0];
+  sel.value = String(state.apt.sel.startMi);
+}
+
+function _renderAptBacktest() {
+  const d = state.apt.index, b = _aptBundle(), bd = _aptBand();
+  if (!d || !b || !bd) return;
+  const note = document.getElementById('ma-bt-note');
+  const cards = document.getElementById('ma-bt-cards');
+  const startMi = state.apt.sel.startMi;
+  const g = RE_APT.guards(bd, d.bt_guards, bd.bt ? startMi : null);
+  if (!bd.bt || !g.ok) {                                         // 희박 가드 — 추이만 제공
+    cards.innerHTML = '';
+    Plotly.purge(document.getElementById('ma-bt'));
+    note.textContent = `⚠ 데이터 부족으로 백테스트 생략 — ${g.reason || '거래 희박'}. 위 추이 차트만 참고하세요.`;
+    return;
+  }
+  note.textContent = `⚠ 단지 월 중위가는 거래 희박월 직전가 유지(ffill)·${d.smooth}개월 평활 — ` +
+    '실제 체결 변동보다 부드럽게 보이고, 동일주택 반복거래가 아니라 구성편향이 남습니다. ' +
+    '세 곡선 모두 같은 비용을 차감해 비교합니다(양도세 미반영).';
+  const costs = { entry: d.costs.entry, holdingAnnual: d.costs.holding_annual, exitCost: 0 };
+  const dense = RE_APT.denseSeries(bd.sale, d.n_months, { smooth: d.smooth });
+  const rng = RE_APT.validRange(dense);
+  const s0 = Math.max(rng.first, startMi == null ? rng.first : startMi);
+  if (rng.last - s0 < 12) {
+    cards.innerHTML = '';
+    Plotly.purge(document.getElementById('ma-bt'));
+    note.textContent = '⚠ 선택한 매수 시점 이후 데이터가 12개월 미만 — 시점을 앞당겨 보세요.';
+    return;
+  }
+  const dates = [];
+  for (let i = s0; i <= rng.last; i++) dates.push(_aptMiIso(i));
+  const series = [{ name: `단지 (전용 ${bd.area}㎡)`, color: cssVar('--accent'), w: 2,
+                    nav: RE_APT.netNav(dense.slice(s0, rng.last + 1), costs) }];
+  const guSparse = { mi: [], px: [] };                           // 시군구 중위 — 같은 평활·같은 비용
+  b.gu.sale_ppa.forEach((v, i) => { if (v != null) { guSparse.mi.push(i); guSparse.px.push(v); } });
+  const guDense = RE_APT.denseSeries(guSparse, d.n_months, { smooth: d.smooth });
+  if (guDense[s0] != null && guDense[rng.last] != null)
+    series.push({ name: `${b.name} 중위`, color: PALETTE[1], w: 1.3,
+                  nav: RE_APT.netNav(guDense.slice(s0, rng.last + 1), costs) });
+  if (b.index && b.index.values[s0] != null) {                   // 부동산원 실거래지수(도시)
+    const iv = b.index.values.slice(s0, rng.last + 1);
+    if (!iv.some(v => v == null))
+      series.push({ name: b.index.name, color: PALETTE[2], w: 1.3, nav: RE_APT.netNav(iv, costs) });
+  }
+  cards.innerHTML = series.map(s => {
+    const mt = computeMetrics(dates, s.nav, 12);
+    return `<div class="ext-card"><div class="lab">${s.name}</div>` +
+      `<div class="val">${_apct(mt.CAGR)}</div>` +
+      `<div class="sub">연복리 · MDD ${_apct(mt.mdd)} · 총 ${_apct(mt.total, 0)}</div></div>`;
+  }).join('');
+  const traces = series.map((s, i) => ({
+    type: 'scatter', mode: 'lines', name: s.name, x: dates, y: s.nav,
+    line: { width: s.w, color: s.color, dash: i === 0 ? undefined : 'dot' },
+    hovertemplate: '%{x|%Y-%m} %{y:.3f}<extra>' + s.name + '</extra>',
+  }));
+  Plotly.react('ma-bt', traces,
+    _meLayout(`매수후보유 NAV (${dates[0].slice(0, 7)} 매수 = 1.0, 비용 차감)`, ''),
+    { displaylogo: false, responsive: true });
+}
+
+function _renderAptTx() {
+  const tx = state.apt.txCache[state.apt.sel.sgg];
+  const bd = _aptBand(), c = _aptComplex();
+  const cap = document.getElementById('ma-tx-cap'), wrap = document.getElementById('ma-tx');
+  if (!bd || !c) { cap.textContent = ''; wrap.innerHTML = ''; return; }
+  if (!tx) {
+    cap.textContent = state.apt.txFail[state.apt.sel.sgg]
+      ? '거래 상세를 불러오지 못했습니다 — 시계열·백테스트만 표시' : '거래 상세 불러오는 중…';
+    wrap.innerHTML = '';
+    return;
+  }
+  const idxs = [];
+  let total = 0;
+  for (let i = tx.tx.ci.length - 1; i >= 0; i--) {               // 파일은 오름차순 → 역순=최신순
+    if (tx.tx.ci[i] !== state.apt.sel.ci || Math.floor(tx.tx.area[i] / 10) !== bd.b) continue;
+    total++;
+    if (idxs.length < 1000) idxs.push(i);
+  }
+  const body = idxs.map(i => {
+    const a = tx.tx.area[i] / 10, p = tx.tx.price[i];
+    const dayS = tx.tx.day[i] == null ? '' : '-' + String(tx.tx.day[i]).padStart(2, '0');
+    return `<tr><td>${_aptMiIso(tx.tx.mi[i]).slice(0, 7)}${dayS}</td>` +
+      `<td>${tx.tx.side[i] === 0 ? '매매' : '전세'}</td><td>${a}㎡</td>` +
+      `<td>${tx.tx.floor[i] == null ? '-' : tx.tx.floor[i] + '층'}</td>` +
+      `<td>${p == null ? '-' : (p / 10000).toFixed(1) + '억'}</td>` +
+      `<td>${p == null ? '-' : Math.round(p / a).toLocaleString()}</td></tr>`;
+  }).join('');
+  wrap.innerHTML = '<table class="metrics"><thead><tr><th>거래일</th><th>구분</th><th>전용</th>' +
+    `<th>층</th><th>가격</th><th>만원/㎡</th></tr></thead><tbody>${body}</tbody></table>`;
+  cap.textContent = `${c.apt} 전용 ${bd.area}㎡ 실거래 — 최근 ${tx.window_years}년 ${total.toLocaleString()}건` +
+    (total > idxs.length ? ` 중 최신 ${idxs.length}건 표시` : '') + ' (국토교통부, 매매가·전세보증금)';
+}
+
+function _jumpToApt(city, regionShort, aptName, umd, area) {     // explore 표 → 단지 뷰 점프
+  const entry = state.manifest.find(mf => mf.mode === 'molit_apt' && mf.group.startsWith(city));
+  if (!entry) return;
+  state.apt.preselect = { region: regionShort, apt: aptName, umd: umd || '', area: isNaN(area) ? null : area };
+  if (state.nav.group === entry.group) loadTool(entry, 'molit_apt');
+  else setGroup(entry.group);                                    // setGroup→setCurrency→loadTool 체인
 }
 
 // 시장심리 분류 (signals.py와 동일 임계·설명) — {l:라벨, c:색, d:설명}.
