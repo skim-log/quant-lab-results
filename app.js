@@ -988,13 +988,13 @@ const CAT_ORDER = { dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, m
 const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
   crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩', realestate: '부동산',
   paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도' };
-// 4대분류: 자산배분(8자산) / 주식·레버리지(한국 모멘텀·미국 TQQQ) / 코인(BTC/ETH/XRP) /
+// 4대분류: 자산배분(8자산) / 주식(한국 모멘텀·미국 TQQQ·지수 모멘텀) / 코인(BTC/ETH/XRP) /
 //          도구·지표(계산기·심리·경보·데이터정확도). 코인은 전통자산과 위험특성이 달라 독립 영역.
 const SUPER_OF = { dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
   momentum: 'strat', crypto: 'coin', realestate: 're',
   paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools' };
 const SUPER_ORDER = { alloc: 0, strat: 1, coin: 2, re: 3, tools: 4 };
-const SUPER_LABEL = { alloc: '자산배분', strat: '주식·레버리지', coin: '코인', re: '부동산', tools: '도구·지표' };
+const SUPER_LABEL = { alloc: '자산배분', strat: '주식', coin: '코인', re: '부동산', tools: '도구·지표' };
 
 function catsPresent() {
   return [...new Set(state.manifest.map(m => m.category))]
