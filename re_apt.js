@@ -59,6 +59,26 @@
     return nav;
   }
 
+  /** 갭투자 자기자본 NAV — src/strategies/re/gap.py::gap_equity_nav 미러.
+   *  levels: 유효 구간 매매가 배열(슬라이스됨), ratio0: 초기 전세가율(0<ratio0<1) → 레버리지 1/(1-ratio0).
+   *  순자산 = 집값비율 − 초기전세가율 − 누적보유세, 자기자본 기준 정규화. 시작=1.0. */
+  function gapEquityNav(levels, ratio0, costs) {
+    const n = levels.length;
+    if (n < 2 || !(ratio0 > 0 && ratio0 < 1)) return new Array(n).fill(1.0);
+    const e0 = 1 - ratio0, holdM = (costs.holdingAnnual || 0) / 12, entry = costs.entry || 0;
+    const v0 = levels[0];
+    const nav = new Array(n);
+    let holdCum = 0;                                  // Σ_{j=1..i} holdM·value_j (Python cumsum − value_0항)
+    for (let i = 0; i < n; i++) {
+      const value = levels[i] / v0;
+      if (i > 0) holdCum += holdM * value;
+      nav[i] = (value - ratio0 - holdCum) / e0;       // 순자산 / 자기자본
+    }
+    nav[0] = 1.0;
+    if (entry) for (let i = 1; i < n; i++) nav[i] *= (1 - entry / e0);   // 취득비용 일회(자기자본 대비)
+    return nav;
+  }
+
   /** 백테스트 가드 — 번들 밴드의 sale {mi,n} 로 재계산(메시지용; Python bt 플래그가 1차 진실).
    *  cfg: {min_tx, min_months, min_span, max_gap}, fromMi(선택): 사용자 시작월 이후만 평가. */
   function guards(band, cfg, fromMi) {
@@ -86,7 +106,7 @@
     return first < 0 ? null : { first, last };
   }
 
-  const API = { denseSeries, netNav, guards, validRange };
+  const API = { denseSeries, netNav, gapEquityNav, guards, validRange };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;   // node(패리티 테스트)
   root.RE_APT = API;                                                           // 브라우저 전역
 })(typeof window !== 'undefined' ? window : globalThis);

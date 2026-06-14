@@ -57,8 +57,17 @@ for (const c of fix.cases) {
   let ne = 0;
   for (let i = 0; i < nav.length; i++) ne = Math.max(ne, Math.abs(nav[i] - c.expect_nav[i]));
   maxErr = Math.max(maxErr, ne);
-  if (ne > TOL) { console.error(`✗ ${c.name}/nav: 최대오차 ${ne.toExponential(3)} > ${TOL}`); fails++; }
-  else console.log(`  ✓ ${c.name}  dense=${de.toExponential(2)}  nav=${ne.toExponential(2)}  n=${nav.length}`);
+  if (ne > TOL) { console.error(`✗ ${c.name}/nav: 최대오차 ${ne.toExponential(3)} > ${TOL}`); fails++; continue; }
+
+  // ③ gapEquityNav — 전세 레버리지 자기자본 NAV (절대오차)
+  let ge = 0;
+  if (c.expect_gap_nav) {
+    const gnav = RE_APT.gapEquityNav(levels, c.gap_ratio, { entry: c.costs.entry, holdingAnnual: c.costs.holding });
+    for (let i = 0; i < gnav.length; i++) ge = Math.max(ge, Math.abs(gnav[i] - c.expect_gap_nav[i]));
+    maxErr = Math.max(maxErr, ge);
+    if (ge > TOL) { console.error(`✗ ${c.name}/gap: 최대오차 ${ge.toExponential(3)} > ${TOL}`); fails++; continue; }
+  }
+  console.log(`  ✓ ${c.name}  dense=${de.toExponential(2)}  nav=${ne.toExponential(2)}  gap=${ge.toExponential(2)}  n=${nav.length}`);
 }
 
 // 가드 자기검증 — 임계 경계(재계산 로직 스모크; Python bt 플래그가 1차 진실)

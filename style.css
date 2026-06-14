@@ -190,6 +190,9 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 0 1.2rem 2.5rem; }
 .cur-toggle button:disabled { opacity: 0.4; cursor: not-allowed; }
 .cur-toggle button:disabled:hover { color: var(--muted); }
 .ctl-nav, .ctl-cur { display: inline-flex; align-items: center; gap: 0.5rem; }
+/* 좁은 화면: 영역/분류 탭 묶음이 칸 너비를 넘으면 우측이 잘리지 않고 칸 안에서 가로 스크롤 */
+.ctl-nav { min-width: 0; max-width: 100%; }
+.ctl-nav .cat-tabs { min-width: 0; max-width: 100%; overflow-x: auto; scrollbar-width: thin; }
 
 fieldset#strategies {
   border: 1px solid var(--border); border-radius: var(--radius-sm);

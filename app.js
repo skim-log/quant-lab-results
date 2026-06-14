@@ -916,7 +916,7 @@ function applyTheme(theme, persist) {
     else if (t.kind === 'sentiment') renderSentiment(t.data);
     else if (t.kind === 'trend') renderTrend(t.data);
     else if (t.kind === 'molit_explore') renderMolitExplore(t.data);   // 테마 토글 시 차트 재채색
-    else if (t.kind === 'molit_apt') renderAptAll();
+    else if (t.kind === 'molit_apt') { renderAptAll(); _renderAptSelect(_aptBundle()); }
   } else if (state.data) {
     if (state.data.kind === 'analytics') renderAnalytics(state.data);
     else { render(); if (state.sweep) renderSweep(); if (state.blendFrontier) _drawBlendFrontier(); }   // 스윕·블렌드 프론티어도 새 테마로 재색
@@ -1462,6 +1462,7 @@ async function _aptSelectGu(sgg, pre) {
     .map((c, i) => `<button type="button" data-ci="${i}">${c.apt}</button>`).join('');
   top.querySelectorAll('button').forEach(btn =>
     btn.addEventListener('click', () => { state.apt.sel.band = null; _aptSelectComplex(+btn.dataset.ci); }));
+  _renderAptSelect(b);                                           // 구 내 단지 선택 전략(연구용)
   let ci = -1;
   if (pre) {                                                     // explore 표 클릭 프리셀렉트
     const k = _aptKeyJs(pre.apt);
@@ -1678,6 +1679,21 @@ function _renderAptBacktest() {
     if (!iv.some(v => v == null))
       series.push({ name: b.index.name, color: PALETTE[2], w: 1.3, nav: RE_APT.netNav(iv, costs) });
   }
+  // 갭투자 오버레이: 매수 시점 전세가율로 전세 무이자 레버리지(1/(1−전세가율)) 적용한 자기자본 NAV.
+  // 이 프로젝트의 '살아남은 엣지' — 전세보증금 무이자 레버리지를 단지 단위로 적용.
+  let gapRatio = null;
+  if (bd.jeonse.mi.length) {
+    const jDense = RE_APT.denseSeries({ mi: bd.jeonse.mi, px: bd.jeonse.depo }, d.n_months, { smooth: d.smooth });
+    for (let k = s0; k <= rng.last; k++) {        // 매수시점 이후 전세가 처음 잡히는 달의 전세가율(진입 레버)
+      if (jDense[k] != null && dense[k]) { gapRatio = jDense[k] / dense[k]; break; }
+    }
+  }
+  if (gapRatio != null && gapRatio > 0.2 && gapRatio < 0.95) {
+    series.push({ name: `갭 매수 (전세레버 ${(1 / (1 - gapRatio)).toFixed(1)}x)`, color: PALETTE[4], w: 1.6,
+                  nav: RE_APT.gapEquityNav(dense.slice(s0, rng.last + 1), gapRatio, costs), gap: true });
+    note.textContent += ` 갭 매수선은 매수월 전세가율 ${(gapRatio * 100).toFixed(0)}%(레버 ` +
+      `${(1 / (1 - gapRatio)).toFixed(1)}x)로 집값 변동을 증폭 — ⚠ 자기자본 가치만 표시하며 역전세 시 보증금 반환 현금부담은 별도 리스크.`;
+  }
   cards.innerHTML = series.map(s => {
     const mt = computeMetrics(dates, s.nav, 12);
     return `<div class="ext-card"><div class="lab">${s.name}</div>` +
@@ -1686,7 +1702,7 @@ function _renderAptBacktest() {
   }).join('');
   const traces = series.map((s, i) => ({
     type: 'scatter', mode: 'lines', name: s.name, x: dates, y: s.nav,
-    line: { width: s.w, color: s.color, dash: i === 0 ? undefined : 'dot' },
+    line: { width: s.w, color: s.color, dash: s.gap ? 'dash' : (i === 0 ? undefined : 'dot') },
     hovertemplate: '%{x|%Y-%m} %{y:.3f}<extra>' + s.name + '</extra>',
   }));
   Plotly.react('ma-bt', traces,
@@ -1727,6 +1743,37 @@ function _renderAptTx() {
     (total > idxs.length ? ` 중 최신 ${idxs.length}건 표시` : '') + ' (국토교통부, 매매가·전세보증금)';
 }
 
+// 구 내 단지 횡단면 선택 전략(연구용) — 번들의 사전계산 NAV(동일비중·모멘텀·밸류·콤보)를 그린다.
+// 단지 선택과 무관(구 단위) — 구 번들 로드 시 1회 렌더. 거래 가능 전략이 아니라 신호 연구.
+function _renderAptSelect(b) {
+  const note = document.getElementById('ma-sel-note');
+  const cards = document.getElementById('ma-sel-cards');
+  const el = document.getElementById('ma-sel');
+  const sel = b && b.select;
+  if (!sel || !sel.curves || !sel.dates) {
+    cards.innerHTML = ''; note.textContent = `${b ? b.name + ' — ' : ''}선택 전략 표본 부족(장기 거래 단지 8개 미만) — 생략.`;
+    Plotly.purge(el); return;
+  }
+  note.textContent = `${b.name} 최근 ${Math.round(sel.dates.length / 12)}년 내내 거래된 단지 ${sel.universe}개를 ` +
+    '매월 신호로 Top10 동일비중 보유(연 1회 리밸·부동산 라운드트립 비용 차감), 벤치=동일비중. ' +
+    '⚠ 아파트는 비유동·통째 매수라 월별 리밸이 비현실적이고, 구간 내내 거래된 단지만 남겨 생존편향이 있는 ' +
+    '**신호 예측력 연구**입니다(거래 가능 전략 아님). 선택 신호가 동일비중을 못 이기면 "분산 보유" 손이 낫다는 뜻.';
+  const names = Object.keys(sel.curves);
+  cards.innerHTML = names.map((nm, i) => {
+    const mt = computeMetrics(sel.dates, sel.curves[nm], 12);
+    return `<div class="ext-card"><div class="lab">${nm}</div><div class="val">${_apct(mt.CAGR)}</div>` +
+      `<div class="sub">연복리 · MDD ${_apct(mt.mdd)} · 총 ${_apct(mt.total, 0)}</div></div>`;
+  }).join('');
+  const traces = names.map((nm, i) => ({
+    type: 'scatter', mode: 'lines', name: nm, x: sel.dates, y: sel.curves[nm],
+    line: { width: i === 0 ? 2.2 : 1.4, color: i === 0 ? cssVar('--accent') : PALETTE[i],
+            dash: i === 0 ? undefined : 'dot' },
+    hovertemplate: '%{x|%Y-%m} %{y:.3f}<extra>' + nm + '</extra>',
+  }));
+  Plotly.react(el, traces, _meLayout(`${b.name} 단지 선택 전략 NAV (시작=1.0, 비용 차감)`, ''),
+    { displaylogo: false, responsive: true });
+}
+
 function _jumpToApt(city, regionShort, aptName, umd, area) {     // explore 표 → 단지 뷰 점프
   const entry = state.manifest.find(mf => mf.mode === 'molit_apt' && mf.group.startsWith(city));
   if (!entry) return;
@@ -1765,19 +1812,21 @@ const CRYPTO_ZONES = [[0, 25, '#dc2626'], [25, 45, '#ea580c'], [45, 55, '#6b7280
 function _sentiChart(elId, title, points, zones, opts = {}) {
   const pts = (points || []).filter(p => p && p.v != null);
   if (!pts.length) { setHidden(elId, true); return; }
+  setHidden(elId, false);   // react 전에 보이게 — display:none 상태로 그리면 Plotly가 컨테이너 높이(300px)를
+                            // 못 재고 기본 450px로 그려 아래 캡션(#senti-note)을 덮는다.
   const layout = baseLayout(title, opts.ytitle || '');
   if (opts.yrange) layout.yaxis.range = opts.yrange;
   if (zones) layout.shapes = zones.map(([y0, y1, c]) =>
     ({ type: 'rect', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0, y1, fillcolor: c, opacity: 0.1, line: { width: 0 }, layer: 'below' }));
   Plotly.react(elId, [{ type: 'scatter', mode: 'lines', x: pts.map(p => p.t), y: pts.map(p => p.v),
     line: { color: cssVar('--chart-fg'), width: 2 }, hovertemplate: '%{y:,.2f}<extra>%{x}</extra>' }], layout, PLOTCFG);
-  setHidden(elId, false);
 }
 
 // 금·은 가격 2축(스케일 차이 큼: 금 ~$수천/oz · 은 ~$수십/oz)
 function _metalPriceChart(elId, gold, silver) {
   const g = (gold || []).filter(p => p && p.v != null), s = (silver || []).filter(p => p && p.v != null);
   if (!g.length && !s.length) { setHidden(elId, true); return; }
+  setHidden(elId, false);   // react 전에 보이게(높이 측정용) — _sentiChart 와 동일 이유
   const muted = cssVar('--chart-muted');
   const layout = baseLayout('금·은 가격 (5년)', '금 $/oz');
   layout.yaxis2 = { title: { text: '은 $/oz', font: { color: muted } }, overlaying: 'y', side: 'right', showgrid: false, tickfont: { color: muted } };
@@ -1785,7 +1834,6 @@ function _metalPriceChart(elId, gold, silver) {
   if (g.length) tr.push({ type: 'scatter', mode: 'lines', name: '금', x: g.map(p => p.t), y: g.map(p => p.v), line: { color: '#f59e0b', width: 2 }, hovertemplate: '금 $%{y:,.0f}<extra></extra>' });
   if (s.length) tr.push({ type: 'scatter', mode: 'lines', name: '은', x: s.map(p => p.t), y: s.map(p => p.v), yaxis: 'y2', line: { color: '#9ca3af', width: 2 }, hovertemplate: '은 $%{y:,.2f}<extra></extra>' });
   Plotly.react(elId, tr, layout, PLOTCFG);
-  setHidden(elId, false);
 }
 
 function _cryptoFgChart(elId, cf) {
