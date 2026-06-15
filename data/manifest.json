@@ -761,11 +761,19 @@
     "mode": "molit_apt"
   },
   {
+    "id": "re_rentbuy_seoul",
+    "category": "realestate",
+    "group": "전세 vs 매매 (서울)",
+    "currency": "krw",
+    "label": "부동산 · 전세 vs 매매 (서울) (KRW)",
+    "file": "re_rentbuy_seoul.json"
+  },
+  {
     "id": "re_rentbuy",
     "category": "realestate",
-    "group": "전세 vs 매매",
+    "group": "전세 vs 매매 (전국)",
     "currency": "krw",
-    "label": "부동산 · 전세 vs 매매 (KRW)",
+    "label": "부동산 · 전세 vs 매매 (전국) (KRW)",
     "file": "re_rentbuy.json"
   },
   {
