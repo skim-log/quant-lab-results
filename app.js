@@ -2058,9 +2058,13 @@ function enterAnalytics(payload) {
     setActivePreset(0);
   }
   state._analyticsCur = payload.currency || '';
-  // 분석 자산: 새 진입이면 전체, 통화 토글이면 기존 선택 유지(같은 8키).
+  // 분석 자산: 같은 자산 유니버스(=같은 데이터셋 통화 토글)면 선택 유지, 다른 데이터셋(예: 부동산 포함)이면 전체로 리셋.
   const allKeys = (payload.assets || []).map(a => a.key);
-  if (!wasAnalytics || !(state.selectedAssets || []).length) state.selectedAssets = allKeys.slice();
+  const sameUniverse = Array.isArray(state._analyticsKeys)
+    && state._analyticsKeys.length === allKeys.length
+    && state._analyticsKeys.every((k, i) => k === allKeys[i]);
+  if (!sameUniverse || !(state.selectedAssets || []).length) state.selectedAssets = allKeys.slice();
+  state._analyticsKeys = allKeys;
   renderAssetSelector();
   recomputeAnalytics();
 }
@@ -2093,14 +2097,16 @@ function renderAssetSelector() {
   }
   if (!state._assetWired) {
     if (ah) ah.addEventListener('change', e => {
+      const pp = state.analyticsPayload; if (!pp) return;   // 현재 데이터셋 기준(스테일 클로저 방지)
       const cb = e.target.closest('input[data-asset]'); if (!cb) return;
       const s = new Set(state.selectedAssets); cb.checked ? s.add(cb.dataset.asset) : s.delete(cb.dataset.asset);
-      state.selectedAssets = (p.assets || []).map(a => a.key).filter(k => s.has(k));
+      state.selectedAssets = (pp.assets || []).map(a => a.key).filter(k => s.has(k));
       recomputeAnalytics(); renderAssetSelector();
     });
     if (uh) uh.addEventListener('click', e => {
+      const pp = state.analyticsPayload; if (!pp) return;
       const b = e.target.closest('button[data-univ]'); if (!b) return;
-      const all = (p.assets || []).map(a => a.key), u = ANALYTICS_UNIVERSES[+b.dataset.univ];
+      const all = (pp.assets || []).map(a => a.key), u = ANALYTICS_UNIVERSES[+b.dataset.univ];
       state.selectedAssets = (u.keys || all).filter(k => all.includes(k));
       renderAssetSelector(); recomputeAnalytics();
     });
