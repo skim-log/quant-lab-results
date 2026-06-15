@@ -23,7 +23,8 @@ const PALETTE = ['#2563eb', '#10b981', '#dc2626', '#ea580c', '#9333ea', '#0891b2
 // 자산군 색 — 리밸런서 팔레트 정합(static 8자산 + 현금). 동적 전략의 계기자산(티커)은 PALETTE 폴백.
 const CAT_COLOR = { us_stock: '#2563eb', kr_stock: '#10b981', cn_stock: '#dc2626',
   in_stock: '#ea580c', gold: '#ca8a04', silver: '#94a3b8', us_bond: '#0891b2',
-  kr_bond: '#9333ea', cash: '#9ca3af', commodities: '#a16207' };
+  kr_bond: '#9333ea', cash: '#9ca3af', commodities: '#a16207',
+  re_kr: '#92400e', re_seoul: '#e11d48' };
 const FONT = '"Pretendard Variable",Pretendard,"Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif';
 
 const state = {
@@ -2066,12 +2067,13 @@ function enterAnalytics(payload) {
 
 // 정량분석 전통 포트폴리오 유니버스 프리셋(자산 부분집합). keys=null → 전체.
 const ANALYTICS_UNIVERSES = [
-  { label: '전체 (8자산)', keys: null, tip: '8자산 전부' },
+  { label: '전체', keys: null, tip: '현재 데이터셋의 전 자산' },
   { label: '미국 60/40', keys: ['us_stock', 'us_bond'], tip: '미국 주식·장기국채(클래식 60/40)' },
   { label: '영구 포트폴리오', keys: ['us_stock', 'us_bond', 'gold'], tip: '해리 브라운 — 주식·장기채·금(+현금)' },
   { label: '올웨더 근사', keys: ['us_stock', 'us_bond', 'gold', 'silver'], tip: '레이 달리오 풍 — 주식·채권·금·은' },
   { label: '글로벌 주식', keys: ['us_stock', 'kr_stock', 'cn_stock', 'in_stock'], tip: '미·한·중·인 주식' },
   { label: '글로벌 주식+채권', keys: ['us_stock', 'kr_stock', 'cn_stock', 'in_stock', 'us_bond', 'kr_bond'], tip: '4국 주식 + 미·한 채권' },
+  { label: '부동산 비교', keys: ['re_seoul', 're_kr', 'kr_stock', 'us_stock', 'gold', 'kr_bond'], tip: '부동산(서울·전국) vs 주식·금·채권 (부동산 포함 데이터셋에서)' },
 ];
 
 function renderAssetSelector() {

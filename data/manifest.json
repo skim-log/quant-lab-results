@@ -600,6 +600,22 @@
     "file": "multi_analytics_usd.json"
   },
   {
+    "id": "multi_analytics_re_krw",
+    "category": "analytics",
+    "group": "부동산 포함",
+    "currency": "krw",
+    "label": "정량분석 · 부동산 포함 (KRW)",
+    "file": "multi_analytics_re_krw.json"
+  },
+  {
+    "id": "multi_analytics_re_usd",
+    "category": "analytics",
+    "group": "부동산 포함",
+    "currency": "usd",
+    "label": "정량분석 · 부동산 포함 (USD)",
+    "file": "multi_analytics_re_usd.json"
+  },
+  {
     "id": "re_gaptiming",
     "category": "realestate",
     "group": "갭 × 추세 타이밍 (실거래지수)",
