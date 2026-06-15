@@ -528,6 +528,14 @@
     "file": "kr_all.json"
   },
   {
+    "id": "kr_index_trend",
+    "category": "momentum",
+    "group": "한국 대형주 모멘텀 (지수추세(v2))",
+    "currency": "krw",
+    "label": "모멘텀 · 한국 대형주 모멘텀 (지수추세(v2)) (KRW)",
+    "file": "kr_index_trend.json"
+  },
+  {
     "id": "crypto_btc_krw",
     "category": "crypto",
     "group": "BTC · 비트코인",
@@ -617,39 +625,6 @@
     "mode": "molit_apt"
   },
   {
-    "id": "re_molit_광주_timing",
-    "category": "realestate",
-    "group": "광주 매매 타이밍 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 광주 매매 타이밍 전략 (실거래) (KRW)",
-    "file": "re_molit_광주_timing.json"
-  },
-  {
-    "id": "re_molit_광주",
-    "category": "realestate",
-    "group": "광주 시군구 매매 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 광주 시군구 매매 (실거래) (KRW)",
-    "file": "re_molit_광주.json"
-  },
-  {
-    "id": "re_molit_광주_select",
-    "category": "realestate",
-    "group": "광주 시군구 선택 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 광주 시군구 선택 전략 (실거래) (KRW)",
-    "file": "re_molit_광주_select.json"
-  },
-  {
-    "id": "re_molit_광주_explore",
-    "category": "realestate",
-    "group": "광주 시군구 조회 (거래량·전세가율·실거래)",
-    "currency": "krw",
-    "label": "부동산 · 광주 시군구 조회 (거래량·전세가율·실거래) (KRW)",
-    "file": "re_molit_광주_explore.json",
-    "mode": "molit_explore"
-  },
-  {
     "id": "re_molit_대구_apt",
     "category": "realestate",
     "group": "대구 단지 조회 (개별 아파트)",
@@ -659,39 +634,6 @@
     "mode": "molit_apt"
   },
   {
-    "id": "re_molit_대구_timing",
-    "category": "realestate",
-    "group": "대구 매매 타이밍 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대구 매매 타이밍 전략 (실거래) (KRW)",
-    "file": "re_molit_대구_timing.json"
-  },
-  {
-    "id": "re_molit_대구",
-    "category": "realestate",
-    "group": "대구 시군구 매매 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대구 시군구 매매 (실거래) (KRW)",
-    "file": "re_molit_대구.json"
-  },
-  {
-    "id": "re_molit_대구_select",
-    "category": "realestate",
-    "group": "대구 시군구 선택 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대구 시군구 선택 전략 (실거래) (KRW)",
-    "file": "re_molit_대구_select.json"
-  },
-  {
-    "id": "re_molit_대구_explore",
-    "category": "realestate",
-    "group": "대구 시군구 조회 (거래량·전세가율·실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대구 시군구 조회 (거래량·전세가율·실거래) (KRW)",
-    "file": "re_molit_대구_explore.json",
-    "mode": "molit_explore"
-  },
-  {
     "id": "re_molit_대전_apt",
     "category": "realestate",
     "group": "대전 단지 조회 (개별 아파트)",
@@ -699,39 +641,6 @@
     "label": "부동산 · 대전 단지 조회 (개별 아파트) (KRW)",
     "file": "re_molit_대전_apt.json",
     "mode": "molit_apt"
-  },
-  {
-    "id": "re_molit_대전_timing",
-    "category": "realestate",
-    "group": "대전 매매 타이밍 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대전 매매 타이밍 전략 (실거래) (KRW)",
-    "file": "re_molit_대전_timing.json"
-  },
-  {
-    "id": "re_molit_대전",
-    "category": "realestate",
-    "group": "대전 시군구 매매 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대전 시군구 매매 (실거래) (KRW)",
-    "file": "re_molit_대전.json"
-  },
-  {
-    "id": "re_molit_대전_select",
-    "category": "realestate",
-    "group": "대전 시군구 선택 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대전 시군구 선택 전략 (실거래) (KRW)",
-    "file": "re_molit_대전_select.json"
-  },
-  {
-    "id": "re_molit_대전_explore",
-    "category": "realestate",
-    "group": "대전 시군구 조회 (거래량·전세가율·실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대전 시군구 조회 (거래량·전세가율·실거래) (KRW)",
-    "file": "re_molit_대전_explore.json",
-    "mode": "molit_explore"
   },
   {
     "id": "re_buyhold",
@@ -781,15 +690,6 @@
     "currency": "krw",
     "label": "부동산 · 부산 시군구 선택 전략 (실거래) (KRW)",
     "file": "re_molit_부산_select.json"
-  },
-  {
-    "id": "re_molit_부산_explore",
-    "category": "realestate",
-    "group": "부산 시군구 조회 (거래량·전세가율·실거래)",
-    "currency": "krw",
-    "label": "부동산 · 부산 시군구 조회 (거래량·전세가율·실거래) (KRW)",
-    "file": "re_molit_부산_explore.json",
-    "mode": "molit_explore"
   },
   {
     "id": "re_molit_서울_apt",
@@ -852,39 +752,6 @@
     "mode": "molit_apt"
   },
   {
-    "id": "re_molit_울산_timing",
-    "category": "realestate",
-    "group": "울산 매매 타이밍 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 울산 매매 타이밍 전략 (실거래) (KRW)",
-    "file": "re_molit_울산_timing.json"
-  },
-  {
-    "id": "re_molit_울산",
-    "category": "realestate",
-    "group": "울산 시군구 매매 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 울산 시군구 매매 (실거래) (KRW)",
-    "file": "re_molit_울산.json"
-  },
-  {
-    "id": "re_molit_울산_select",
-    "category": "realestate",
-    "group": "울산 시군구 선택 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 울산 시군구 선택 전략 (실거래) (KRW)",
-    "file": "re_molit_울산_select.json"
-  },
-  {
-    "id": "re_molit_울산_explore",
-    "category": "realestate",
-    "group": "울산 시군구 조회 (거래량·전세가율·실거래)",
-    "currency": "krw",
-    "label": "부동산 · 울산 시군구 조회 (거래량·전세가율·실거래) (KRW)",
-    "file": "re_molit_울산_explore.json",
-    "mode": "molit_explore"
-  },
-  {
     "id": "re_molit_인천_apt",
     "category": "realestate",
     "group": "인천 단지 조회 (개별 아파트)",
@@ -892,39 +759,6 @@
     "label": "부동산 · 인천 단지 조회 (개별 아파트) (KRW)",
     "file": "re_molit_인천_apt.json",
     "mode": "molit_apt"
-  },
-  {
-    "id": "re_molit_인천_timing",
-    "category": "realestate",
-    "group": "인천 매매 타이밍 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 인천 매매 타이밍 전략 (실거래) (KRW)",
-    "file": "re_molit_인천_timing.json"
-  },
-  {
-    "id": "re_molit_인천",
-    "category": "realestate",
-    "group": "인천 시군구 매매 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 인천 시군구 매매 (실거래) (KRW)",
-    "file": "re_molit_인천.json"
-  },
-  {
-    "id": "re_molit_인천_select",
-    "category": "realestate",
-    "group": "인천 시군구 선택 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 인천 시군구 선택 전략 (실거래) (KRW)",
-    "file": "re_molit_인천_select.json"
-  },
-  {
-    "id": "re_molit_인천_explore",
-    "category": "realestate",
-    "group": "인천 시군구 조회 (거래량·전세가율·실거래)",
-    "currency": "krw",
-    "label": "부동산 · 인천 시군구 조회 (거래량·전세가율·실거래) (KRW)",
-    "file": "re_molit_인천_explore.json",
-    "mode": "molit_explore"
   },
   {
     "id": "re_rentbuy",
