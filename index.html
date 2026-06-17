@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=0e9d3cea" />
+  <link rel="stylesheet" href="style.css?v=5700dc9f" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -383,6 +383,81 @@
       </section>
     </div>
 
+    <!-- 최적 레버리지 (leverage): S&P500·나스닥100 일별 상수레버리지 스윕 + 슬라이더 + 관리변동성 -->
+    <div id="leverage-section" class="hidden">
+      <section class="panel">
+        <h2>최적 레버리지 <span class="muted">(S&P500 · 나스닥100 — Tony Cooper 2010 재현, 최신 데이터)</span></h2>
+        <p class="period-note" id="lev-intro"></p>
+        <div class="bt-controls">
+          <span class="muted">지수</span><div id="lev-under" class="bt-toggle"></div>
+          <span class="muted" style="margin-left:.4rem">시나리오</span><div id="lev-scn" class="bt-toggle"></div>
+        </div>
+        <div class="bt-controls">
+          <span class="muted">기간</span><div id="lev-period" class="bt-toggle"></div>
+          <span id="lev-period-range" class="muted"></span>
+        </div>
+        <div class="exp-risk">
+          <span class="muted">레버리지</span>
+          <input type="range" id="lev-slider" min="0.5" max="5" step="0.1" value="2" style="flex:1" />
+          <span id="lev-slider-readout" class="lev-readout"></span>
+        </div>
+        <div class="lev-quick exp-quick">
+          <span class="muted">바로가기:</span>
+          <button type="button" data-lev="1">1× (무레버리지)</button>
+          <button type="button" data-lev="2">2×</button>
+          <button type="button" data-lev="3">3× (TQQQ/UPRO)</button>
+          <button type="button" id="lev-set-opt">CAGR 최적으로</button>
+        </div>
+        <div id="lev-cards" class="ext-cards"></div>
+        <p class="tool-disclaimer">⚠️ 일별 리밸런싱 상수 레버리지 가정(변동성 감쇠 자동 반영). 과거 최적이 미래 최적을 보장하지 않으며, 고레버리지는 −90%대 낙폭을 동반합니다. 정보·교육용.</p>
+      </section>
+      <section class="panel">
+        <h2>CAGR vs 레버리지 <span class="muted">(역-U 곡선 — 변동성 감쇠로 과레버리지는 오히려 손해)</span></h2>
+        <p class="period-note">선택 기간·시나리오의 모든 레버리지(0~5×)에서 연복리수익(CAGR)을 <strong>브라우저에서 즉석 재계산</strong>. ▲=CAGR 최적, 점선=현재 슬라이더 L, ◇=Cooper(2010) 논문 참고치.</p>
+        <div id="lev-curve" class="chart"></div>
+      </section>
+      <section class="panel">
+        <h2>위험 vs 레버리지 <span class="muted">(MDD·연변동성 — 레버리지의 대가)</span></h2>
+        <p class="period-note">최대낙폭(MDD)과 연변동성은 레버리지에 거의 비례~초선형으로 폭증합니다. CAGR 최적 부근에서도 −90%대 낙폭이 흔합니다.</p>
+        <div id="lev-risk" class="chart"></div>
+      </section>
+      <section class="panel">
+        <h2>자산곡선 <span class="muted">(현재 슬라이더 L · 1× · CAGR 최적 L 비교)</span></h2>
+        <div id="lev-equity" class="chart"></div>
+      </section>
+      <section class="panel">
+        <h2>관리 변동성 — 리스크 스무딩 <span class="muted">(논문 핵심: 목표변동성 동적 레버리지)</span></h2>
+        <p class="period-note" id="lev-managed-note">Cooper(2010)의 핵심 주장 — 고정 레버리지 대신 <strong>목표 변동성(예: 연 15·20%)</strong>을 정하고 최근 변동성에 반비례해 레버리지를 매일 조절(σ↑이면 레버리지↓)하면, 비슷하거나 나은 수익을 훨씬 낮은 낙폭으로 얻습니다('risk smoothing'). 선택 기간 기준 즉석 재계산.</p>
+        <div id="lev-managed-cards" class="ext-cards"></div>
+        <div id="lev-managed" class="chart"></div>
+      </section>
+      <section class="panel">
+        <h2>기간별 최적 레버리지 요약 <span class="muted">(논문 시점 ≤2009 vs 전체 vs 최근)</span></h2>
+        <div class="table-wrap"><table id="lev-summary" class="diag-table"></table></div>
+        <p class="period-note" id="lev-findings"></p>
+        <p class="period-note" id="lev-validation"></p>
+        <details class="theory">
+          <summary>💡 방법론 · 합성 레버리지 공식 · 켈리 직관</summary>
+          <div class="theory-body">
+            <h4>일별 상수 레버리지</h4>
+            <p>매일 목표 배수 L을 유지하도록 리밸런싱한 수익률:
+              <code>r_L = L·r − (L−1)·rf/252 − [ETF] (보수 + L·스왑스프레드)/252</code>.
+              (L−1)배 명목을 단기금리 rf로 차입합니다. 일별 복리이므로 <strong>변동성 감쇠(volatility decay)</strong>가 자동 발생 — 변동성이 큰 자산일수록 같은 L에서 손실이 큽니다.</p>
+            <h4>왜 역-U인가 · 켈리</h4>
+            <p>근사적으로 <code>CAGR(L) ≈ L·μ − ½·L²·σ²</code> 라서 <strong>최적 L* ≈ (μ−rf)/σ²</strong>(켈리/기하성장 최대화). 수익 μ가 클수록·변동성 σ가 작을수록 최적 레버리지가 높습니다. 그래서 변동성 높은 나스닥이 S&P보다 최적 L이 낮고, 저변동성 강세장(2010년대)에선 최적 L이 일시적으로 치솟습니다(레짐 의존·함정).</p>
+            <h4>두 시나리오</h4>
+            <ul>
+              <li><strong>이론</strong> — ETF 마찰 0, 차입만 rf. 레버리지의 이론적 최적.</li>
+              <li><strong>현실 ETF</strong> — 실제 3x ETF(TQQQ·UPRO)의 운용보수·스왑 스프레드 반영 → 최적 L과 CAGR이 소폭 하향.</li>
+            </ul>
+            <h4>데이터 · 합성 검증</h4>
+            <p>나스닥100 = ^NDX 지수(1985~, 배당 미반영)⊕QQQ(1999~ 총수익), S&P500 = ^GSPC(1980~)⊕SPY(1995~ 총수익) 스티칭. ETF 이전 가격수익률 구간은 배당 미반영(보수적). 합성 3×를 실제 TQQQ/UPRO와 대조해 일간 상관·누적비·추적오차로 신뢰성을 점검합니다(아래 검증 수치).</p>
+            <p class="muted">참고: Tony Cooper, "Alpha Generation and Risk Smoothing Using Managed Volatility" (2010).</p>
+          </div>
+        </details>
+      </section>
+    </div>
+
     <!-- 시군구 조회 (molit_explore): 거래량·전세가율 추이 + 최근 실거래 상세표 -->
     <div id="molit_explore-section" class="hidden">
       <section class="panel">
@@ -438,8 +513,11 @@
         <label>리밸런싱 <select id="pg-rebalance"></select></label>
         <label>밴드 ±<input type="number" id="pg-band" min="0" max="100" step="1" value="0" style="width:3.5rem" />%</label>
         <label class="ma-on" title="가격 > 200일선일 때만 보유, 아니면 그 자산 비중은 현금(0%)"><input type="checkbox" id="pg-ma" /> 200일선 필터</label>
+        <label title="포트폴리오 전체에 레버리지 배수 적용 — (L−1)배를 단기금리로 차입(월별 근사). 1.0=무레버리지">레버리지
+          <input type="range" id="pg-leverage" min="1" max="3" step="0.1" value="1" style="width:7rem;vertical-align:middle" />
+          <span id="pg-lev-readout" class="lev-readout">1.0×</span></label>
       </div>
-      <p class="period-note">비중·주기·밴드·기간·통화를 바꾸면 <strong>엔진을 새로 돌려</strong> 곡선·지표를 다시 계산합니다(진짜 재백테스트).</p>
+      <p class="period-note">비중·주기·밴드·기간·통화·<strong>레버리지</strong>를 바꾸면 <strong>엔진을 새로 돌려</strong> 곡선·지표를 다시 계산합니다(진짜 재백테스트). 레버리지는 월별 포트폴리오 수익에 <code>r_L=L·r−(L−1)·rf/12</code>로 적용한 근사이며, 일별 정확 분석은 <strong>정량분석 · 최적 레버리지</strong> 탭을 참고하세요.</p>
     </section>
 
     <!-- 전략 블렌딩 · 적립식 (body.blend-mode 일 때만 표시; 결과는 아래 표준 차트/패널로 렌더) -->
@@ -630,9 +708,10 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=0e9d3cea" defer></script>
-  <script src="re_apt.js?v=0e9d3cea" defer></script>
-  <script src="analytics-live.js?v=0e9d3cea" defer></script>
-  <script src="app.js?v=0e9d3cea" defer></script>
+  <script src="alloc.js?v=5700dc9f" defer></script>
+  <script src="re_apt.js?v=5700dc9f" defer></script>
+  <script src="analytics-live.js?v=5700dc9f" defer></script>
+  <script src="leverage.js?v=5700dc9f" defer></script>
+  <script src="app.js?v=5700dc9f" defer></script>
 </body>
 </html>

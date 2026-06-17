@@ -405,11 +405,17 @@ body:not(.tools-mode) #paradise-section,
 body:not(.tools-mode) #sentiment-section,
 body:not(.tools-mode) #trend-section,
 body:not(.tools-mode) #reliability-section,
-body:not(.tools-mode) #molit_explore-section { display: none; }
+body:not(.tools-mode) #molit_explore-section,
+body:not(.tools-mode) #leverage-section { display: none; }
 body.tools-mode main > section:not(.controls) { display: none !important; }
 body.tools-mode .ctl-period, body.tools-mode #strategies,
 body.tools-mode .ctl-check, body.tools-mode .ctl-cur,
 body.tools-mode #strategy-desc { display: none !important; }
+/* ---- 최적 레버리지 탭 ---- */
+#leverage-section > .panel:first-child { margin-top: 1.1rem; }
+.lev-readout { font-weight: 700; color: var(--accent); min-width: 3.2rem; display: inline-block; text-align: right; }
+#lev-slider { accent-color: var(--accent); }
+.lev-quick { margin-top: 0.55rem; }
 .senti-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.7rem; }
 .senti-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.7rem 0.85rem; background: var(--surface-2); }
 .senti-card .senti-t { font-size: 0.8rem; color: var(--muted); }

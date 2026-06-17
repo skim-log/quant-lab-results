@@ -1082,6 +1082,7 @@ function setCurrency(cur) {
     return loadTool(entry, entry.mode);
   if (entry.mode === 'molit_explore') return loadTool(entry, 'molit_explore');  // 시군구 조회(거래량·전세가율·실거래표)
   if (entry.mode === 'molit_apt') return loadTool(entry, 'molit_apt');          // 단지 조회(개별 아파트 추이·백테스트)
+  if (entry.mode === 'leverage') return loadTool(entry, 'leverage');            // 최적 레버리지(일별 상수레버리지 스윕)
   // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
   if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
   else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
@@ -1100,7 +1101,7 @@ function setAnalyticsMode(on) {
 function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
   document.body.classList.toggle('tools-mode', !!on);
   if (on) document.body.classList.remove('analytics-mode');
-  ['paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt'].forEach(t => {
+  ['paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.classList.toggle('hidden', !(on && t === tool));
   });
@@ -1314,8 +1315,238 @@ async function loadTool(entry, kind) {
     else if (kind === 'reliability') renderReliability(d);
     else if (kind === 'molit_explore') renderMolitExplore(d);
     else if (kind === 'molit_apt') enterMolitApt(d);
+    else if (kind === 'leverage') enterLeverage(d);
     else renderTrend(d);
   } catch (e) { setStatus(entry.group + ' 로딩 실패: ' + e.message, true); }
+}
+
+// ---------------------------------------------------------------------------
+// 최적 레버리지 (leverage) — S&P500·나스닥100 일별 상수레버리지 스윕 + 슬라이더 + 관리변동성.
+// leverage.json(일별 under_ret·rf 임베드) → web/leverage.js(LEVERAGE) 가 브라우저에서 즉석 재계산.
+// Tony Cooper(2010) "Alpha Generation and Risk Smoothing Using Managed Volatility" 재현.
+// ---------------------------------------------------------------------------
+const LEV_COL = { cur: '#2563eb', base: '#9ca3af', opt: '#16a34a', cooper: '#ca8a04', risk: '#dc2626', vol: '#ea580c' };
+
+function enterLeverage(d) {
+  state.playground = false; state.analyticsActive = false; state._analyticsCur = null; state.data = null;
+  setToolsMode(true, 'leverage');
+  state.lev = { d, under: d.default_underlying, period: d.default_period, scn: d.default_scenario, L: null };
+  document.getElementById('meta').textContent = `${d.title || '최적 레버리지'} · 생성일 ${d.generated_at || '-'}`;
+  document.getElementById('lev-intro').innerHTML =
+    `일별 리밸런싱 상수 레버리지(L배)를 0~5×로 스윕해 <strong>연복리수익(CAGR)을 최대화하는 최적 L</strong>을 찾습니다. ` +
+    `${(d.cooper_2010 && d.cooper_2010.note) || ''} 지수·기간·시나리오·레버리지를 바꾸면 브라우저에서 즉석 재계산됩니다.`;
+  // 토글 버튼 구성
+  document.getElementById('lev-under').innerHTML = d.underlyings
+    .map((u, i) => `<button type="button" data-under="${u.key}"${u.key === state.lev.under ? ' class="active"' : ''}>${u.label}</button>`).join('');
+  document.getElementById('lev-scn').innerHTML = Object.entries(d.scenarios)
+    .map(([k, v]) => `<button type="button" data-scn="${k}"${k === state.lev.scn ? ' class="active"' : ''}>${v}</button>`).join('');
+  _levBuildPeriods();
+  if (!state._levWired) {
+    document.getElementById('lev-under').addEventListener('click', e => _levToggle(e, 'under', () => { _levBuildPeriods(); _levFull(); }));
+    document.getElementById('lev-scn').addEventListener('click', e => _levToggle(e, 'scn', _levFull));
+    document.getElementById('lev-period').addEventListener('click', e => _levToggle(e, 'period', _levFull));
+    const sl = document.getElementById('lev-slider');
+    sl.addEventListener('input', () => { state.lev.L = parseFloat(sl.value); _levLight(); });
+    document.querySelectorAll('.lev-quick [data-lev]').forEach(b =>
+      b.addEventListener('click', () => { state.lev.L = parseFloat(b.dataset.lev); _levSyncSlider(); _levLight(); }));
+    document.getElementById('lev-set-opt').addEventListener('click', () => {
+      const o = state.lev.sweepOpt && state.lev.sweepOpt.cagr_max;
+      if (o) { state.lev.L = o.L; _levSyncSlider(); _levLight(); }
+    });
+    state._levWired = true;
+  }
+  _levFull();
+}
+
+function _levToggle(e, field, after) {
+  const b = e.target.closest('button[data-' + field + ']'); if (!b) return;
+  const v = b.dataset[field];
+  state.lev[field] = v;
+  b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+  after && after();
+}
+function _levU() { return state.lev.d.underlyings.find(u => u.key === state.lev.under) || state.lev.d.underlyings[0]; }
+function _levBuildPeriods() {
+  const u = _levU();
+  if (!u.periods.some(p => p.key === state.lev.period)) state.lev.period = u.periods[0].key;
+  document.getElementById('lev-period').innerHTML = u.periods
+    .map(p => `<button type="button" data-period="${p.key}"${p.key === state.lev.period ? ' class="active"' : ''}>${p.label}</button>`).join('');
+}
+function _levSyncSlider() {
+  const sl = document.getElementById('lev-slider');
+  sl.value = state.lev.L;
+}
+function _levFriction() {
+  const u = _levU();
+  return state.lev.scn === 'etf' ? { expense: u.friction.expense, spread: u.friction.spread } : { expense: 0, spread: 0 };
+}
+function _levSeg(period) {                                      // 기간 슬라이스된 일별 배열
+  const u = _levU();
+  const p = u.periods.find(x => x.key === (period || state.lev.period)) || u.periods[0];
+  const [lo, hi] = LEVERAGE.sliceRange(u.dates, p.start, p.end);
+  return { u: u.under_ret.slice(lo, hi + 1), rf: u.rf.slice(lo, hi + 1),
+           dates: u.dates.slice(lo, hi + 1), meta: p };
+}
+
+// 무거운 재계산(지수·기간·시나리오 변경): 스윕·최적·요약·관리변동성 + 슬라이더 기본값.
+function _levFull() {
+  const d = state.lev.d, seg = _levSeg();
+  const fr = _levFriction();
+  state.lev.seg = seg; state.lev.fr = fr;
+  const sw = LEVERAGE.sweep(seg.u, seg.rf, seg.dates, d.l_grid, fr);
+  const opt = LEVERAGE.optimal(sw);
+  state.lev.sweep = sw; state.lev.sweepOpt = opt;
+  if (state.lev.L == null) state.lev.L = (opt.cagr_max ? opt.cagr_max.L : 2.0);
+  _levSyncSlider();
+  document.getElementById('lev-period-range').textContent =
+    `${seg.meta.start} ~ ${seg.meta.end} (${seg.dates.length.toLocaleString()}거래일)`;
+  _levRenderRisk(sw);
+  _levRenderManaged(seg, fr);
+  _levRenderSummary();
+  _levLight();                                                 // 곡선·자산곡선·카드(L 의존)
+}
+
+// 가벼운 재계산(슬라이더): L 의존 — CAGR곡선 마커·자산곡선·카드만.
+function _levLight() {
+  const sl = document.getElementById('lev-slider');
+  document.getElementById('lev-slider-readout').textContent = (+state.lev.L).toFixed(1) + '×';
+  _levRenderCurve(state.lev.sweep, state.lev.sweepOpt);
+  _levRenderEquity(state.lev.seg, state.lev.fr);
+  _levRenderCards(state.lev.sweep, state.lev.sweepOpt);
+}
+
+function _levAtL(sw, L) {                                       // 격자(0.1)에서 L에 해당하는 인덱스 지표
+  let bi = 0, bd = Infinity;
+  for (let i = 0; i < sw.L.length; i++) { const dd = Math.abs(sw.L[i] - L); if (dd < bd) { bd = dd; bi = i; } }
+  return { L: sw.L[bi], cagr: sw.cagr[bi], vol: sw.vol[bi], mdd: sw.mdd[bi], sharpe: sw.sharpe[bi] };
+}
+
+function _levRenderCurve(sw, opt) {
+  const d = state.lev.d, L = state.lev.L;
+  const cooperRef = (d.cooper_2010 && d.cooper_2010[state.lev.under]) || null;
+  const traces = [{
+    type: 'scatter', mode: 'lines', name: 'CAGR(L)', x: sw.L, y: sw.cagr.map(v => v == null ? null : v * 100),
+    line: { width: 2, color: LEV_COL.cur }, hovertemplate: 'L %{x:.1f}× → CAGR %{y:.1f}%<extra></extra>',
+  }];
+  if (opt.cagr_max) traces.push({
+    type: 'scatter', mode: 'markers+text', name: 'CAGR 최적',
+    x: [opt.cagr_max.L], y: [opt.cagr_max.cagr * 100], text: [`최적 ${opt.cagr_max.L.toFixed(1)}×`],
+    textposition: 'top center', textfont: { color: LEV_COL.opt, size: 11 },
+    marker: { symbol: 'triangle-up', size: 13, color: LEV_COL.opt }, hoverinfo: 'skip',
+  });
+  const layout = baseLayout('CAGR vs 레버리지', '연복리수익 CAGR (%)');
+  layout.xaxis.type = 'linear'; layout.xaxis.title = { text: '레버리지 L (×)', font: { color: cssVar('--chart-muted') } };
+  layout.hovermode = 'closest';
+  layout.shapes = [{ type: 'line', x0: L, x1: L, yref: 'paper', y0: 0, y1: 1,
+    line: { color: LEV_COL.cur, width: 1, dash: 'dot' } }];
+  layout.annotations = [{ x: L, yref: 'paper', y: 1, text: `현재 ${(+L).toFixed(1)}×`, showarrow: false,
+    font: { color: LEV_COL.cur, size: 10 }, yanchor: 'bottom' }];
+  if (cooperRef) {
+    traces.push({ type: 'scatter', mode: 'markers', name: 'Cooper(2010) 참고',
+      x: [cooperRef], y: [_levAtL(sw, cooperRef).cagr * 100],
+      marker: { symbol: 'diamond', size: 11, color: LEV_COL.cooper }, hovertemplate: `Cooper 참고 ${cooperRef}×<extra></extra>` });
+  }
+  Plotly.react('lev-curve', traces, layout, PLOTCFG);
+}
+
+function _levRenderRisk(sw) {
+  const traces = [
+    { type: 'scatter', mode: 'lines', name: 'MDD', x: sw.L, y: sw.mdd.map(v => v == null ? null : Math.abs(v) * 100),
+      line: { width: 2, color: LEV_COL.risk }, hovertemplate: 'L %{x:.1f}× → MDD −%{y:.0f}%<extra></extra>' },
+    { type: 'scatter', mode: 'lines', name: '연변동성', x: sw.L, y: sw.vol.map(v => v == null ? null : v * 100),
+      line: { width: 1.6, color: LEV_COL.vol, dash: 'dot' }, yaxis: 'y2', hovertemplate: 'L %{x:.1f}× → 변동성 %{y:.0f}%<extra></extra>' },
+  ];
+  const layout = baseLayout('위험 vs 레버리지', '최대낙폭 MDD (%)');
+  layout.xaxis.type = 'linear'; layout.xaxis.title = { text: '레버리지 L (×)', font: { color: cssVar('--chart-muted') } };
+  layout.hovermode = 'x unified';
+  layout.yaxis2 = { title: { text: '연변동성 (%)', font: { color: cssVar('--chart-muted') } },
+    overlaying: 'y', side: 'right', gridcolor: 'rgba(0,0,0,0)', tickfont: { color: cssVar('--chart-muted') } };
+  Plotly.react('lev-risk', traces, layout, PLOTCFG);
+}
+
+function _levRenderEquity(seg, fr) {
+  const L = state.lev.L, opt = state.lev.sweepOpt;
+  const optL = opt.cagr_max ? opt.cagr_max.L : 2.0;
+  const defs = [
+    { L: 1.0, name: '1× (무레버리지)', color: LEV_COL.base, dash: 'solid', w: 1.4 },
+    { L: L, name: `${(+L).toFixed(1)}× (현재)`, color: LEV_COL.cur, dash: 'solid', w: 1.9 },
+    { L: optL, name: `${optL.toFixed(1)}× (CAGR 최적)`, color: LEV_COL.opt, dash: 'dot', w: 1.6 },
+  ];
+  const idx = LEVERAGE.downsampleIdx(seg.dates.length, 1400);
+  const xs = idx.map(i => seg.dates[i]);
+  const traces = defs.map(def => {
+    const nav = LEVERAGE.navFromReturns(LEVERAGE.leverReturns(seg.u, seg.rf, def.L, fr));
+    return { type: 'scatter', mode: 'lines', name: def.name, x: xs, y: idx.map(i => nav[i]),
+      line: { width: def.w, color: def.color, dash: def.dash }, hovertemplate: '%{y:.2f}<extra>' + def.name + '</extra>' };
+  });
+  const layout = baseLayout('자산곡선 (시작=1.0, 로그)', '누적 성장 (배, log)');
+  layout.yaxis.type = 'log';
+  Plotly.react('lev-equity', traces, layout, PLOTCFG);
+}
+
+function _levRenderCards(sw, opt) {
+  const cur = _levAtL(sw, state.lev.L), base = _levAtL(sw, 1.0);
+  const o = opt.cagr_max || cur;
+  const card = (lab, v, sub, cls) => `<div class="ext-card"><div class="lab">${lab}</div>` +
+    `<div class="val"${cls ? ` style="color:${cls}"` : ''}>${v}</div><div class="sub">${sub || ''}</div></div>`;
+  document.getElementById('lev-cards').innerHTML =
+    card(`현재 ${(+state.lev.L).toFixed(1)}× · CAGR`, _apct(cur.cagr), `MDD ${_apct(cur.mdd, 0)} · 변동성 ${_apct(cur.vol, 0)}`, LEV_COL.cur) +
+    card('현재 · Sharpe', _anum(cur.sharpe), '위험대비수익') +
+    card('1× 대비', (cur.cagr != null && base.cagr != null ? ((cur.cagr - base.cagr) >= 0 ? '+' : '') + ((cur.cagr - base.cagr) * 100).toFixed(1) + '%p' : '–'), `1× CAGR ${_apct(base.cagr)}`) +
+    card('CAGR 최적 L', o.L != null ? o.L.toFixed(1) + '×' : '–', `CAGR ${_apct(o.cagr)} · MDD ${_apct(o.mdd, 0)}`, LEV_COL.opt) +
+    card('Sharpe 최적 L', opt.sharpe_max ? opt.sharpe_max.L.toFixed(1) + '×' : '–', opt.sharpe_max ? `Sharpe ${_anum(opt.sharpe_max.sharpe)}` : '');
+}
+
+function _levRenderManaged(seg, fr) {
+  const u = _levU();
+  // 고정 최적 L vs 목표변동성(15·20%) 동적 레버리지 — 선택 기간 기준 즉석 재계산.
+  const optL = state.lev.sweepOpt.cagr_max ? state.lev.sweepOpt.cagr_max.L : 2.0;
+  const idx = LEVERAGE.downsampleIdx(seg.dates.length, 1200);
+  const xs = idx.map(i => seg.dates[i]);
+  const series = [];
+  const fixedRet = LEVERAGE.leverReturns(seg.u, seg.rf, optL, fr);
+  const fixedNav = LEVERAGE.navFromReturns(fixedRet);
+  const fixedM = LEVERAGE.metrics(fixedRet, seg.dates);
+  series.push({ name: `고정 ${optL.toFixed(1)}× (최적)`, color: LEV_COL.opt, dash: 'solid', nav: fixedNav, m: fixedM, sub: '' });
+  const TVS = [{ tv: 0.15, color: LEV_COL.cur }, { tv: 0.20, color: LEV_COL.cooper }];
+  for (const t of TVS) {
+    const mv = LEVERAGE.managedVol(seg.u, seg.rf, t.tv, { lMax: 3.0, expense: fr.expense, spread: fr.spread });
+    const nav = LEVERAGE.navFromReturns(mv.ret);
+    series.push({ name: `관리변동성 목표 ${(t.tv * 100).toFixed(0)}%`, color: t.color, dash: 'dot',
+      nav, m: LEVERAGE.metrics(mv.ret, seg.dates), sub: `평균 ${mv.avgL.toFixed(1)}×` });
+  }
+  const traces = series.map(s => ({ type: 'scatter', mode: 'lines', name: s.name, x: xs, y: idx.map(i => s.nav[i]),
+    line: { width: 1.7, color: s.color, dash: s.dash }, hovertemplate: '%{y:.2f}<extra>' + s.name + '</extra>' }));
+  const layout = baseLayout('관리 변동성 vs 고정 레버리지 (시작=1.0, 로그)', '누적 성장 (배, log)');
+  layout.yaxis.type = 'log';
+  Plotly.react('lev-managed', traces, layout, PLOTCFG);
+  const card = (lab, m, sub, col) => `<div class="ext-card"><div class="lab">${lab}</div>` +
+    `<div class="val"${col ? ` style="color:${col}"` : ''}>${_apct(m.cagr)}</div>` +
+    `<div class="sub">MDD ${_apct(m.mdd, 0)} · Sharpe ${_anum(m.sharpe)}${sub ? ' · ' + sub : ''}</div></div>`;
+  document.getElementById('lev-managed-cards').innerHTML = series.map(s => card(s.name, s.m, s.sub, s.color)).join('');
+}
+
+function _levRenderSummary() {
+  const d = state.lev.d, u = _levU(), fr = _levFriction();
+  const cooperRef = (d.cooper_2010 && d.cooper_2010[state.lev.under]) || null;
+  const rows = u.periods.map(p => {
+    const seg = _levSeg(p.key);
+    const sw = LEVERAGE.sweep(seg.u, seg.rf, seg.dates, d.l_grid, fr);
+    const opt = LEVERAGE.optimal(sw);
+    const c = opt.cagr_max || {};
+    return `<tr><td class="name">${p.label}</td><td>${p.start}~${p.end}</td>` +
+      `<td><strong>${c.L != null ? c.L.toFixed(1) + '×' : '–'}</strong></td>` +
+      `<td>${_apct(c.cagr)}</td><td>${_apct(c.mdd, 0)}</td>` +
+      `<td>${opt.sharpe_max ? opt.sharpe_max.L.toFixed(1) + '×' : '–'}</td></tr>`;
+  }).join('');
+  const head = '<thead><tr><th class="name">기간</th><th>구간</th><th>CAGR 최적 L</th><th>CAGR</th><th>MDD</th><th>Sharpe 최적 L</th></tr></thead>';
+  const cooperRow = cooperRef ? `<tr style="opacity:.8"><td class="name">Cooper(2010) 참고</td><td>≤2009 근사</td><td><strong>${cooperRef.toFixed(1)}×</strong></td><td>–</td><td>–</td><td>–</td></tr>` : '';
+  document.getElementById('lev-summary').innerHTML = head + '<tbody>' + rows + cooperRow + '</tbody>';
+  document.getElementById('lev-findings').innerHTML = '📌 ' + (d.findings || '');
+  const v = u.validation || {};
+  document.getElementById('lev-validation').innerHTML = v.available
+    ? `🔬 합성 3× vs 실제 ${v.fund}: 일간수익 상관 ${_anum(v['일간수익_상관'])}, 누적수익비 ${_anum(v['누적수익비(합성/실제)'])}, 연 추적오차 ${_apct(v['연추적오차'], 1)} — 합성 레버리지가 실제 LETF를 잘 재현(신뢰성 확인).`
+    : '';
 }
 
 // ---------------------------------------------------------------------------
@@ -2506,6 +2737,8 @@ function enterPlayground(panel) {
     document.getElementById('pg-rebalance').addEventListener('change', runPlayground);
     document.getElementById('pg-band').addEventListener('input', runPlayground);
     if (pgMa) pgMa.addEventListener('change', runPlayground);
+    const pgLev = document.getElementById('pg-leverage');
+    if (pgLev) pgLev.addEventListener('input', runPlayground);
     document.getElementById('pg-normalize').addEventListener('click', () => { _pgNormalize(); runPlayground(); });
     document.getElementById('pg-presets').addEventListener('click', (e) => {
       const b = e.target.closest('button'); if (!b) return;
@@ -2528,8 +2761,26 @@ function _pgNormalize() {
   let sum = 0; inps.forEach(i => { sum += parseFloat(i.value) || 0; });
   if (sum > 0) inps.forEach(i => { i.value = ((parseFloat(i.value) || 0) / sum * 100).toFixed(1); });
 }
+// 월별 NAV에 상수 레버리지 적용(플레이그라운드 근사): r_L = L·r − (L−1)·rf/12. rf=연,소수(월말).
+// 일별 정확 분석은 '정량분석 · 최적 레버리지' 탭. L≤1 또는 rf 없으면 원본 그대로.
+function _leverNav(navArr, win, rfMonthly, L) {
+  if (!(L > 1.0001) || !rfMonthly) return navArr;
+  const out = new Array(navArr.length);
+  out[0] = navArr[0] == null ? null : 1.0;
+  let v = 1.0;
+  for (let k = 1; k < navArr.length; k++) {
+    if (navArr[k] == null || navArr[k - 1] == null || navArr[k - 1] === 0) { out[k] = null; continue; }
+    const rm = navArr[k] / navArr[k - 1] - 1;
+    const rf = (rfMonthly[win[k]] || 0) / 12;
+    let rl = L * rm - (L - 1) * rf;
+    if (rl < -0.99) rl = -0.99;
+    v *= (1 + rl); out[k] = v;
+  }
+  return out;
+}
+
 // 공유: 비중·주기·밴드 → alloc.js 즉석 백테스트 → 통화곡선+벤치마크 → synth 데이터셋 → render.
-// 플레이그라운드와 정적 프리셋 리밸런싱 셀렉터가 공유. opts={selfName,title,desc}.
+// 플레이그라운드와 정적 프리셋 리밸런싱 셀렉터가 공유. opts={selfName,title,desc,leverage}.
 function _allocRun(panel, w, rebalance, band, ccy, opts) {
   opts = opts || {};
   const ids = panel.assets.map(a => a.id);
@@ -2537,14 +2788,16 @@ function _allocRun(panel, w, rebalance, band, ccy, opts) {
   const res = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, w, baseOpts);
   if (!res) { setStatus('선택한 자산의 공통 데이터가 부족합니다(비중>0 자산을 확인하세요).', true); return false; }
   setStatus('');
+  const lev = opts.leverage || 1;
   const fxWin = res.win.map(t => panel.fx[t]);
   const self = opts.selfName || '내 배분';
-  const curves = [{ name: self, dates: res.dates, nav: ALLOC.navToCcy(res.navKrw, fxWin, ccy) }];
+  const navKrw = _leverNav(res.navKrw, res.win, panel.rf_monthly, lev);
+  const curves = [{ name: self, dates: res.dates, nav: ALLOC.navToCcy(navKrw, fxWin, ccy) }];
   if (opts.maSignal) {                                 // 200일선 필터 ON → 두 변형 모두 표시
     const resMa = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, w,
       Object.assign({ maSignal: opts.maSignal }, baseOpts));
     if (resMa) curves.push({ name: self + MA_SUFFIX, dates: resMa.dates,
-                             nav: ALLOC.navToCcy(resMa.navKrw, resMa.win.map(t => panel.fx[t]), ccy) });
+                             nav: ALLOC.navToCcy(_leverNav(resMa.navKrw, resMa.win, panel.rf_monthly, lev), resMa.win.map(t => panel.fx[t]), ccy) });
   }
   for (const [name, b] of Object.entries(panel.benchmarks || {})) {
     curves.push({ name, dates: res.dates, nav: ALLOC.benchCurve(b.price, b.ccy, panel.fx, ccy, res.win) });
@@ -2570,8 +2823,12 @@ function runPlayground() {
   const band = (parseFloat(document.getElementById('pg-band').value) || 0) / 100;
   const maEl = document.getElementById('pg-ma');
   const maOn = !!(maEl && maEl.checked && panel.ma_signal);
+  const levEl = document.getElementById('pg-leverage');
+  const lev = levEl ? (parseFloat(levEl.value) || 1) : 1;
+  const ro = document.getElementById('pg-lev-readout'); if (ro) ro.textContent = lev.toFixed(1) + '×';
+  const selfName = lev > 1.0001 ? `내 배분 (${lev.toFixed(1)}×)` : '내 배분';
   _allocRun(panel, w, rebalance, band, state.nav.currency || 'krw',
-    { selfName: '내 배분', title: '사용자 배분', maSignal: maOn ? panel.ma_signal : null });
+    { selfName, title: '사용자 배분', maSignal: maOn ? panel.ma_signal : null, leverage: lev });
 }
 
 // 정적 프리셋 리밸런싱 셀렉터 ─────────────────────────────────────────────

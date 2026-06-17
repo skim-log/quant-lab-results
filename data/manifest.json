@@ -939,6 +939,15 @@
     "file": "trend_alert.json"
   },
   {
+    "id": "us_leverage",
+    "category": "analytics",
+    "group": "최적 레버리지 (S&P500·나스닥100)",
+    "currency": "usd",
+    "mode": "leverage",
+    "label": "정량분석 · 최적 레버리지 (USD)",
+    "file": "leverage.json"
+  },
+  {
     "id": "tool_reliability",
     "category": "reliability",
     "group": "데이터 정확도",
