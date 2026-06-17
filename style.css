@@ -227,6 +227,12 @@ fieldset#strategies legend { font-size: 0.82rem; color: var(--muted); padding: 0
 #chart-rolling { height: 320px; }
 #chart-monthly-hm { min-height: 380px; }   /* 실제 높이는 app.js가 연도 수에 비례해 설정 */
 #chart-sweep { height: 300px; }
+/* 높이 공급원이 없던 차트(레버리지 탭 + 코인 DCA) — .chart 는 height 미지정이라 ID별로 부여(autosize 붕괴 방지) */
+#lev-curve { height: 320px; }
+#lev-risk { height: 320px; }
+#lev-equity { height: 460px; }
+#lev-managed { height: 460px; }
+#chart-cryptodca { height: 300px; }
 
 /* ---- 전략 블렌딩 (body.blend-mode 일 때만 picker 표시, 그 외엔 숨김) ---- */
 body:not(.blend-mode) #blend-section { display: none; }
@@ -535,6 +541,11 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
   #chart-equity { height: 380px; }
   #chart-dd { height: 240px; }
   #bt-chart { height: 260px; }
+  #lev-equity { height: 380px; }
+  #lev-managed { height: 380px; }
+  #lev-curve { height: 260px; }
+  #lev-risk { height: 260px; }
+  #chart-cryptodca { height: 260px; }
 
   /* 좁은 화면: 표를 카드형으로 — 가로 스크롤 없이 첫 열(전략·자산명)이 항상 헤더로 보임.
      (인앱/구형 브라우저의 position:sticky 미지원 환경까지 확실히 해결.) */

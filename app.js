@@ -292,9 +292,9 @@ const baseLayout = (title, yTitle) => {
     title: { text: title, font: { size: 14, color: fg } },
     font: { family: FONT, size: 11, color: muted },
     margin: { l: 56, r: 16, t: 36, b: 40 },
-    legend: { orientation: 'h', y: -0.18, font: { size: 10, color: fg } },
-    xaxis: { type: 'date', gridcolor: grid, zerolinecolor: grid, linecolor: grid, tickfont: { color: muted } },
-    yaxis: { title: { text: yTitle, font: { color: muted } }, gridcolor: grid, zerolinecolor: grid, linecolor: grid, tickfont: { color: muted } },
+    legend: { orientation: 'h', yanchor: 'top', y: -0.2, font: { size: 10, color: fg } },
+    xaxis: { type: 'date', automargin: true, gridcolor: grid, zerolinecolor: grid, linecolor: grid, tickfont: { color: muted } },
+    yaxis: { title: { text: yTitle, font: { color: muted } }, automargin: true, gridcolor: grid, zerolinecolor: grid, linecolor: grid, tickfont: { color: muted } },
     hovermode: 'x unified',
     hoverlabel: { bgcolor: hover, bordercolor: grid, font: { color: fg, family: FONT } },
     plot_bgcolor: plot, paper_bgcolor: paper,
@@ -349,7 +349,7 @@ function renderAnnual(rows) {
   });
   const layout = baseLayout('연도별 수익률', '연 수익률 %');
   layout.barmode = 'group';
-  layout.xaxis = { type: 'category', gridcolor: cssVar('--chart-grid'), linecolor: cssVar('--chart-grid'), tickfont: { color: cssVar('--chart-muted') } };
+  layout.xaxis = { type: 'category', automargin: true, gridcolor: cssVar('--chart-grid'), linecolor: cssVar('--chart-grid'), tickfont: { color: cssVar('--chart-muted') } };
   Plotly.react('chart-annual', traces, layout, PLOTCFG);
 }
 
@@ -1207,7 +1207,7 @@ function renderParadise() {
   const muted = cssVar('--chart-muted');
   const layout = baseLayout('총 자산 증가 추이', '자산 (원)');
   layout.barmode = 'stack';
-  layout.xaxis = { title: { text: '연차', font: { color: muted } }, gridcolor: cssVar('--chart-grid'), tickfont: { color: muted } };
+  layout.xaxis = { title: { text: '연차', font: { color: muted } }, automargin: true, gridcolor: cssVar('--chart-grid'), tickfont: { color: muted } };
   Plotly.react('para-chart', [
     { type: 'bar', name: '자산 성장', x: xs, y: assetSeq, marker: { color: '#2563eb' } },
     { type: 'bar', name: '저축 누적', x: xs, y: saveSeq, marker: { color: '#10b981' } },
@@ -1291,7 +1291,7 @@ async function renderParadiseMC() {
     { type: 'scatter', mode: 'lines', name: '중앙값(p50)', x: xs, y: res.p50, line: { width: 2, color: cssVar('--accent') }, hovertemplate: '%{y:,.0f}원<extra>p50</extra>' },
   ];
   const layout = baseLayout('자금 경로 분포 (백분위 밴드)', '잔액 (원)');
-  layout.xaxis = { title: { text: '연차', font: { color: muted } }, gridcolor: cssVar('--chart-grid'), tickfont: { color: muted } };
+  layout.xaxis = { title: { text: '연차', font: { color: muted } }, automargin: true, gridcolor: cssVar('--chart-grid'), tickfont: { color: muted } };
   if (res.accMonths > 0 && res.withdrawMonths > 0) {   // 축적·인출 경계에 '은퇴' 점선
     const rx = res.accMonths / 12;
     layout.shapes = [{ type: 'line', x0: rx, x1: rx, yref: 'paper', y0: 0, y1: 1, line: { color: muted, width: 1, dash: 'dash' } }];
@@ -1457,6 +1457,7 @@ function _levRenderRisk(sw) {
       line: { width: 1.6, color: LEV_COL.vol, dash: 'dot' }, yaxis: 'y2', hovertemplate: 'L %{x:.1f}× → 변동성 %{y:.0f}%<extra></extra>' },
   ];
   const layout = baseLayout('위험 vs 레버리지', '최대낙폭 MDD (%)');
+  layout.margin = { ...layout.margin, r: 52 };          // 우측 yaxis2(연변동성) 눈금·제목 공간
   layout.xaxis.type = 'linear'; layout.xaxis.title = { text: '레버리지 L (×)', font: { color: cssVar('--chart-muted') } };
   layout.hovermode = 'x unified';
   layout.yaxis2 = { title: { text: '연변동성 (%)', font: { color: cssVar('--chart-muted') } },
@@ -2466,8 +2467,8 @@ function renderFrontier(d, opts = {}) {
     marker: { size: 16, symbol: 'diamond-open', color: '#e11d48', line: { width: 2.5, color: '#e11d48' } },
     hovertemplate: mineName + '<br>CAGR %{y:.1f}% · 변동성 %{x:.1f}%<extra></extra>' });
   const layout = baseLayout('', '');
-  layout.xaxis = { title: { text: '연환산 변동성 %', font: { color: muted } }, gridcolor: grid, zerolinecolor: grid, tickfont: { color: muted }, zeroline: false };
-  layout.yaxis = { title: { text: '연환산 수익률 %', font: { color: muted } }, gridcolor: grid, zerolinecolor: grid, tickfont: { color: muted } };
+  layout.xaxis = { title: { text: '연환산 변동성 %', font: { color: muted } }, automargin: true, gridcolor: grid, zerolinecolor: grid, tickfont: { color: muted }, zeroline: false };
+  layout.yaxis = { title: { text: '연환산 수익률 %', font: { color: muted } }, automargin: true, gridcolor: grid, zerolinecolor: grid, tickfont: { color: muted } };
   layout.hovermode = 'closest';
   layout.legend = { orientation: 'h', y: -0.16, font: { size: 10, color: fg } };
   Plotly.react(el, traces, layout, PLOTCFG);
