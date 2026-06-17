@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=1bea22ec" />
+  <link rel="stylesheet" href="style.css?v=2c53a3f4" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -189,7 +189,7 @@
     <div id="guide-section" class="hidden">
       <section class="panel">
         <h2>초보자를 위한 설명 <span class="muted">(용어 · 자산배분 · 전략 · 사용법)</span></h2>
-        <p class="period-note">투자가 처음이거나 “퀀트 백테스트”가 낯설어도 괜찮습니다. 아래 순서대로 읽으면 이 대시보드의 차트와 표를 스스로 해석할 수 있습니다 — <strong>① 기초 용어 → ② 지표 읽는 법 → ③ 왜 자산배분인가 → ④ 전략 분류 → ⑤ 백테스트의 한계 → ⑥ 대시보드 사용법 → ⑦ 면책·체크리스트</strong>.</p>
+        <p class="period-note">투자가 처음이거나 “퀀트 백테스트”가 낯설어도 괜찮습니다. 아래 순서대로 읽으면 이 대시보드의 차트와 표를 스스로 해석할 수 있습니다 — <strong>① 기초 용어 → ② 지표 읽는 법 → ③ 왜 자산배분인가 → ④ 전략 분류 → ⑤ 도구·지표 → ⑥ 백테스트의 한계 → ⑦ 대시보드 사용법 → ⑧ 면책·체크리스트</strong>.</p>
         <details class="theory" open>
           <summary>💡 이 대시보드는 뭐예요? (1분 요약)</summary>
           <div class="theory-body">
@@ -250,7 +250,11 @@
         <p>한 자산에 전부 넣으면 그게 −50% 빠질 때 내 자산도 반토막이고, 원금 회복에는 +100%가 필요합니다. 분산은 이런 치명적 낙폭을 완화해 <strong>오래 버티며 복리를 누리게</strong> 해 줍니다.</p>
         <h3>정적 배분 vs 동적 배분</h3>
         <p><strong>정적 배분</strong>은 비중을 고정하고 주기적으로 리밸런싱만 합니다(단순·견고). <strong>동적 배분</strong>은 시장 신호(모멘텀·추세)에 따라 비중을 바꿔 하락을 더 피하려 합니다(정교하지만 신호에 민감). 둘 다 장단이 있어 이 사이트에서 직접 비교할 수 있습니다.</p>
-        <div class="guide-note">👉 <strong>자산배분 → 정량분석</strong> 탭의 “효율적 프론티어”에서, 자산을 섞을수록 위험 대비 수익이 어떻게 좋아지는지 눈으로 확인해 보세요.</div>
+        <h3>눈으로 보기 — 분산의 효과</h3>
+        <p>아래는 같은 기간 동안 <strong>한 자산에 100%</strong> 넣었을 때(빨강)와 <strong>여러 자산에 분산</strong>했을 때(파랑)의 자산 성장 비교입니다. 최종 도착점은 비슷하지만, 분산한 쪽은 <strong>훨씬 덜 출렁이고 낙폭도 작아</strong> 끝까지 버티기 쉽습니다.</p>
+        <div id="guide-alloc-chart" class="chart" style="height:340px;margin-top:0.5rem"></div>
+        <p class="period-note" id="guide-alloc-stats"></p>
+        <div class="guide-note">👉 <strong>자산배분 → 정량분석</strong> 탭의 “효율적 프론티어”에서, 자산을 섞을수록 위험 대비 수익이 어떻게 좋아지는지 <strong>실제 데이터</strong>로 확인해 보세요.</div>
       </section>
 
       <section class="panel">
@@ -285,7 +289,29 @@
       </section>
 
       <section class="panel">
-        <h2>⑤ 백테스트란, 그리고 한계</h2>
+        <h2>⑤ 도구·지표 — 계산기와 시장 지표</h2>
+        <p class="period-note">‘도구·지표’ 영역에는 백테스트가 아닌 보조 도구들이 있습니다. 각각 무엇에 쓰는지 짧게 정리합니다.</p>
+        <div class="guide-cat">
+          <h3>🏝️ 낙원계산기 <span class="muted">(은퇴·경제적 자유)</span></h3>
+          <p>지금 자산·매달 저축·기대수익·물가를 넣으면 <strong>몇 년 뒤 얼마가 되고, 그 돈으로 매달 얼마를 쓸 수 있는지</strong>를 계산합니다. <span class="muted">‘결정론’은 단일 시나리오, ‘몬테카를로’는 수천 가지 미래를 굴려 <strong>은퇴 후 돈이 안 마를 확률(생존율)</strong>까지 보여줍니다.</span></p>
+        </div>
+        <div class="guide-cat">
+          <h3>😱 시장 심리 <span class="muted">(공포·탐욕·변동성·김프)</span></h3>
+          <p>지금 시장이 공포인지 탐욕인지 보는 종합 지표 — VIX(변동성 지수), 달러 인덱스(DXY), 금/은 비율, 코인 공포탐욕·김치프리미엄 등. <span class="muted">⚠️ 매매의 단일 근거로 쓰지 말고 ‘분위기 참고용’으로. 극단값은 추세 반전 신호가 되기도 하지만 항상 맞진 않습니다.</span></p>
+        </div>
+        <div class="guide-cat">
+          <h3>🚨 추세 경보 <span class="muted">(천장·재진입 신호)</span></h3>
+          <p>오닐·미너비니·와인스타인의 ‘천장(클라이맥스 톱)’ 이론을 6개 신호로 점검합니다 — 단기 급등·거래량 폭증·이동평균선과의 비정상 이격 등이 동시에 켜지면 <strong>과열(매도·감축) 경고</strong>, 반대로 바닥에서 새 상승 추세가 시작되는 <strong>재진입(매수) 신호</strong>도 함께 봅니다.</p>
+        </div>
+        <div class="guide-cat">
+          <h3>🔍 데이터 정확도 <span class="muted">(프록시 출처·신뢰도)</span></h3>
+          <p>오래된 자산은 실제 ETF가 없어 <strong>비슷한 지수로 대체(프록시)</strong>해 옛 구간을 이어붙입니다. 자산별로 어떤 데이터를 썼고 얼마나 믿을 만한지 등급으로 정리 — <span class="muted">백테스트 숫자를 얼마나 곧이곧대로 받아들일지 판단하는 데 중요합니다(특히 위험지표는 보수적으로).</span></p>
+        </div>
+        <div class="guide-note">👉 위 도구들은 상단 <strong>도구·지표</strong> 영역에 있습니다. (※ ‘정량분석 · 최적 레버리지’는 <strong>자산배분</strong> 영역에 있으며 ④의 설명을 참고하세요.)</div>
+      </section>
+
+      <section class="panel">
+        <h2>⑥ 백테스트란, 그리고 한계</h2>
         <p class="period-note">백테스트는 강력한 학습 도구지만, 결과를 그대로 미래에 대입하면 위험합니다.</p>
         <ul class="guide-terms">
           <li><strong>과최적화(curve fitting)</strong> — 과거에 “딱 맞게” 다듬은 규칙은 미래에 잘 안 맞습니다. 너무 화려한 과거 성과는 의심하세요.</li>
@@ -298,7 +324,7 @@
       </section>
 
       <section class="panel">
-        <h2>⑥ 대시보드 사용법</h2>
+        <h2>⑦ 대시보드 사용법</h2>
         <ul class="guide-terms">
           <li><strong>영역 → 분류 → 전략/프리셋</strong> — 위에서부터 좁혀 갑니다. 영역은 큰 갈래(자산배분·주식·코인·부동산·도구), 분류·전략은 그 안의 세부 선택.</li>
           <li><strong>통화(원화/달러)</strong> — 같은 전략을 원화·달러 기준으로 전환해 환율 효과까지 봅니다.</li>
@@ -310,7 +336,7 @@
       </section>
 
       <section class="panel">
-        <h2>⑦ 투자 면책 · 시작 전 체크리스트</h2>
+        <h2>⑧ 투자 면책 · 시작 전 체크리스트</h2>
         <p class="tool-disclaimer">⚠️ 이 자료는 <strong>교육·연구 목적</strong>이며 특정 상품·전략의 매수·매도를 권유하지 않습니다. 모든 백테스트는 과거 기록일 뿐 <strong>미래 수익을 보장하지 않으며</strong>, 투자 손실의 책임은 본인에게 있습니다.</p>
         <h3>시작하기 전, 스스로 확인</h3>
         <ul class="guide-terms">
@@ -869,10 +895,10 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=1bea22ec" defer></script>
-  <script src="re_apt.js?v=1bea22ec" defer></script>
-  <script src="analytics-live.js?v=1bea22ec" defer></script>
-  <script src="leverage.js?v=1bea22ec" defer></script>
-  <script src="app.js?v=1bea22ec" defer></script>
+  <script src="alloc.js?v=2c53a3f4" defer></script>
+  <script src="re_apt.js?v=2c53a3f4" defer></script>
+  <script src="analytics-live.js?v=2c53a3f4" defer></script>
+  <script src="leverage.js?v=2c53a3f4" defer></script>
+  <script src="app.js?v=2c53a3f4" defer></script>
 </body>
 </html>

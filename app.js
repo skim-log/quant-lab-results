@@ -913,7 +913,8 @@ function applyTheme(theme, persist) {
   // 차트 색은 CSS 토큰 기반 → 재렌더로 새 테마 반영(분석·도구 뷰는 전용 렌더 경로).
   if (document.body.classList.contains('tools-mode')) {
     const t = state.tool || {};
-    if (t.kind === 'paradise') paradiseRefresh();
+    if (t.kind === 'guide') _renderGuideAllocChart();
+    else if (t.kind === 'paradise') paradiseRefresh();
     else if (t.kind === 'sentiment') renderSentiment(t.data);
     else if (t.kind === 'trend') renderTrend(t.data);
     else if (t.kind === 'molit_explore') renderMolitExplore(t.data);   // 테마 토글 시 차트 재채색
@@ -1112,8 +1113,61 @@ function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(�
 function enterGuide() {
   setAnalyticsMode(false); setToolsMode(true, 'guide');
   state.playground = false; state.data = null; state.allocCtx = null; _showAllocRebal(false);
-  document.getElementById('meta').textContent = '초보자를 위한 설명 — 용어 · 자산배분 · 전략 · 사용법';
+  state.tool = { kind: 'guide' };   // 테마 토글 시 applyTheme 이 가이드 차트를 재채색하도록
+  document.getElementById('meta').textContent = '초보자를 위한 설명 — 용어 · 자산배분 · 전략 · 도구 · 사용법';
   setStatus('');
+  _renderGuideAllocChart();
+}
+
+// ③ '왜 자산배분' 개념 그래프 — 한 자산 100%(빨강) vs 분산 포트폴리오(파랑), 가상 데이터.
+// 로그수익률 공간에서 단일 자산(고변동+시나리오 급락 2회)을 생성 → 분산은 그 수익률의 EMA 평활(저역통과)로
+// 변동성·낙폭만 줄이고, 드리프트 보정(ΣgD=ΣgS)으로 최종 누적수익을 단일 자산과 정확히 일치시킨다
+// ("같은 도착지, 완만한 길"). 시드 고정이라 항상 동일한 그래프(결정적).
+function _renderGuideAllocChart() {
+  const el = document.getElementById('guide-alloc-chart');
+  if (!el || typeof Plotly === 'undefined') return;
+  const N = 240, START_Y = 2005;                         // 20년 월별
+  let s = 606 >>> 0;                                     // LCG 시드 고정(결정적 — 깨끗한 예시로 선별)
+  const rnd = () => (s = (1664525 * s + 1013904223) >>> 0) / 4294967296;
+  const gauss = () => { let u = 0, v = 0; while (u === 0) u = rnd(); while (v === 0) v = rnd();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const inC1 = i => i >= 36 && i < 46, inC2 = i => i >= 120 && i < 126;   // 시나리오 급락 2회
+  const gS = [];                                         // 단일 자산: 고변동 + 깊은 급락(연 변동성 ~18%, MDD 깊음)
+  for (let i = 0; i < N; i++) {
+    let g = 0.0108 + 0.046 * gauss();
+    if (inC1(i)) g -= 0.075; if (inC2(i)) g -= 0.050;
+    gS.push(g);
+  }
+  // 분산: 단일과 '분리'된 저변동 과정 + 급락 시 소폭만 동조(채권·금 상쇄 효과). 같은 LCG 스트림을 이어 써 독립 난수.
+  const gDb = [];
+  for (let i = 0; i < N; i++) {
+    let g = 0.0090 + 0.018 * gauss();
+    if (inC1(i)) g -= 0.020; if (inC2(i)) g -= 0.012;
+    gDb.push(g);
+  }
+  const sumS = gS.reduce((a, b) => a + b, 0), sumDb = gDb.reduce((a, b) => a + b, 0);
+  const delta = (sumS - sumDb) / N;                      // 드리프트 보정 → 최종 누적수익 단일과 정확히 일치
+  const gD = gDb.map(g => g + delta);
+  const xs = [], navS = [], navD = []; let cs = 0, cd = 0;
+  for (let i = 0; i < N; i++) {
+    cs += gS[i]; cd += gD[i]; navS.push(Math.exp(cs)); navD.push(Math.exp(cd));
+    const y = START_Y + Math.floor(i / 12), m = (i % 12) + 1;
+    xs.push(`${y}-${String(m).padStart(2, '0')}-01`);
+  }
+  const annVol = (a) => { const mu = a.reduce((x, y) => x + y, 0) / a.length;
+    return Math.sqrt(a.reduce((x, y) => x + (y - mu) ** 2, 0) / a.length) * Math.sqrt(12); };
+  const mddOf = (nav) => { let pk = -Infinity, m = 0; for (const x of nav) { if (x > pk) pk = x; m = Math.min(m, x / pk - 1); } return m; };
+  const traces = [
+    { type: 'scatter', mode: 'lines', name: '주식 100% (분산 안 함)', x: xs, y: navS,
+      line: { width: 1.7, color: '#ef4444' }, hovertemplate: '%{y:.2f}배<extra>주식 100%</extra>' },
+    { type: 'scatter', mode: 'lines', name: '분산 포트폴리오 (주식+채권+금)', x: xs, y: navD,
+      line: { width: 2.0, color: '#2563eb' }, hovertemplate: '%{y:.2f}배<extra>분산</extra>' },
+  ];
+  Plotly.newPlot(el, traces, baseLayout('개념 예시 — 같은 수익, 다른 출렁임 (가상 데이터)', '누적 성장 (배)'), PLOTCFG);
+  const cap = document.getElementById('guide-alloc-stats');
+  if (cap) cap.textContent =
+    `연 변동성: 주식 100% ≈ ${(annVol(gS) * 100).toFixed(0)}% vs 분산 ≈ ${(annVol(gD) * 100).toFixed(0)}% · `
+    + `최대낙폭: ${(mddOf(navS) * 100).toFixed(0)}% vs ${(mddOf(navD) * 100).toFixed(0)}% · 최종 수익은 동일하게 맞춤(개념 예시·가상 데이터).`;
 }
 function _apct(x, dp = 1) { return (x === null || x === undefined || isNaN(x)) ? '–' : (x * 100).toFixed(dp) + '%'; }
 function _anum(x, dp = 2) { return (x === null || x === undefined || isNaN(x)) ? '–' : (+x).toFixed(dp); }
