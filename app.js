@@ -1396,8 +1396,10 @@ function _levBuildPeriods() {
   if (state.lev.period != null && !u.periods.some(p => p.key === state.lev.period)) state.lev.period = u.periods[0].key;
   document.getElementById('lev-period').innerHTML = u.periods
     .map(p => `<button type="button" data-period="${p.key}"${p.key === state.lev.period ? ' class="active"' : ''}>${p.label}</button>`).join('');
+  // 주의: date 입력에 min/max 를 걸면 Chrome 등에서 연도 키보드 입력이 깨진다(부분 입력 0002·0020 이
+  // 범위 밖 → 연도가 0000 으로 리셋). 범위는 onLevDate 의 JS 클램프로만 강제하고 속성은 비운다.
   const sEl = document.getElementById('lev-start'), eEl = document.getElementById('lev-end');
-  if (sEl && eEl) { sEl.min = eEl.min = u.span_start; sEl.max = eEl.max = u.span_end; }  // 날짜 입력 범위 = 지수 스팬
+  [sEl, eEl].forEach(el => { if (el) { el.removeAttribute('min'); el.removeAttribute('max'); } });
 }
 function _levApplyPeriodKey(key) {                   // 프리셋 키 → start/end + UI 동기화
   const u = _levU();
