@@ -1358,17 +1358,22 @@ function enterLeverage(d) {
       const u = _levU();
       const sv = document.getElementById('lev-start').value;
       const ev = document.getElementById('lev-end').value;
-      if (!sv || !ev) return;                                // 한쪽이 미완성(키보드 입력 중)이면 무시 — span으로 점프 방지
-      let s = sv, en = ev;
-      if (s < u.span_start) s = u.span_start;
-      if (en > u.span_end) en = u.span_end;
+      if (!sv || !ev) return;                                // 한쪽이 미완성이면 무시
+      // ※ 입력값을 되쓰지 않는다 — Chrome 은 월/일이 채워진 채 연도를 한 자리 칠 때마다(1→0001) change 를
+      //   발생시키는데, 여기서 클램프+되쓰기를 하면 세그먼트가 리셋돼 연도를 완성할 수 없다(다른 탭은 value 를
+      //   되쓰지 않아 정상). 범위는 계산용으로만 클램프하고, 표시 보정은 blur 에서만.
+      let s = sv < u.span_start ? u.span_start : sv;
+      let en = ev > u.span_end ? u.span_end : ev;
       if (s > en) { const t = s; s = en; en = t; }
       state.lev.start = s; state.lev.end = en; state.lev.period = null;  // 프리셋 해제(커스텀)
-      _levSyncPeriodUI(); _levFull();
+      _levHighlightPeriod(); _levFull();                     // 하이라이트만(입력 미터치)
     };
-    // 'change'(엔터·blur·완성)에만 반응 — 'input'(세그먼트마다)은 타이핑 중 깜빡임·점프 유발.
-    document.getElementById('lev-start').addEventListener('change', onLevDate);
-    document.getElementById('lev-end').addEventListener('change', onLevDate);
+    const onLevBlur = () => { _levSyncPeriodUI(); };          // 포커스 떠난 뒤에만 클램프된 값으로 표시 보정
+    ['lev-start', 'lev-end'].forEach(id => {
+      const el = document.getElementById(id);
+      el.addEventListener('change', onLevDate);              // 'input'(세그먼트마다)은 깜빡임 유발 → change 만
+      el.addEventListener('blur', onLevBlur);
+    });
     const sl = document.getElementById('lev-slider');
     sl.addEventListener('input', () => { state.lev.L = parseFloat(sl.value); _levLight(); });
     document.querySelectorAll('.lev-quick [data-lev]').forEach(b =>
@@ -1407,11 +1412,14 @@ function _levApplyPeriodKey(key) {                   // 프리셋 키 → start/
   state.lev.period = p.key; state.lev.start = p.start; state.lev.end = p.end;
   _levSyncPeriodUI();
 }
-function _levSyncPeriodUI() {                         // 프리셋 하이라이트(커스텀이면 없음) + 날짜입력 값
+function _levHighlightPeriod() {                      // 프리셋 버튼 하이라이트만(입력 미터치 — 타이핑 중 안전)
   document.querySelectorAll('#lev-period button').forEach(b =>
     b.classList.toggle('active', state.lev.period != null && b.dataset.period === state.lev.period));
+}
+function _levSyncPeriodUI() {                         // 하이라이트 + 날짜입력 값 동기화(프리셋·클램프·blur 전용)
+  _levHighlightPeriod();
   const sEl = document.getElementById('lev-start'), eEl = document.getElementById('lev-end');
-  // 값이 실제로 다를 때만 재기록 — 동일값 재할당 시 date 입력의 세그먼트 커서가 리셋돼 키보드 입력이 끊김.
+  // 값이 실제로 다를 때만 재기록. ※ 타이핑 중(onLevDate)엔 호출 금지 — 연도 세그먼트 리셋 유발.
   if (sEl && sEl.value !== state.lev.start) sEl.value = state.lev.start;
   if (eEl && eEl.value !== state.lev.end) eEl.value = state.lev.end;
 }
