@@ -422,6 +422,12 @@ body.tools-mode #strategy-desc { display: none !important; }
 .lev-readout { font-weight: 700; color: var(--accent); min-width: 3.2rem; display: inline-block; text-align: right; }
 #lev-slider { accent-color: var(--accent); }
 .lev-quick { margin-top: 0.55rem; }
+.lev-period-row label { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--muted); font-size: 0.85rem; }
+.lev-period-row input[type="date"] {
+  padding: 0.3rem 0.45rem; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--card); color: var(--fg); font-size: 0.85rem;
+}
+.lev-period-row input[type="date"]:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 .senti-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.7rem; }
 .senti-card { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 0.7rem 0.85rem; background: var(--surface-2); }
 .senti-card .senti-t { font-size: 0.8rem; color: var(--muted); }

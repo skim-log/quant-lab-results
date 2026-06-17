@@ -1330,7 +1330,7 @@ const LEV_COL = { cur: '#2563eb', base: '#9ca3af', opt: '#16a34a', cooper: '#ca8
 function enterLeverage(d) {
   state.playground = false; state.analyticsActive = false; state._analyticsCur = null; state.data = null;
   setToolsMode(true, 'leverage');
-  state.lev = { d, under: d.default_underlying, period: d.default_period, scn: d.default_scenario, L: null };
+  state.lev = { d, under: d.default_underlying, period: d.default_period, scn: d.default_scenario, L: null, start: null, end: null };
   document.getElementById('meta').textContent = `${d.title || '최적 레버리지'} · 생성일 ${d.generated_at || '-'}`;
   document.getElementById('lev-intro').innerHTML =
     `일별 리밸런싱 상수 레버리지(L배)를 0~5×로 스윕해 <strong>연복리수익(CAGR)을 최대화하는 최적 L</strong>을 찾습니다. ` +
@@ -1341,10 +1341,31 @@ function enterLeverage(d) {
   document.getElementById('lev-scn').innerHTML = Object.entries(d.scenarios)
     .map(([k, v]) => `<button type="button" data-scn="${k}"${k === state.lev.scn ? ' class="active"' : ''}>${v}</button>`).join('');
   _levBuildPeriods();
+  _levApplyPeriodKey(state.lev.period);                    // 기본 프리셋 → start/end + 날짜입력 동기화
   if (!state._levWired) {
-    document.getElementById('lev-under').addEventListener('click', e => _levToggle(e, 'under', () => { _levBuildPeriods(); _levFull(); }));
+    document.getElementById('lev-under').addEventListener('click', e => _levToggle(e, 'under', () => {
+      _levBuildPeriods();
+      if (state.lev.period) _levApplyPeriodKey(state.lev.period);   // 프리셋이면 새 지수 기준 범위 재적용
+      else _levClampRange();                                        // 커스텀이면 새 스팬으로 클램프
+      _levFull();
+    }));
     document.getElementById('lev-scn').addEventListener('click', e => _levToggle(e, 'scn', _levFull));
-    document.getElementById('lev-period').addEventListener('click', e => _levToggle(e, 'period', _levFull));
+    document.getElementById('lev-period').addEventListener('click', e => {
+      const b = e.target.closest('button[data-period]'); if (!b) return;
+      _levApplyPeriodKey(b.dataset.period); _levFull();
+    });
+    const onLevDate = () => {                                // 사용자 지정 시작·종료일
+      const u = _levU();
+      let s = document.getElementById('lev-start').value || u.span_start;
+      let en = document.getElementById('lev-end').value || u.span_end;
+      if (s < u.span_start) s = u.span_start;
+      if (en > u.span_end) en = u.span_end;
+      if (s > en) { const t = s; s = en; en = t; }
+      state.lev.start = s; state.lev.end = en; state.lev.period = null;  // 프리셋 해제(커스텀)
+      _levSyncPeriodUI(); _levFull();
+    };
+    document.getElementById('lev-start').addEventListener('change', onLevDate);
+    document.getElementById('lev-end').addEventListener('change', onLevDate);
     const sl = document.getElementById('lev-slider');
     sl.addEventListener('input', () => { state.lev.L = parseFloat(sl.value); _levLight(); });
     document.querySelectorAll('.lev-quick [data-lev]').forEach(b =>
@@ -1368,9 +1389,31 @@ function _levToggle(e, field, after) {
 function _levU() { return state.lev.d.underlyings.find(u => u.key === state.lev.under) || state.lev.d.underlyings[0]; }
 function _levBuildPeriods() {
   const u = _levU();
-  if (!u.periods.some(p => p.key === state.lev.period)) state.lev.period = u.periods[0].key;
+  // period=null 은 '사용자 지정'(커스텀) 의도이므로 유지. 유효하지 않은 키만 첫 프리셋으로.
+  if (state.lev.period != null && !u.periods.some(p => p.key === state.lev.period)) state.lev.period = u.periods[0].key;
   document.getElementById('lev-period').innerHTML = u.periods
     .map(p => `<button type="button" data-period="${p.key}"${p.key === state.lev.period ? ' class="active"' : ''}>${p.label}</button>`).join('');
+  const sEl = document.getElementById('lev-start'), eEl = document.getElementById('lev-end');
+  if (sEl && eEl) { sEl.min = eEl.min = u.span_start; sEl.max = eEl.max = u.span_end; }  // 날짜 입력 범위 = 지수 스팬
+}
+function _levApplyPeriodKey(key) {                   // 프리셋 키 → start/end + UI 동기화
+  const u = _levU();
+  const p = u.periods.find(x => x.key === key) || u.periods[0];
+  state.lev.period = p.key; state.lev.start = p.start; state.lev.end = p.end;
+  _levSyncPeriodUI();
+}
+function _levSyncPeriodUI() {                         // 프리셋 하이라이트(커스텀이면 없음) + 날짜입력 값
+  document.querySelectorAll('#lev-period button').forEach(b =>
+    b.classList.toggle('active', state.lev.period != null && b.dataset.period === state.lev.period));
+  const sEl = document.getElementById('lev-start'), eEl = document.getElementById('lev-end');
+  if (sEl) sEl.value = state.lev.start; if (eEl) eEl.value = state.lev.end;
+}
+function _levClampRange() {                           // 커스텀 범위를 현재 지수 스팬으로 클램프
+  const u = _levU();
+  let s = state.lev.start, en = state.lev.end;
+  if (!s || s < u.span_start) s = u.span_start;
+  if (!en || en > u.span_end) en = u.span_end;
+  state.lev.start = s; state.lev.end = en; _levSyncPeriodUI();
 }
 function _levSyncSlider() {
   const sl = document.getElementById('lev-slider');
@@ -1380,12 +1423,13 @@ function _levFriction() {
   const u = _levU();
   return state.lev.scn === 'etf' ? { expense: u.friction.expense, spread: u.friction.spread } : { expense: 0, spread: 0 };
 }
-function _levSeg(period) {                                      // 기간 슬라이스된 일별 배열
-  const u = _levU();
-  const p = u.periods.find(x => x.key === (period || state.lev.period)) || u.periods[0];
-  const [lo, hi] = LEVERAGE.sliceRange(u.dates, p.start, p.end);
+function _levSeg(range) {                                       // 기간 슬라이스된 일별 배열
+  const u = _levU();                                           // range={start,end}(요약표용) 없으면 현재 state 범위
+  const start = (range && range.start) || state.lev.start || u.span_start;
+  const end = (range && range.end) || state.lev.end || u.span_end;
+  const [lo, hi] = LEVERAGE.sliceRange(u.dates, start, end);
   return { u: u.under_ret.slice(lo, hi + 1), rf: u.rf.slice(lo, hi + 1),
-           dates: u.dates.slice(lo, hi + 1), meta: p };
+           dates: u.dates.slice(lo, hi + 1), meta: { start: u.dates[lo], end: u.dates[hi] } };
 }
 
 // 무거운 재계산(지수·기간·시나리오 변경): 스윕·최적·요약·관리변동성 + 슬라이더 기본값.
@@ -1531,7 +1575,7 @@ function _levRenderSummary() {
   const d = state.lev.d, u = _levU(), fr = _levFriction();
   const cooperRef = (d.cooper_2010 && d.cooper_2010[state.lev.under]) || null;
   const rows = u.periods.map(p => {
-    const seg = _levSeg(p.key);
+    const seg = _levSeg(p);
     const sw = LEVERAGE.sweep(seg.u, seg.rf, seg.dates, d.l_grid, fr);
     const opt = LEVERAGE.optimal(sw);
     const c = opt.cagr_max || {};

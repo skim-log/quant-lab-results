@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=32d5561b" />
+  <link rel="stylesheet" href="style.css?v=a9a05fd3" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -392,8 +392,10 @@
           <span class="muted">지수</span><div id="lev-under" class="bt-toggle"></div>
           <span class="muted" style="margin-left:.4rem">시나리오</span><div id="lev-scn" class="bt-toggle"></div>
         </div>
-        <div class="bt-controls">
+        <div class="bt-controls lev-period-row">
           <span class="muted">기간</span><div id="lev-period" class="bt-toggle"></div>
+          <label>시작 <input type="date" id="lev-start" /></label>
+          <label>종료 <input type="date" id="lev-end" /></label>
           <span id="lev-period-range" class="muted"></span>
         </div>
         <div class="exp-risk">
@@ -708,10 +710,10 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=32d5561b" defer></script>
-  <script src="re_apt.js?v=32d5561b" defer></script>
-  <script src="analytics-live.js?v=32d5561b" defer></script>
-  <script src="leverage.js?v=32d5561b" defer></script>
-  <script src="app.js?v=32d5561b" defer></script>
+  <script src="alloc.js?v=a9a05fd3" defer></script>
+  <script src="re_apt.js?v=a9a05fd3" defer></script>
+  <script src="analytics-live.js?v=a9a05fd3" defer></script>
+  <script src="leverage.js?v=a9a05fd3" defer></script>
+  <script src="app.js?v=a9a05fd3" defer></script>
 </body>
 </html>
