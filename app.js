@@ -1356,14 +1356,17 @@ function enterLeverage(d) {
     });
     const onLevDate = () => {                                // 사용자 지정 시작·종료일
       const u = _levU();
-      let s = document.getElementById('lev-start').value || u.span_start;
-      let en = document.getElementById('lev-end').value || u.span_end;
+      const sv = document.getElementById('lev-start').value;
+      const ev = document.getElementById('lev-end').value;
+      if (!sv || !ev) return;                                // 한쪽이 미완성(키보드 입력 중)이면 무시 — span으로 점프 방지
+      let s = sv, en = ev;
       if (s < u.span_start) s = u.span_start;
       if (en > u.span_end) en = u.span_end;
       if (s > en) { const t = s; s = en; en = t; }
       state.lev.start = s; state.lev.end = en; state.lev.period = null;  // 프리셋 해제(커스텀)
       _levSyncPeriodUI(); _levFull();
     };
+    // 'change'(엔터·blur·완성)에만 반응 — 'input'(세그먼트마다)은 타이핑 중 깜빡임·점프 유발.
     document.getElementById('lev-start').addEventListener('change', onLevDate);
     document.getElementById('lev-end').addEventListener('change', onLevDate);
     const sl = document.getElementById('lev-slider');
@@ -1406,7 +1409,9 @@ function _levSyncPeriodUI() {                         // 프리셋 하이라이�
   document.querySelectorAll('#lev-period button').forEach(b =>
     b.classList.toggle('active', state.lev.period != null && b.dataset.period === state.lev.period));
   const sEl = document.getElementById('lev-start'), eEl = document.getElementById('lev-end');
-  if (sEl) sEl.value = state.lev.start; if (eEl) eEl.value = state.lev.end;
+  // 값이 실제로 다를 때만 재기록 — 동일값 재할당 시 date 입력의 세그먼트 커서가 리셋돼 키보드 입력이 끊김.
+  if (sEl && sEl.value !== state.lev.start) sEl.value = state.lev.start;
+  if (eEl && eEl.value !== state.lev.end) eEl.value = state.lev.end;
 }
 function _levClampRange() {                           // 커스텀 범위를 현재 지수 스팬으로 클램프
   const u = _levU();
