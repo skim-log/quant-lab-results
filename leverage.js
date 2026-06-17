@@ -134,7 +134,47 @@
     return a;
   }
 
-  const API = { DPY, sliceRange, leverReturns, managedVol, navFromReturns, metrics, sweep, optimal, downsampleIdx };
+  // ── MDD 방어 오버레이 ─────────────────────────────────────────────────────
+  // 기초자산 가격 프록시(일별 수익 누적) — SMA 추세·모멘텀 신호 산출용.
+  function _priceProxy(u) { const p = new Float64Array(u.length); let v = 1; for (let i = 0; i < u.length; i++) { v *= (1 + u[i]); p[i] = v; } return p; }
+  function _rollMean(p, w) { const out = new Float64Array(p.length).fill(NaN); let s = 0; for (let i = 0; i < p.length; i++) { s += p[i]; if (i >= w) s -= p[i - w]; if (i >= w - 1) out[i] = s / w; } return out; }
+
+  /** 추세 필터: 기초가격 > window일 SMA 면 L배 보유, 아니면 현금(rf). 신호 1일 시프트(룩어헤드 차단). */
+  function maFilterReturns(u, rf, L, window, opts) {
+    opts = opts || {}; const dpy = opts.dpy || DPY;
+    const rL = leverReturns(u, rf, L, opts), p = _priceProxy(u), sma = _rollMean(p, window);
+    const out = new Float64Array(u.length);
+    for (let i = 0; i < u.length; i++) {
+      const inMkt = i > 0 && isFinite(sma[i - 1]) && p[i - 1] > sma[i - 1];
+      out[i] = inMkt ? rL[i] : (rf[i] || 0) / dpy;
+    }
+    return out;
+  }
+  /** 절대(시계열) 모멘텀: 기초 lookback일 수익률>0 이면 L배, 아니면 현금. 신호 1일 시프트. */
+  function absMomReturns(u, rf, L, lookback, opts) {
+    opts = opts || {}; const dpy = opts.dpy || DPY;
+    const rL = leverReturns(u, rf, L, opts), p = _priceProxy(u);
+    const out = new Float64Array(u.length);
+    for (let i = 0; i < u.length; i++) {
+      const j = i - 1;
+      const inMkt = j >= lookback && (p[j] / p[j - lookback] - 1) > 0;
+      out[i] = inMkt ? rL[i] : (rf[i] || 0) / dpy;
+    }
+    return out;
+  }
+  /** 결합: 관리변동성(목표vol) 동적 레버리지를 window일 추세 필터로 게이트(추세 이탈 시 현금). */
+  function maManagedReturns(u, rf, targetVol, window, opts) {
+    opts = opts || {}; const dpy = opts.dpy || DPY;
+    const mv = managedVol(u, rf, targetVol, opts).ret, p = _priceProxy(u), sma = _rollMean(p, window);
+    const out = new Float64Array(u.length);
+    for (let i = 0; i < u.length; i++) {
+      const inMkt = i > 0 && isFinite(sma[i - 1]) && p[i - 1] > sma[i - 1];
+      out[i] = inMkt ? mv[i] : (rf[i] || 0) / dpy;
+    }
+    return out;
+  }
+
+  const API = { DPY, sliceRange, leverReturns, managedVol, maFilterReturns, absMomReturns, maManagedReturns, navFromReturns, metrics, sweep, optimal, downsampleIdx };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.LEVERAGE = API;
 })(typeof window !== 'undefined' ? window : globalThis);

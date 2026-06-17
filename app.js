@@ -1472,6 +1472,39 @@ function _levLight() {
   _levRenderCurve(state.lev.sweep, state.lev.sweepOpt);
   _levRenderEquity(state.lev.seg, state.lev.fr);
   _levRenderCards(state.lev.sweep, state.lev.sweepOpt);
+  _levRenderDefense(state.lev.seg, state.lev.fr);
+}
+
+// MDD 방어 전략 비교 — 현재 L·기간·시나리오로 추세필터·관리변동성·절대모멘텀 오버레이를 즉석 계산.
+function _levRenderDefense(seg, fr) {
+  const L = state.lev.L, lx = (+L).toFixed(1);
+  const mvOpts = { lMax: 3.0, expense: fr.expense, spread: fr.spread };
+  const defs = [];
+  const add = (name, ret, color, dash, w) => defs.push({
+    name, color, dash: dash || 'solid', w: w || 1.5,
+    m: LEVERAGE.metrics(ret, seg.dates), nav: LEVERAGE.navFromReturns(ret),
+  });
+  add(`${lx}× 보유`, LEVERAGE.leverReturns(seg.u, seg.rf, L, fr), LEV_COL.cur, 'solid', 1.9);
+  add(`${lx}× + 200일선`, LEVERAGE.maFilterReturns(seg.u, seg.rf, L, 200, fr), '#16a34a', 'solid');
+  add(`${lx}× + 60일선`, LEVERAGE.maFilterReturns(seg.u, seg.rf, L, 60, fr), '#0891b2', 'dot');
+  add(`${lx}× + 절대모멘텀(12M)`, LEVERAGE.absMomReturns(seg.u, seg.rf, L, 252, fr), '#a16207', 'dot');
+  add('관리변동성(목표20%)', LEVERAGE.managedVol(seg.u, seg.rf, 0.20, mvOpts).ret, '#9333ea', 'dash');
+  add('200일선+관리변동성', LEVERAGE.maManagedReturns(seg.u, seg.rf, 0.20, 200, fr), LEV_COL.risk, 'solid', 1.8);
+  add('1× 보유(참고)', seg.u, LEV_COL.base, 'solid');
+  const idx = LEVERAGE.downsampleIdx(seg.dates.length, 1200), xs = idx.map(i => seg.dates[i]);
+  const traces = defs.map(d => ({
+    type: 'scatter', mode: 'lines', name: d.name, x: xs, y: idx.map(i => d.nav[i]),
+    line: { width: d.w, color: d.color, dash: d.dash }, hovertemplate: '%{y:.2f}<extra>' + d.name + '</extra>',
+  }));
+  const layout = baseLayout('MDD 방어 전략 비교 (시작=1.0, 로그)', '누적 성장 (배, log)');
+  layout.yaxis.type = 'log';
+  Plotly.react('lev-defense', traces, layout, PLOTCFG);
+  const calmar = m => (m.mdd != null && m.mdd < 0 && isFinite(m.cagr)) ? m.cagr / Math.abs(m.mdd) : null;
+  const row = d => `<tr><td class="name">${d.name}</td><td>${_apct(d.m.cagr)}</td>` +
+    `<td>${_apct(d.m.mdd, 0)}</td><td>${_anum(d.m.sharpe)}</td><td>${_anum(calmar(d.m))}</td></tr>`;
+  document.getElementById('lev-defense-table').innerHTML =
+    '<thead><tr><th class="name">전략</th><th>CAGR</th><th>MDD</th><th>Sharpe</th><th>Calmar</th></tr></thead>' +
+    '<tbody>' + defs.map(row).join('') + '</tbody>';
 }
 
 function _levAtL(sw, L) {                                       // 격자(0.1)에서 L에 해당하는 인덱스 지표

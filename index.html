@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=9740ed3a" />
+  <link rel="stylesheet" href="style.css?v=4f5e0915" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -434,6 +434,26 @@
         <div id="lev-managed" class="chart"></div>
       </section>
       <section class="panel">
+        <h2>MDD 방어 전략 비교 <span class="muted">(레버리지 낙폭을 줄이는 퀀트 오버레이)</span></h2>
+        <p class="period-note">현재 선택한 <strong>지수·기간·시나리오</strong>와 <strong>슬라이더 레버리지(L)</strong> 기준으로, 레버리지의 최대낙폭(MDD)을 줄이는 대표 전략들을 즉석 비교합니다. 추세 이탈 시 <strong>현금(무위험)</strong>으로 회피 — 신호는 기초지수로 산출하고 1일 시프트(룩어헤드 차단). ⚠ 전환 거래비용은 미반영(추세필터는 연 수 회 전환이라 영향 작음).</p>
+        <div class="table-wrap"><table id="lev-defense-table" class="diag-table"></table></div>
+        <div id="lev-defense" class="chart"></div>
+        <details class="theory">
+          <summary>💡 MDD 방어 전략 설명 (Gayed 200일선 · 변동성 타기팅 · 절대 모멘텀)</summary>
+          <div class="theory-body">
+            <h4>① 200·60일 이동평균 추세 필터 — Gayed &amp; Bilello, "Leverage for the Long Run" (2016)</h4>
+            <p>기초지수가 <strong>N일 이동평균(SMA) 위</strong>일 때만 레버리지(L배)를 보유하고, 아래로 내려가면 <strong>전액 현금(단기국채)</strong>으로 회피합니다. 대형 하락장(닷컴·금융위기 등)은 대부분 200일선 아래에서 진행되므로, 추세 이탈 시 빠져나가면 레버리지의 치명적 복리 손실(−90%대)을 피하면서 상승 추세는 그대로 탑니다. 역사적으로 <strong>MDD를 크게 줄이면서 CAGR은 오히려 높였습니다</strong>(레버리지 변동성 감쇠를 추세장에 집중). 200일선은 휩쏘(거짓신호)가 적고, 60일선은 더 빠르게 반응하지만 횡보장 휩쏘가 많습니다.</p>
+            <h4>② 변동성 타기팅(관리 변동성)</h4>
+            <p>목표 변동성(예: 연 20%)을 정하고 최근 실현변동성에 반비례해 레버리지를 매일 조절합니다(σ↑→레버리지↓). 위험을 일정하게 '스무딩'해 MDD·꼬리위험을 줄이고 위험대비수익(Sharpe)을 높입니다. 위 '관리 변동성' 패널과 동일 엔진.</p>
+            <h4>③ 절대(시계열) 모멘텀 — 12개월</h4>
+            <p>기초지수의 직전 12개월(252거래일) 수익률이 <strong>양(+)일 때만</strong> 레버리지 보유, 음(−)이면 현금. 추세필터와 비슷하나 더 느리게 반응(긴 룩백) — 급락 초기엔 늦지만 장기 약세장은 확실히 회피.</p>
+            <h4>④ 결합: 200일선 + 변동성 타기팅</h4>
+            <p>변동성 타기팅으로 평소 위험을 조절하면서, 추세 이탈(200일선 아래) 시엔 전액 현금화. 두 방어가 겹쳐 <strong>MDD를 무레버리지(1×) 수준(~−30%)까지</strong> 낮추면서 추세장 레버리지 상승은 유지 — 표본 기준 가장 견고한 낙폭 방어.</p>
+            <p class="muted">참고: M. Gayed &amp; C. Bilello, "Leverage for the Long Run" (2016); T. Cooper (2010, 변동성 타기팅).</p>
+          </div>
+        </details>
+      </section>
+      <section class="panel">
         <h2>기간별 최적 레버리지 요약 <span class="muted">(논문 시점 ≤2009 vs 전체 vs 최근)</span></h2>
         <div class="table-wrap"><table id="lev-summary" class="diag-table"></table></div>
         <p class="period-note" id="lev-findings"></p>
@@ -710,10 +730,10 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=9740ed3a" defer></script>
-  <script src="re_apt.js?v=9740ed3a" defer></script>
-  <script src="analytics-live.js?v=9740ed3a" defer></script>
-  <script src="leverage.js?v=9740ed3a" defer></script>
-  <script src="app.js?v=9740ed3a" defer></script>
+  <script src="alloc.js?v=4f5e0915" defer></script>
+  <script src="re_apt.js?v=4f5e0915" defer></script>
+  <script src="analytics-live.js?v=4f5e0915" defer></script>
+  <script src="leverage.js?v=4f5e0915" defer></script>
+  <script src="app.js?v=4f5e0915" defer></script>
 </body>
 </html>

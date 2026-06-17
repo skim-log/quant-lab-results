@@ -232,6 +232,7 @@ fieldset#strategies legend { font-size: 0.82rem; color: var(--muted); padding: 0
 #lev-risk { height: 320px; }
 #lev-equity { height: 460px; }
 #lev-managed { height: 460px; }
+#lev-defense { height: 460px; }
 #chart-cryptodca { height: 300px; }
 
 /* ---- 전략 블렌딩 (body.blend-mode 일 때만 picker 표시, 그 외엔 숨김) ---- */
@@ -549,6 +550,7 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
   #bt-chart { height: 260px; }
   #lev-equity { height: 380px; }
   #lev-managed { height: 380px; }
+  #lev-defense { height: 380px; }
   #lev-curve { height: 260px; }
   #lev-risk { height: 260px; }
   #chart-cryptodca { height: 260px; }
