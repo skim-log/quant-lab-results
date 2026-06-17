@@ -984,18 +984,18 @@ function clearPresetActive() {
 // ---------------------------------------------------------------------------
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
-const CAT_ORDER = { dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, crypto: 3,
+const CAT_ORDER = { guide: -1, dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, crypto: 3,
   realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10 };
-const CAT_LABEL_NAV = { dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
+const CAT_LABEL_NAV = { guide: '초보자 가이드', dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
   crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩', realestate: '부동산',
   paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도' };
 // 4대분류: 자산배분(8자산) / 주식(한국 모멘텀·미국 TQQQ·지수 모멘텀) / 코인(BTC/ETH/XRP) /
 //          도구·지표(계산기·심리·경보·데이터정확도). 코인은 전통자산과 위험특성이 달라 독립 영역.
-const SUPER_OF = { dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
+const SUPER_OF = { guide: 'guide', dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
   momentum: 'strat', crypto: 'coin', realestate: 're',
   paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools' };
-const SUPER_ORDER = { alloc: 0, strat: 1, coin: 2, re: 3, tools: 4 };
-const SUPER_LABEL = { alloc: '자산배분', strat: '주식', coin: '코인', re: '부동산', tools: '도구·지표' };
+const SUPER_ORDER = { guide: -1, alloc: 0, strat: 1, coin: 2, re: 3, tools: 4 };
+const SUPER_LABEL = { guide: '📖 가이드', alloc: '자산배분', strat: '주식', coin: '코인', re: '부동산', tools: '도구·지표' };
 
 function catsPresent() {
   return [...new Set(state.manifest.map(m => m.category))]
@@ -1076,6 +1076,7 @@ function setCurrency(cur) {
   if (!entry) return;
   document.body.classList.toggle('blend-mode', entry.mode === 'blend');   // 블렌딩 뷰 전용 컨트롤 표시
   // 도구·지표: 낙원계산기(클라이언트)·시장심리/추세경보/데이터정확도(JSON 로드) — mode 분기.
+  if (entry.mode === 'guide') return enterGuide();                        // 📖 초보자 가이드(정적 콘텐츠)
   if (entry.mode === 'blend') return enterBlend();
   if (entry.mode === 'paradise') return enterParadise();
   if (entry.mode === 'sentiment' || entry.mode === 'trend' || entry.mode === 'reliability')
@@ -1101,10 +1102,18 @@ function setAnalyticsMode(on) {
 function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
   document.body.classList.toggle('tools-mode', !!on);
   if (on) document.body.classList.remove('analytics-mode');
-  ['paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage'].forEach(t => {
+  ['guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.classList.toggle('hidden', !(on && t === tool));
   });
+}
+
+// 📖 초보자 가이드 — 순수 정적 콘텐츠 뷰(데이터 파일 없음). 낙원계산기/블렌딩과 동일하게 mode 분기로 진입.
+function enterGuide() {
+  setAnalyticsMode(false); setToolsMode(true, 'guide');
+  state.playground = false; state.data = null; state.allocCtx = null; _showAllocRebal(false);
+  document.getElementById('meta').textContent = '초보자를 위한 설명 — 용어 · 자산배분 · 전략 · 사용법';
+  setStatus('');
 }
 function _apct(x, dp = 1) { return (x === null || x === undefined || isNaN(x)) ? '–' : (x * 100).toFixed(dp) + '%'; }
 function _anum(x, dp = 2) { return (x === null || x === undefined || isNaN(x)) ? '–' : (+x).toFixed(dp); }

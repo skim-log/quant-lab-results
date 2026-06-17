@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=4f5e0915" />
+  <link rel="stylesheet" href="style.css?v=1bea22ec" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -182,6 +182,145 @@
         <h2>리스크 패리티 <span class="muted">(역변동성 비중)</span></h2>
         <p class="period-note">변동성 역가중 추천 비중 vs 글로벌 분산(귀금속 강화) 목표비중. 변동성 큰 자산일수록 비중↓.</p>
         <div id="an-riskparity" class="rp-rows"></div>
+      </section>
+    </div>
+
+    <!-- 📖 초보자 가이드 (순수 정적 콘텐츠 — 용어·자산배분·전략·사용법) -->
+    <div id="guide-section" class="hidden">
+      <section class="panel">
+        <h2>초보자를 위한 설명 <span class="muted">(용어 · 자산배분 · 전략 · 사용법)</span></h2>
+        <p class="period-note">투자가 처음이거나 “퀀트 백테스트”가 낯설어도 괜찮습니다. 아래 순서대로 읽으면 이 대시보드의 차트와 표를 스스로 해석할 수 있습니다 — <strong>① 기초 용어 → ② 지표 읽는 법 → ③ 왜 자산배분인가 → ④ 전략 분류 → ⑤ 백테스트의 한계 → ⑥ 대시보드 사용법 → ⑦ 면책·체크리스트</strong>.</p>
+        <details class="theory" open>
+          <summary>💡 이 대시보드는 뭐예요? (1분 요약)</summary>
+          <div class="theory-body">
+            <p>과거의 실제 가격 데이터로 <strong>“이런 규칙으로 투자했다면 결과가 어땠을까?”</strong>를 미리 계산해 둔 <strong>백테스트 결과 탐색 도구</strong>입니다. 주식 · 자산배분 · 코인 · 부동산 전략을 같은 잣대(수익 · 위험 지표)로 비교할 수 있어요.</p>
+            <p>화면 위쪽 <em>영역 → 분류 → 전략/프리셋</em>을 고르면 그 전략의 수익곡선과 성과표가 나타납니다. 숫자가 처음엔 낯설어도 아래 용어·지표 설명을 보면 금방 익숙해집니다.</p>
+            <p><strong>꼭 기억할 점:</strong> 모든 숫자는 <em>과거</em> 기록이며 미래 수익을 보장하지 않습니다. 특정 종목·전략을 권유하는 것이 아니라 공부와 비교를 돕는 교육·연구용 자료입니다.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="panel">
+        <h2>① 기초 용어</h2>
+        <p class="period-note">가장 자주 나오는 말들입니다. 뜻만 알아도 화면이 훨씬 잘 읽힙니다.</p>
+        <ul class="guide-terms">
+          <li><strong>퀀트(Quant)</strong> — 감(感)이나 뉴스가 아니라 <em>정해진 규칙·숫자</em>로 사고파는 투자 방식. 이 사이트의 모든 전략은 규칙이 명확합니다.</li>
+          <li><strong>백테스트</strong> — 그 규칙을 <em>과거 데이터</em>에 적용해 “그때 그렇게 했다면” 성과를 시뮬레이션하는 것.</li>
+          <li><strong>수익곡선(NAV)</strong> — 1로 시작한 투자금이 시간에 따라 몇 배가 됐는지 그린 선. 위로 갈수록 좋습니다.</li>
+          <li><strong>리밸런싱(Rebalancing)</strong> — 시간이 지나 흐트러진 자산 비중을 <em>목표 비중으로 되돌리는</em> 것(예: 분기마다). 비싸진 건 팔고 싸진 건 사게 되어 자동 “고점 매도·저점 매수” 효과가 납니다.</li>
+          <li><strong>분산투자</strong> — 한 곳에 몰지 않고 여러 자산에 나눠 담는 것. 서로 다르게 움직이는(상관이 낮은) 자산을 섞으면 전체 <em>위험이 줄어듭니다</em>.</li>
+          <li><strong>모멘텀(Momentum)</strong> — “오르던 게 더 오른다”는 경향. 최근 수익이 좋은 자산을 골라 따라가는 전략의 근거.</li>
+          <li><strong>추세추종 · 이동평균선(200일)</strong> — 가격이 최근 <em>200일 평균선 위</em>면 상승추세로 보고 보유, 아래로 내려오면 현금으로 피하는 방식. 큰 하락을 줄이는 대표적 위험 관리.</li>
+          <li><strong>듀얼모멘텀</strong> — 두 단계로 거릅니다 — ① 여러 자산 중 <em>가장 센 것</em>을 고르고(상대 모멘텀) ② 그것마저 하락세면 <em>안전자산으로 대피</em>(절대 모멘텀).</li>
+          <li><strong>안전자산 · 카나리아(canary) 자산</strong> — 채권·현금처럼 위기에 버티는 자산이 안전자산. 카나리아는 위험을 미리 알려주는 신호용 자산(예: 신흥국·종합채권)으로, 이들이 약해지면 방어 모드로 전환합니다.</li>
+          <li><strong>레버리지(Leverage)</strong> — 빚이나 파생으로 <em>수익·손실을 N배</em>로 키우는 것(예: 3배 ETF). 오를 땐 좋지만 횡보·하락장에선 <strong>변동성 끌림(복리 감쇠)</strong>으로 손실이 더 커질 수 있어 “양날의 검”입니다.</li>
+          <li><strong>DCA(정액적립식)</strong> — 매달 같은 금액을 꾸준히 사 모으는 방식. 진입 시점을 분산해 타이밍 부담을 줄입니다.</li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <h2>② 수익 · 위험 지표 읽는 법</h2>
+        <p class="period-note">성과표에 나오는 숫자들의 뜻입니다. <strong>수익만큼 위험(낙폭)도 같이</strong> 보는 게 핵심입니다.</p>
+        <div class="ext-cards">
+          <div class="ext-card"><div class="lab">CAGR · 연복리수익률</div><div class="val">↑ 높을수록</div><div class="sub">매년 평균 몇 % 복리로 불었나. 대표 수익 지표.</div></div>
+          <div class="ext-card"><div class="lab">총수익</div><div class="val">↑ 높을수록</div><div class="sub">전체 기간 누적 수익률(원금 대비 몇 배).</div></div>
+          <div class="ext-card"><div class="lab">MDD · 최대낙폭</div><div class="val">↓ 작을수록</div><div class="sub">고점 대비 최악의 하락폭. −50%면 반토막 — 버틸 수 있는 수준인지 꼭 확인.</div></div>
+          <div class="ext-card"><div class="lab">변동성</div><div class="val">↓ 작을수록</div><div class="sub">수익이 출렁이는 정도(연환산 표준편차).</div></div>
+          <div class="ext-card"><div class="lab">샤프(Sharpe)</div><div class="val">↑ 높을수록</div><div class="sub">위험 1단위당 초과수익 = (수익−무위험)/변동성. 효율성 지표.</div></div>
+          <div class="ext-card"><div class="lab">소르티노(Sortino)</div><div class="val">↑ 높을수록</div><div class="sub">샤프와 비슷하나 <em>하락 변동성</em>만 위험으로 봄.</div></div>
+          <div class="ext-card"><div class="lab">칼마(Calmar)</div><div class="val">↑ 높을수록</div><div class="sub">CAGR ÷ |MDD|. 낙폭 대비 수익 효율.</div></div>
+          <div class="ext-card"><div class="lab">승률</div><div class="val">참고</div><div class="sub">수익이 플러스였던 달의 비율.</div></div>
+          <div class="ext-card"><div class="lab">회전율</div><div class="val">참고</div><div class="sub">얼마나 자주 사고파나(연간). 높을수록 비용↑.</div></div>
+        </div>
+        <details class="theory">
+          <summary>💡 수익률이 두 개(TWR vs XIRR)인 이유</summary>
+          <div class="theory-body">
+            <p><strong>TWR(시간가중수익률)</strong> = 수익곡선의 기울기. 입·출금 영향을 뺀 <em>전략 자체의 성과</em>라서 전략끼리 비교할 때 씁니다.</p>
+            <p><strong>XIRR(현금흐름수익률)</strong> = 매달 적립한 돈의 시점까지 반영한 <em>내 실제 연환산 수익률</em>. 적립식(DCA) 결과를 볼 때 의미가 있습니다.</p>
+          </div>
+        </details>
+      </section>
+
+      <section class="panel">
+        <h2>③ 왜 자산배분이 필요한가</h2>
+        <p class="period-note">“무엇을 살까”보다 “어떻게 나눠 담을까”가 장기 성과의 대부분을 좌우합니다.</p>
+        <h3>분산은 거의 유일한 ‘공짜 점심’</h3>
+        <p>서로 다르게 움직이는 자산(주식·채권·금 등)을 섞으면, 한쪽이 빠질 때 다른 쪽이 버텨 <strong>수익을 크게 희생하지 않고도 낙폭(MDD)과 변동성을 줄일</strong> 수 있습니다. 자산 간 상관이 낮을수록 이 효과가 큽니다.</p>
+        <h3>왜 ‘한 종목 몰빵’이 위험한가</h3>
+        <p>한 자산에 전부 넣으면 그게 −50% 빠질 때 내 자산도 반토막이고, 원금 회복에는 +100%가 필요합니다. 분산은 이런 치명적 낙폭을 완화해 <strong>오래 버티며 복리를 누리게</strong> 해 줍니다.</p>
+        <h3>정적 배분 vs 동적 배분</h3>
+        <p><strong>정적 배분</strong>은 비중을 고정하고 주기적으로 리밸런싱만 합니다(단순·견고). <strong>동적 배분</strong>은 시장 신호(모멘텀·추세)에 따라 비중을 바꿔 하락을 더 피하려 합니다(정교하지만 신호에 민감). 둘 다 장단이 있어 이 사이트에서 직접 비교할 수 있습니다.</p>
+        <div class="guide-note">👉 <strong>자산배분 → 정량분석</strong> 탭의 “효율적 프론티어”에서, 자산을 섞을수록 위험 대비 수익이 어떻게 좋아지는지 눈으로 확인해 보세요.</div>
+      </section>
+
+      <section class="panel">
+        <h2>④ 전략 분류 — 개요와 대표 예시</h2>
+        <p class="period-note">대시보드의 전략은 크게 아래로 나뉩니다. 각 분류의 성격을 알면 “어디서 무엇을 비교할지” 감이 잡힙니다. (상단 <em>영역</em> 탭과 대응)</p>
+
+        <div class="guide-cat">
+          <h3>🟦 정적 자산배분</h3>
+          <p>고정 비중을 정해 두고 주기적으로 리밸런싱(+표류 밴드)만 하는 가장 단순·견고한 방식. <span class="muted">대표 예: 올웨더풍, US 60/40(주식·채권), 영구 포트폴리오.</span></p>
+        </div>
+        <div class="guide-cat">
+          <h3>🟪 동적 자산배분</h3>
+          <p>모멘텀·추세 신호에 따라 매달 비중을 바꿔 하락장을 피하려는 방식. <span class="muted">대표 예: GEM(글로벌 듀얼모멘텀), BAA(Bold Asset Allocation), 한미 6개월 모멘텀(강환국).</span></p>
+        </div>
+        <div class="guide-cat">
+          <h3>🟩 모멘텀 · 레버리지 (주식)</h3>
+          <p>개별 시장의 추세를 타거나 레버리지로 수익을 키우는 전략. <span class="muted">대표 예: 한국 대형주 모멘텀, QQQ 200일선 추세추종, LRS(레버리지 로테이션), HFEA(UPRO/TMF 55:45).</span></p>
+        </div>
+        <div class="guide-cat">
+          <h3>🟨 최적 레버리지 (정량분석)</h3>
+          <p>레버리지 배수를 0~5배까지 훑어 <em>연복리수익(CAGR)·샤프가 가장 높아지는 배수</em>를 찾고, 이동평균·절대모멘텀 필터로 낙폭을 방어하는 분석. <span class="muted">⚠️ 레버리지는 양날의 검 — 변동성 끌림 때문에 “많이 키울수록 좋다”가 아닙니다.</span></p>
+        </div>
+        <div class="guide-cat">
+          <h3>🪙 코인</h3>
+          <p>BTC·ETH·XRP를 추세·밸류 지표로 매매하는 전략. <span class="muted">대표 예: 골든/데드 크로스, 메이어 멀티플, 파이 사이클 탑. ⚠️ 변동성이 주식보다 훨씬 큽니다.</span></p>
+        </div>
+        <div class="guide-cat">
+          <h3>🏠 부동산</h3>
+          <p>한국 아파트 지수(KB·한국부동산원·국토부 실거래)로 보는 전략. <span class="muted">대표 예: 매매 매수후보유, 갭투자(전세 레버리지), 지역 모멘텀 로테이션. 취득세·중개·보유세·양도세를 차감하며, 월간·비유동 자료라 변동성 해석에 주의.</span></p>
+        </div>
+        <div class="guide-note">👉 마음에 드는 분류가 보이면 상단 <strong>영역</strong> 탭에서 그 분류로 들어가 기간·통화를 바꿔 가며 직접 백테스트해 보세요.</div>
+      </section>
+
+      <section class="panel">
+        <h2>⑤ 백테스트란, 그리고 한계</h2>
+        <p class="period-note">백테스트는 강력한 학습 도구지만, 결과를 그대로 미래에 대입하면 위험합니다.</p>
+        <ul class="guide-terms">
+          <li><strong>과최적화(curve fitting)</strong> — 과거에 “딱 맞게” 다듬은 규칙은 미래에 잘 안 맞습니다. 너무 화려한 과거 성과는 의심하세요.</li>
+          <li><strong>생존편향</strong> — 사라진(상장폐지된) 종목·전략을 빼고 보면 성과가 부풀려집니다.</li>
+          <li><strong>과거 ≠ 미래</strong> — 시장 환경(금리·인플레이션 등)이 바뀌면 과거에 통한 규칙이 무력화될 수 있습니다(예: 2022년 채권·레버리지).</li>
+          <li><strong>비용·세금·슬리피지</strong> — 수수료·세금·체결 미끄러짐은 실제 수익을 갉아먹습니다. 이 사이트는 가능한 한 반영하지만 현실은 더 복잡합니다.</li>
+          <li><strong>데이터 평활</strong> — 부동산처럼 월간·평활된 지수는 변동성·샤프가 실제보다 좋아 보일 수 있습니다.</li>
+        </ul>
+        <p>그래서 절대 수치 한 줄에 매달리기보다 <strong>여러 전략을 같은 기간·같은 잣대로 ‘상대 비교’</strong>하고, <strong>낙폭을 내가 버틸 수 있는지</strong>를 함께 보는 것이 바른 사용법입니다.</p>
+      </section>
+
+      <section class="panel">
+        <h2>⑥ 대시보드 사용법</h2>
+        <ul class="guide-terms">
+          <li><strong>영역 → 분류 → 전략/프리셋</strong> — 위에서부터 좁혀 갑니다. 영역은 큰 갈래(자산배분·주식·코인·부동산·도구), 분류·전략은 그 안의 세부 선택.</li>
+          <li><strong>통화(원화/달러)</strong> — 같은 전략을 원화·달러 기준으로 전환해 환율 효과까지 봅니다.</li>
+          <li><strong>기간</strong> — 3년/5년/10년/전체 또는 시작·종료일로 구간을 바꾸면 그 구간 성과로 다시 계산됩니다.</li>
+          <li><strong>로그 스케일</strong> — 수익곡선 세로축을 로그로 — 장기간 복리 성장을 한눈에 비교할 때 켜세요.</li>
+          <li><strong>차트 3종</strong> — <em>수익곡선</em>(얼마나 불었나) · <em>낙폭(drawdown)</em>(고점 대비 얼마나 빠졌나) · <em>연간수익률</em>(해마다 +/−). 셋을 함께 보면 위험·수익이 입체적으로 보입니다.</li>
+          <li><strong>리밸런싱·밴드·200일선 필터</strong> — 정적 배분에서 주기·표류 밴드·추세 필터를 바꾸면 즉석 재계산됩니다(실험용).</li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <h2>⑦ 투자 면책 · 시작 전 체크리스트</h2>
+        <p class="tool-disclaimer">⚠️ 이 자료는 <strong>교육·연구 목적</strong>이며 특정 상품·전략의 매수·매도를 권유하지 않습니다. 모든 백테스트는 과거 기록일 뿐 <strong>미래 수익을 보장하지 않으며</strong>, 투자 손실의 책임은 본인에게 있습니다.</p>
+        <h3>시작하기 전, 스스로 확인</h3>
+        <ul class="guide-terms">
+          <li>한 자산에 몰지 않고 <strong>충분히 분산</strong>했는가?</li>
+          <li>최소 수년 이상 <strong>장기 관점</strong>으로 접근하는가?</li>
+          <li>이 전략의 <strong>최대낙폭(MDD)을 실제로 버틸 수 있는가</strong>? (−50%면 반토막)</li>
+          <li>레버리지·코인 등 <strong>고위험 전략</strong>의 변동성을 이해했는가?</li>
+          <li><strong>수수료·세금</strong>이 실제 수익을 얼마나 줄이는지 따져 봤는가?</li>
+          <li>지금 결정이 <strong>과거 성과에 홀린 것</strong>은 아닌가? (과최적화 경계)</li>
+        </ul>
       </section>
     </div>
 
@@ -730,10 +869,10 @@
     <span class="src">생성: <code>quant-lab</code> · 차트: Plotly</span>
   </footer>
 
-  <script src="alloc.js?v=4f5e0915" defer></script>
-  <script src="re_apt.js?v=4f5e0915" defer></script>
-  <script src="analytics-live.js?v=4f5e0915" defer></script>
-  <script src="leverage.js?v=4f5e0915" defer></script>
-  <script src="app.js?v=4f5e0915" defer></script>
+  <script src="alloc.js?v=1bea22ec" defer></script>
+  <script src="re_apt.js?v=1bea22ec" defer></script>
+  <script src="analytics-live.js?v=1bea22ec" defer></script>
+  <script src="leverage.js?v=1bea22ec" defer></script>
+  <script src="app.js?v=1bea22ec" defer></script>
 </body>
 </html>

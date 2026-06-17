@@ -903,6 +903,15 @@
     "file": "panel.json"
   },
   {
+    "id": "guide",
+    "category": "guide",
+    "group": "초보자 가이드",
+    "currency": "",
+    "mode": "guide",
+    "label": "초보자를 위한 설명",
+    "file": ""
+  },
+  {
     "id": "tool_blend",
     "category": "blend",
     "group": "전략 블렌딩",
