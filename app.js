@@ -1209,7 +1209,7 @@ function _anum(x, dp = 2) { return (x === null || x === undefined || isNaN(x)) ?
 function _krwCompact(n) {
   if (n === null || n === undefined || isNaN(n)) return '–';
   const a = Math.abs(n), s = n < 0 ? '-' : '';
-  if (a >= 1e8) return s + (a / 1e8).toFixed(a >= 1e9 ? 0 : 1) + '억';
+  if (a >= 1e8) return s + (a / 1e8).toFixed(1) + '억';   // 항상 1자리(천만원 단위)까지 — 예: 15.3억
   if (a >= 1e4) return s + Math.round(a / 1e4).toLocaleString('ko-KR') + '만';
   return Math.round(n).toLocaleString('ko-KR') + '원';
 }
