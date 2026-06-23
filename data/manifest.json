@@ -632,6 +632,15 @@
     "file": "re_gap.json"
   },
   {
+    "id": "re_molit_경기_apt",
+    "category": "realestate",
+    "group": "경기 단지 조회 (개별 아파트)",
+    "currency": "krw",
+    "label": "부동산 · 경기 단지 조회 (개별 아파트) (KRW)",
+    "file": "re_molit_경기_apt.json",
+    "mode": "molit_apt"
+  },
+  {
     "id": "re_molit_광주_apt",
     "category": "realestate",
     "group": "광주 단지 조회 (개별 아파트)",
