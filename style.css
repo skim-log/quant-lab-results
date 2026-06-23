@@ -384,11 +384,13 @@ table#metrics-table, #bandab-table, .diag-table {
 .status { font-size: 0.9rem; color: var(--muted); min-height: 1.2em; margin: 0.3rem 0; }
 .status.error { color: var(--neg); }
 
-/* 전략 설명 캡션(현재 선택 전략/프리셋) — 항상 표시, 길면 3줄 클램프 */
+/* 전략 설명 캡션(현재 선택 전략/프리셋) — 항상 표시. 길면 박스 안에서 스크롤(높이 상한).
+   ※ 과거 -webkit-line-clamp 는 레이아웃 높이(3줄)와 페인트 높이가 어긋나 일부 브라우저에서
+      넘친 줄이 아래 차트 위로 겹쳐 보였다. max-height + overflow-y 로 레이아웃·클립을 함께 확정. */
 .strategy-desc {
-  margin: 0.5rem 0 0; padding: 0.6rem 0.9rem; font-size: 0.88rem; color: var(--muted);
+  margin: 0.5rem 0 0; padding: 0.6rem 0.9rem; font-size: 0.88rem; color: var(--muted); line-height: 1.5;
   background: var(--surface-2); border-left: 3px solid var(--accent); border-radius: var(--radius-sm);
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  max-height: 10em; overflow-y: auto; overscroll-behavior: contain;
 }
 
 footer {
