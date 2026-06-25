@@ -1761,8 +1761,15 @@ function renderMolitExplore(d) {
     line: { width: 1.3, color: PALETTE[i % PALETTE.length] },
     hovertemplate: `${r} %{x|%Y-%m}: %{y}${suffix}<extra></extra>`,
   }));
-  Plotly.react('me-volume', line('volume', '건'), _meLayout('월별 거래량 (건)', ''), cfg);
+  Plotly.react('me-volume', line('volume', '건'), _meLayout('월별 매매 거래량 (건)', ''), cfg);
   Plotly.react('me-jeonse', line('jeonse_ratio', '%'), _meLayout('전세가율 추이 (전세 ㎡보증금 / 매매 ㎡가, %)', '%'), cfg);
+  const hasW = d.wolse_count && regions.some(r => (d.wolse_count[r] || []).some(v => v > 0));
+  setHidden('me-wolse', !hasW); setHidden('me-convr', !hasW);
+  if (hasW) {
+    Plotly.react('me-wolse', line('wolse_count', '건'), _meLayout('월별 월세 거래량 (건)', ''), cfg);
+    Plotly.react('me-convr', line('conversion', '%'),     // 전월세전환율(연%·㎡정규화)
+      _meLayout('전월세 전환율 추이 (월세×12 / 전세−월세 보증금차, %)', '%'), cfg);
+  }
 
   const aptEntry = state.manifest.find(mf => mf.mode === 'molit_apt' && mf.group.startsWith(d.city));
   const rows = (d.recent || []).map(t =>
@@ -1784,8 +1791,9 @@ function renderMolitExplore(d) {
   document.getElementById('me-recent-cap').textContent =
     `최근 실거래 — ${d.recent_ym || '-'} 거래금액 상위 ${(d.recent || []).length}건 (국토교통부 실거래가)`;
   document.getElementById('me-desc').textContent =
-    `${d.city} 시군구별 월간 거래량·전세가율 추이(실거래 집계) + 최근 실거래 상세. ` +
-    '⚠ 시군구 월별값은 거래 단지 구성에 따라 출렁임(구성편향)·소지역 희박월 주의.' +
+    `${d.city} 시군구별 월간 매매 거래량·전세가율·월세 거래량·전월세전환율 추이(실거래 집계) + 최근 실거래 상세. ` +
+    '전월세전환율(연%) = 월세×12 / (전세−월세 보증금차), ㎡ 정규화로 면적 통제. ' +
+    '⚠ 시군구 월별값은 거래 단지 구성에 따라 출렁임(구성편향)·소지역/최근월 희박 주의.' +
     (aptEntry ? ' 단지명을 클릭하면 단지 조회(추이·백테스트)로 이동합니다.' : '');
 }
 
@@ -1948,8 +1956,9 @@ function _aptClearView() {
   state.apt.sel.ci = -1; state.apt.sel.band = null; state.apt.sel.startMi = null;
   document.getElementById('ma-bands').innerHTML = '';
   document.getElementById('ma-meta').textContent = '단지명을 검색하거나 위 상위 단지 버튼을 누르세요.';
-  ['ma-price', 'ma-jr', 'ma-bt'].forEach(id => { const el = document.getElementById(id); if (el) Plotly.purge(el); });
+  ['ma-price', 'ma-jr', 'ma-wolse', 'ma-bt'].forEach(id => { const el = document.getElementById(id); if (el) Plotly.purge(el); });
   document.getElementById('ma-jr').style.display = 'none';
+  document.getElementById('ma-wolse').style.display = 'none';
   document.getElementById('ma-bt-cards').innerHTML = '';
   document.getElementById('ma-bt-note').textContent = '';
   document.getElementById('ma-bt-start').innerHTML = '';
@@ -1978,9 +1987,11 @@ function renderAptAll() {
   if (!d || !b || !c || !bd) return;
   document.getElementById('ma-meta').textContent =
     `${b.name} ${c.umd} · ${c.apt} · 전용 ${bd.area}㎡ · 건축 ${c.build == null ? '-' : c.build}년 · ` +
-    `누적 매매 ${c.sale_n.toLocaleString()}건 / 전세 ${c.jeonse_n.toLocaleString()}건`;
+    `누적 매매 ${c.sale_n.toLocaleString()}건 / 전세 ${c.jeonse_n.toLocaleString()}건` +
+    (c.wolse_n ? ` / 월세 ${c.wolse_n.toLocaleString()}건` : '');
   _renderAptPrice();
   _renderAptJr();
+  _renderAptWolse();
   _renderAptStartOptions();
   _renderAptBacktest();
   _renderAptTx();
@@ -2046,6 +2057,36 @@ function _renderAptJr() {
       hovertemplate: '%{x|%Y-%m} %{y}%<extra>' + b.name + '</extra>' }];
   Plotly.react('ma-jr', traces,
     _meLayout('전세가율 (전세 중위보증금 / 매매 평활가, %)', '%'), { displaylogo: false, responsive: true });
+}
+
+// 단지 월세 추이 + 전월세전환율 — 중위 월세(만원, 좌축) + 전환율(%, 우축, 같은 밴드라 면적 통제).
+// 전환율 = 월세×12 / (전세 중위보증금 − 월세 중위보증금) × 100, 두 보증금이 같은 달에 있을 때.
+function _renderAptWolse() {
+  const bd = _aptBand(), el = document.getElementById('ma-wolse');
+  const hasW = bd && bd.wolse && bd.wolse.mi.length > 0;
+  el.style.display = hasW ? '' : 'none';
+  if (!hasW) return;
+  const rx = bd.wolse.mi.map(_aptMiIso), rent = bd.wolse.rent;
+  const jdepo = {};                                  // 전세 중위보증금: mi → depo (전환율 분모용)
+  for (let k = 0; k < bd.jeonse.mi.length; k++) jdepo[bd.jeonse.mi[k]] = bd.jeonse.depo[k];
+  const cx = [], cy = [];
+  for (let k = 0; k < bd.wolse.mi.length; k++) {
+    const jd = jdepo[bd.wolse.mi[k]], wd = bd.wolse.depo[k];
+    if (jd == null || jd - wd <= 0) continue;        // 전세보증금 데이터 없거나 분모 ≤0 → 건너뜀
+    cx.push(_aptMiIso(bd.wolse.mi[k]));
+    cy.push(+(bd.wolse.rent[k] * 12 / (jd - wd) * 100).toFixed(2));
+  }
+  const traces = [
+    { type: 'scatter', mode: 'lines+markers', name: '중위 월세(만원)', x: rx, y: rent,
+      line: { width: 2, color: cssVar('--accent') }, marker: { size: 5 },
+      hovertemplate: '%{x|%Y-%m} 월 %{y}만원<extra>월세</extra>' },
+    { type: 'scatter', mode: 'lines+markers', name: '전월세전환율(%)', x: cx, y: cy, yaxis: 'y2',
+      line: { width: 1.6, color: PALETTE[3], dash: 'dot' }, marker: { size: 4 },
+      hovertemplate: '%{x|%Y-%m} %{y}%<extra>전환율</extra>' }];
+  const layout = _meLayout('월세·전월세전환율 (좌: 중위 월세 만원 · 우: 전환율 %)', '');
+  layout.yaxis2 = { overlaying: 'y', side: 'right', ticksuffix: '%', showgrid: false,
+                    tickfont: { color: cssVar('--chart-muted') } };
+  Plotly.react('ma-wolse', traces, layout, { displaylogo: false, responsive: true });
 }
 
 function _renderAptStartOptions() {
@@ -2147,19 +2188,24 @@ function _renderAptTx() {
     total++;
     if (idxs.length < 1000) idxs.push(i);
   }
+  const SIDE = { 0: '매매', 1: '전세', 2: '월세' };
+  const rentArr = tx.tx.rent || [];                              // 월세(만원) — side=2 에만 의미
   const body = idxs.map(i => {
-    const a = tx.tx.area[i] / 10, p = tx.tx.price[i];
+    const a = tx.tx.area[i] / 10, p = tx.tx.price[i], side = tx.tx.side[i];
     const dayS = tx.tx.day[i] == null ? '' : '-' + String(tx.tx.day[i]).padStart(2, '0');
+    // 가격: 매매=거래가(억), 전세=보증금(억), 월세=보증금(억)/월세(만원)
+    const priceCell = p == null ? '-' : (side === 2
+      ? `${(p / 10000).toFixed(1)}억 / 월 ${(rentArr[i] || 0).toLocaleString()}만`
+      : `${(p / 10000).toFixed(1)}억`);
     return `<tr><td>${_aptMiIso(tx.tx.mi[i]).slice(0, 7)}${dayS}</td>` +
-      `<td>${tx.tx.side[i] === 0 ? '매매' : '전세'}</td><td>${a}㎡</td>` +
+      `<td>${SIDE[side] || '전세'}</td><td>${a}㎡</td>` +
       `<td>${tx.tx.floor[i] == null ? '-' : tx.tx.floor[i] + '층'}</td>` +
-      `<td>${p == null ? '-' : (p / 10000).toFixed(1) + '억'}</td>` +
-      `<td>${p == null ? '-' : Math.round(p / a).toLocaleString()}</td></tr>`;
+      `<td>${priceCell}</td></tr>`;
   }).join('');
   wrap.innerHTML = '<table class="metrics"><thead><tr><th>거래일</th><th>구분</th><th>전용</th>' +
-    `<th>층</th><th>가격</th><th>만원/㎡</th></tr></thead><tbody>${body}</tbody></table>`;
+    `<th>층</th><th>가격(억)·월세</th></tr></thead><tbody>${body}</tbody></table>`;
   cap.textContent = `${c.apt} 전용 ${bd.area}㎡ 실거래 — 최근 ${tx.window_years}년 ${total.toLocaleString()}건` +
-    (total > idxs.length ? ` 중 최신 ${idxs.length}건 표시` : '') + ' (국토교통부, 매매가·전세보증금)';
+    (total > idxs.length ? ` 중 최신 ${idxs.length}건 표시` : '') + ' (국토교통부, 매매가·전세/월세 보증금·월세)';
 }
 
 // 구 내 단지 횡단면 선택 전략(연구용) — 번들의 사전계산 NAV(동일비중·모멘텀·밸류·콤보)를 그린다.
