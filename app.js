@@ -2285,9 +2285,11 @@ const CRYPTO_ZONES = [[0, 25, '#dc2626'], [25, 45, '#ea580c'], [45, 55, '#6b7280
 function _sentiChart(elId, title, points, zones, opts = {}) {
   const pts = (points || []).filter(p => p && p.v != null);
   if (!pts.length) { setHidden(elId, true); return; }
-  setHidden(elId, false);   // react 전에 보이게 — display:none 상태로 그리면 Plotly가 컨테이너 높이(300px)를
-                            // 못 재고 기본 450px로 그려 아래 캡션(#senti-note)을 덮는다.
+  setHidden(elId, false);   // 보여야 컨테이너 높이를 잴 수 있음(숨김 상태면 0 → 아래 폴백)
   const layout = baseLayout(title, opts.ytitle || '');
+  // 높이 명시: Plotly responsive 가 컨테이너 높이를 못 재면(조상 숨김/레이아웃 미정착) 기본 450px 로
+  // 그려 300px 박스를 넘쳐 아래 캡션(#senti-note)을 덮는다. clientHeight(보일 때) → 0이면 300 폴백.
+  layout.height = document.getElementById(elId).clientHeight || 300;
   if (opts.yrange) layout.yaxis.range = opts.yrange;
   if (zones) layout.shapes = zones.map(([y0, y1, c]) =>
     ({ type: 'rect', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0, y1, fillcolor: c, opacity: 0.1, line: { width: 0 }, layer: 'below' }));
@@ -2299,9 +2301,10 @@ function _sentiChart(elId, title, points, zones, opts = {}) {
 function _metalPriceChart(elId, gold, silver) {
   const g = (gold || []).filter(p => p && p.v != null), s = (silver || []).filter(p => p && p.v != null);
   if (!g.length && !s.length) { setHidden(elId, true); return; }
-  setHidden(elId, false);   // react 전에 보이게(높이 측정용) — _sentiChart 와 동일 이유
+  setHidden(elId, false);   // 보여야 컨테이너 높이를 잴 수 있음 — _sentiChart 와 동일 이유
   const muted = cssVar('--chart-muted');
   const layout = baseLayout('금·은 가격 (5년)', '금 $/oz');
+  layout.height = document.getElementById(elId).clientHeight || 300;   // 450px 폴백→캡션 겹침 방지
   layout.yaxis2 = { title: { text: '은 $/oz', font: { color: muted } }, overlaying: 'y', side: 'right', showgrid: false, tickfont: { color: muted } };
   const tr = [];
   if (g.length) tr.push({ type: 'scatter', mode: 'lines', name: '금', x: g.map(p => p.t), y: g.map(p => p.v), line: { color: '#f59e0b', width: 2 }, hovertemplate: '금 $%{y:,.0f}<extra></extra>' });
