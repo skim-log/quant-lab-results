@@ -617,379 +617,379 @@
   },
   {
     "id": "re_gaptiming",
-    "category": "realestate",
+    "category": "re_index",
     "group": "갭 × 추세 타이밍 (실거래지수)",
     "currency": "krw",
-    "label": "부동산 · 갭 × 추세 타이밍 (실거래지수) (KRW)",
+    "label": "부동산 · 전국·지수 · 갭 × 추세 타이밍 (실거래지수) (KRW)",
     "file": "re_gaptiming.json"
   },
   {
     "id": "re_gap",
-    "category": "realestate",
+    "category": "re_index",
     "group": "갭투자 레버리지",
     "currency": "krw",
-    "label": "부동산 · 갭투자 레버리지 (KRW)",
+    "label": "부동산 · 전국·지수 · 갭투자 레버리지 (KRW)",
     "file": "re_gap.json"
   },
   {
-    "id": "re_molit_경기_apt",
-    "category": "realestate",
-    "group": "경기 단지 조회 (개별 아파트)",
-    "currency": "krw",
-    "label": "부동산 · 경기 단지 조회 (개별 아파트) (KRW)",
-    "file": "re_molit_경기_apt.json",
-    "mode": "molit_apt"
-  },
-  {
-    "id": "re_molit_광주_apt",
-    "category": "realestate",
-    "group": "광주 단지 조회 (개별 아파트)",
-    "currency": "krw",
-    "label": "부동산 · 광주 단지 조회 (개별 아파트) (KRW)",
-    "file": "re_molit_광주_apt.json",
-    "mode": "molit_apt"
-  },
-  {
-    "id": "re_molit_광주_timing",
-    "category": "realestate",
-    "group": "광주 매매 타이밍 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 광주 매매 타이밍 전략 (실거래) (KRW)",
-    "file": "re_molit_광주_timing.json"
-  },
-  {
-    "id": "re_molit_광주",
-    "category": "realestate",
-    "group": "광주 시군구 매매 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 광주 시군구 매매 (실거래) (KRW)",
-    "file": "re_molit_광주.json"
-  },
-  {
-    "id": "re_molit_광주_select",
-    "category": "realestate",
-    "group": "광주 시군구 선택 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 광주 시군구 선택 전략 (실거래) (KRW)",
-    "file": "re_molit_광주_select.json"
-  },
-  {
-    "id": "re_molit_광주_explore",
-    "category": "realestate",
-    "group": "광주 시군구 조회 (거래량·전세가율·실거래)",
-    "currency": "krw",
-    "label": "부동산 · 광주 시군구 조회 (거래량·전세가율·실거래) (KRW)",
-    "file": "re_molit_광주_explore.json",
-    "mode": "molit_explore"
-  },
-  {
-    "id": "re_molit_대구_apt",
-    "category": "realestate",
-    "group": "대구 단지 조회 (개별 아파트)",
-    "currency": "krw",
-    "label": "부동산 · 대구 단지 조회 (개별 아파트) (KRW)",
-    "file": "re_molit_대구_apt.json",
-    "mode": "molit_apt"
-  },
-  {
-    "id": "re_molit_대구_timing",
-    "category": "realestate",
-    "group": "대구 매매 타이밍 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대구 매매 타이밍 전략 (실거래) (KRW)",
-    "file": "re_molit_대구_timing.json"
-  },
-  {
-    "id": "re_molit_대구",
-    "category": "realestate",
-    "group": "대구 시군구 매매 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대구 시군구 매매 (실거래) (KRW)",
-    "file": "re_molit_대구.json"
-  },
-  {
-    "id": "re_molit_대구_select",
-    "category": "realestate",
-    "group": "대구 시군구 선택 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대구 시군구 선택 전략 (실거래) (KRW)",
-    "file": "re_molit_대구_select.json"
-  },
-  {
-    "id": "re_molit_대구_explore",
-    "category": "realestate",
-    "group": "대구 시군구 조회 (거래량·전세가율·실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대구 시군구 조회 (거래량·전세가율·실거래) (KRW)",
-    "file": "re_molit_대구_explore.json",
-    "mode": "molit_explore"
-  },
-  {
-    "id": "re_molit_대전_apt",
-    "category": "realestate",
-    "group": "대전 단지 조회 (개별 아파트)",
-    "currency": "krw",
-    "label": "부동산 · 대전 단지 조회 (개별 아파트) (KRW)",
-    "file": "re_molit_대전_apt.json",
-    "mode": "molit_apt"
-  },
-  {
-    "id": "re_molit_대전_timing",
-    "category": "realestate",
-    "group": "대전 매매 타이밍 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대전 매매 타이밍 전략 (실거래) (KRW)",
-    "file": "re_molit_대전_timing.json"
-  },
-  {
-    "id": "re_molit_대전",
-    "category": "realestate",
-    "group": "대전 시군구 매매 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대전 시군구 매매 (실거래) (KRW)",
-    "file": "re_molit_대전.json"
-  },
-  {
-    "id": "re_molit_대전_select",
-    "category": "realestate",
-    "group": "대전 시군구 선택 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대전 시군구 선택 전략 (실거래) (KRW)",
-    "file": "re_molit_대전_select.json"
-  },
-  {
-    "id": "re_molit_대전_explore",
-    "category": "realestate",
-    "group": "대전 시군구 조회 (거래량·전세가율·실거래)",
-    "currency": "krw",
-    "label": "부동산 · 대전 시군구 조회 (거래량·전세가율·실거래) (KRW)",
-    "file": "re_molit_대전_explore.json",
-    "mode": "molit_explore"
-  },
-  {
     "id": "re_buyhold",
-    "category": "realestate",
+    "category": "re_index",
     "group": "매매 Buy&Hold",
     "currency": "krw",
-    "label": "부동산 · 매매 Buy&Hold (KRW)",
+    "label": "부동산 · 전국·지수 · 매매 Buy&Hold (KRW)",
     "file": "re_buyhold.json"
   },
   {
     "id": "re_macrotiming",
-    "category": "realestate",
+    "category": "re_index",
     "group": "매크로 레짐 × 갭 (미분양·금리·전세가율)",
     "currency": "krw",
-    "label": "부동산 · 매크로 레짐 × 갭 (미분양·금리·전세가율) (KRW)",
+    "label": "부동산 · 전국·지수 · 매크로 레짐 × 갭 (미분양·금리·전세가율) (KRW)",
     "file": "re_macrotiming.json"
   },
   {
-    "id": "re_molit_부산_apt",
-    "category": "realestate",
-    "group": "부산 단지 조회 (개별 아파트)",
+    "id": "re_rentbuy_seoul",
+    "category": "re_index",
+    "group": "전세 vs 매매 (서울)",
     "currency": "krw",
-    "label": "부동산 · 부산 단지 조회 (개별 아파트) (KRW)",
-    "file": "re_molit_부산_apt.json",
-    "mode": "molit_apt"
+    "label": "부동산 · 전국·지수 · 전세 vs 매매 (서울) (KRW)",
+    "file": "re_rentbuy_seoul.json"
   },
   {
-    "id": "re_molit_부산_timing",
-    "category": "realestate",
-    "group": "부산 매매 타이밍 전략 (실거래)",
+    "id": "re_rentbuy",
+    "category": "re_index",
+    "group": "전세 vs 매매 (전국)",
     "currency": "krw",
-    "label": "부동산 · 부산 매매 타이밍 전략 (실거래) (KRW)",
-    "file": "re_molit_부산_timing.json"
+    "label": "부동산 · 전국·지수 · 전세 vs 매매 (전국) (KRW)",
+    "file": "re_rentbuy.json"
   },
   {
-    "id": "re_molit_부산",
-    "category": "realestate",
-    "group": "부산 시군구 매매 (실거래)",
+    "id": "re_region",
+    "category": "re_index",
+    "group": "지역 모멘텀 로테이션",
     "currency": "krw",
-    "label": "부동산 · 부산 시군구 매매 (실거래) (KRW)",
-    "file": "re_molit_부산.json"
+    "label": "부동산 · 전국·지수 · 지역 모멘텀 로테이션 (KRW)",
+    "file": "re_region.json"
   },
   {
-    "id": "re_molit_부산_select",
-    "category": "realestate",
-    "group": "부산 시군구 선택 전략 (실거래)",
+    "id": "re_regioncompare",
+    "category": "re_index",
+    "group": "지역별 매매 비교",
     "currency": "krw",
-    "label": "부동산 · 부산 시군구 선택 전략 (실거래) (KRW)",
-    "file": "re_molit_부산_select.json"
-  },
-  {
-    "id": "re_molit_부산_explore",
-    "category": "realestate",
-    "group": "부산 시군구 조회 (거래량·전세가율·실거래)",
-    "currency": "krw",
-    "label": "부동산 · 부산 시군구 조회 (거래량·전세가율·실거래) (KRW)",
-    "file": "re_molit_부산_explore.json",
-    "mode": "molit_explore"
+    "label": "부동산 · 전국·지수 · 지역별 매매 비교 (KRW)",
+    "file": "re_regioncompare.json"
   },
   {
     "id": "re_molit_서울_apt",
-    "category": "realestate",
-    "group": "서울 단지 조회 (개별 아파트)",
+    "category": "re_서울",
+    "group": "단지 조회 (개별 아파트)",
     "currency": "krw",
-    "label": "부동산 · 서울 단지 조회 (개별 아파트) (KRW)",
+    "label": "부동산 · 서울 · 단지 조회 (개별 아파트) (KRW)",
     "file": "re_molit_서울_apt.json",
     "mode": "molit_apt"
   },
   {
     "id": "re_molit_서울_timing",
-    "category": "realestate",
-    "group": "서울 매매 타이밍 전략 (실거래)",
+    "category": "re_서울",
+    "group": "매매 타이밍 전략 (실거래)",
     "currency": "krw",
-    "label": "부동산 · 서울 매매 타이밍 전략 (실거래) (KRW)",
+    "label": "부동산 · 서울 · 매매 타이밍 전략 (실거래) (KRW)",
     "file": "re_molit_서울_timing.json"
   },
   {
     "id": "re_molit_서울",
-    "category": "realestate",
-    "group": "서울 시군구 매매 (실거래)",
+    "category": "re_서울",
+    "group": "시군구 매매 (실거래)",
     "currency": "krw",
-    "label": "부동산 · 서울 시군구 매매 (실거래) (KRW)",
+    "label": "부동산 · 서울 · 시군구 매매 (실거래) (KRW)",
     "file": "re_molit_서울.json"
   },
   {
     "id": "re_molit_서울_select",
-    "category": "realestate",
-    "group": "서울 시군구 선택 전략 (실거래)",
+    "category": "re_서울",
+    "group": "시군구 선택 전략 (실거래)",
     "currency": "krw",
-    "label": "부동산 · 서울 시군구 선택 전략 (실거래) (KRW)",
+    "label": "부동산 · 서울 · 시군구 선택 전략 (실거래) (KRW)",
     "file": "re_molit_서울_select.json"
   },
   {
     "id": "re_molit_서울_explore",
-    "category": "realestate",
-    "group": "서울 시군구 조회 (거래량·전세가율·실거래)",
+    "category": "re_서울",
+    "group": "시군구 조회 (거래량·전세가율·월세·실거래)",
     "currency": "krw",
-    "label": "부동산 · 서울 시군구 조회 (거래량·전세가율·실거래) (KRW)",
+    "label": "부동산 · 서울 · 시군구 조회 (거래량·전세가율·월세·실거래) (KRW)",
     "file": "re_molit_서울_explore.json",
     "mode": "molit_explore"
   },
   {
-    "id": "re_molit_세종_apt",
-    "category": "realestate",
-    "group": "세종 단지 조회 (개별 아파트)",
+    "id": "re_molit_경기_apt",
+    "category": "re_경기",
+    "group": "단지 조회 (개별 아파트)",
     "currency": "krw",
-    "label": "부동산 · 세종 단지 조회 (개별 아파트) (KRW)",
-    "file": "re_molit_세종_apt.json",
+    "label": "부동산 · 경기 · 단지 조회 (개별 아파트) (KRW)",
+    "file": "re_molit_경기_apt.json",
     "mode": "molit_apt"
-  },
-  {
-    "id": "re_molit_울산_apt",
-    "category": "realestate",
-    "group": "울산 단지 조회 (개별 아파트)",
-    "currency": "krw",
-    "label": "부동산 · 울산 단지 조회 (개별 아파트) (KRW)",
-    "file": "re_molit_울산_apt.json",
-    "mode": "molit_apt"
-  },
-  {
-    "id": "re_molit_울산_timing",
-    "category": "realestate",
-    "group": "울산 매매 타이밍 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 울산 매매 타이밍 전략 (실거래) (KRW)",
-    "file": "re_molit_울산_timing.json"
-  },
-  {
-    "id": "re_molit_울산",
-    "category": "realestate",
-    "group": "울산 시군구 매매 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 울산 시군구 매매 (실거래) (KRW)",
-    "file": "re_molit_울산.json"
-  },
-  {
-    "id": "re_molit_울산_select",
-    "category": "realestate",
-    "group": "울산 시군구 선택 전략 (실거래)",
-    "currency": "krw",
-    "label": "부동산 · 울산 시군구 선택 전략 (실거래) (KRW)",
-    "file": "re_molit_울산_select.json"
-  },
-  {
-    "id": "re_molit_울산_explore",
-    "category": "realestate",
-    "group": "울산 시군구 조회 (거래량·전세가율·실거래)",
-    "currency": "krw",
-    "label": "부동산 · 울산 시군구 조회 (거래량·전세가율·실거래) (KRW)",
-    "file": "re_molit_울산_explore.json",
-    "mode": "molit_explore"
   },
   {
     "id": "re_molit_인천_apt",
-    "category": "realestate",
-    "group": "인천 단지 조회 (개별 아파트)",
+    "category": "re_인천",
+    "group": "단지 조회 (개별 아파트)",
     "currency": "krw",
-    "label": "부동산 · 인천 단지 조회 (개별 아파트) (KRW)",
+    "label": "부동산 · 인천 · 단지 조회 (개별 아파트) (KRW)",
     "file": "re_molit_인천_apt.json",
     "mode": "molit_apt"
   },
   {
     "id": "re_molit_인천_timing",
-    "category": "realestate",
-    "group": "인천 매매 타이밍 전략 (실거래)",
+    "category": "re_인천",
+    "group": "매매 타이밍 전략 (실거래)",
     "currency": "krw",
-    "label": "부동산 · 인천 매매 타이밍 전략 (실거래) (KRW)",
+    "label": "부동산 · 인천 · 매매 타이밍 전략 (실거래) (KRW)",
     "file": "re_molit_인천_timing.json"
   },
   {
     "id": "re_molit_인천",
-    "category": "realestate",
-    "group": "인천 시군구 매매 (실거래)",
+    "category": "re_인천",
+    "group": "시군구 매매 (실거래)",
     "currency": "krw",
-    "label": "부동산 · 인천 시군구 매매 (실거래) (KRW)",
+    "label": "부동산 · 인천 · 시군구 매매 (실거래) (KRW)",
     "file": "re_molit_인천.json"
   },
   {
     "id": "re_molit_인천_select",
-    "category": "realestate",
-    "group": "인천 시군구 선택 전략 (실거래)",
+    "category": "re_인천",
+    "group": "시군구 선택 전략 (실거래)",
     "currency": "krw",
-    "label": "부동산 · 인천 시군구 선택 전략 (실거래) (KRW)",
+    "label": "부동산 · 인천 · 시군구 선택 전략 (실거래) (KRW)",
     "file": "re_molit_인천_select.json"
   },
   {
     "id": "re_molit_인천_explore",
-    "category": "realestate",
-    "group": "인천 시군구 조회 (거래량·전세가율·실거래)",
+    "category": "re_인천",
+    "group": "시군구 조회 (거래량·전세가율·월세·실거래)",
     "currency": "krw",
-    "label": "부동산 · 인천 시군구 조회 (거래량·전세가율·실거래) (KRW)",
+    "label": "부동산 · 인천 · 시군구 조회 (거래량·전세가율·월세·실거래) (KRW)",
     "file": "re_molit_인천_explore.json",
     "mode": "molit_explore"
   },
   {
-    "id": "re_rentbuy_seoul",
-    "category": "realestate",
-    "group": "전세 vs 매매 (서울)",
+    "id": "re_molit_부산_apt",
+    "category": "re_부산",
+    "group": "단지 조회 (개별 아파트)",
     "currency": "krw",
-    "label": "부동산 · 전세 vs 매매 (서울) (KRW)",
-    "file": "re_rentbuy_seoul.json"
+    "label": "부동산 · 부산 · 단지 조회 (개별 아파트) (KRW)",
+    "file": "re_molit_부산_apt.json",
+    "mode": "molit_apt"
   },
   {
-    "id": "re_rentbuy",
-    "category": "realestate",
-    "group": "전세 vs 매매 (전국)",
+    "id": "re_molit_부산_timing",
+    "category": "re_부산",
+    "group": "매매 타이밍 전략 (실거래)",
     "currency": "krw",
-    "label": "부동산 · 전세 vs 매매 (전국) (KRW)",
-    "file": "re_rentbuy.json"
+    "label": "부동산 · 부산 · 매매 타이밍 전략 (실거래) (KRW)",
+    "file": "re_molit_부산_timing.json"
   },
   {
-    "id": "re_region",
-    "category": "realestate",
-    "group": "지역 모멘텀 로테이션",
+    "id": "re_molit_부산",
+    "category": "re_부산",
+    "group": "시군구 매매 (실거래)",
     "currency": "krw",
-    "label": "부동산 · 지역 모멘텀 로테이션 (KRW)",
-    "file": "re_region.json"
+    "label": "부동산 · 부산 · 시군구 매매 (실거래) (KRW)",
+    "file": "re_molit_부산.json"
   },
   {
-    "id": "re_regioncompare",
-    "category": "realestate",
-    "group": "지역별 매매 비교",
+    "id": "re_molit_부산_select",
+    "category": "re_부산",
+    "group": "시군구 선택 전략 (실거래)",
     "currency": "krw",
-    "label": "부동산 · 지역별 매매 비교 (KRW)",
-    "file": "re_regioncompare.json"
+    "label": "부동산 · 부산 · 시군구 선택 전략 (실거래) (KRW)",
+    "file": "re_molit_부산_select.json"
+  },
+  {
+    "id": "re_molit_부산_explore",
+    "category": "re_부산",
+    "group": "시군구 조회 (거래량·전세가율·월세·실거래)",
+    "currency": "krw",
+    "label": "부동산 · 부산 · 시군구 조회 (거래량·전세가율·월세·실거래) (KRW)",
+    "file": "re_molit_부산_explore.json",
+    "mode": "molit_explore"
+  },
+  {
+    "id": "re_molit_대구_apt",
+    "category": "re_대구",
+    "group": "단지 조회 (개별 아파트)",
+    "currency": "krw",
+    "label": "부동산 · 대구 · 단지 조회 (개별 아파트) (KRW)",
+    "file": "re_molit_대구_apt.json",
+    "mode": "molit_apt"
+  },
+  {
+    "id": "re_molit_대구_timing",
+    "category": "re_대구",
+    "group": "매매 타이밍 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대구 · 매매 타이밍 전략 (실거래) (KRW)",
+    "file": "re_molit_대구_timing.json"
+  },
+  {
+    "id": "re_molit_대구",
+    "category": "re_대구",
+    "group": "시군구 매매 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대구 · 시군구 매매 (실거래) (KRW)",
+    "file": "re_molit_대구.json"
+  },
+  {
+    "id": "re_molit_대구_select",
+    "category": "re_대구",
+    "group": "시군구 선택 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대구 · 시군구 선택 전략 (실거래) (KRW)",
+    "file": "re_molit_대구_select.json"
+  },
+  {
+    "id": "re_molit_대구_explore",
+    "category": "re_대구",
+    "group": "시군구 조회 (거래량·전세가율·월세·실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대구 · 시군구 조회 (거래량·전세가율·월세·실거래) (KRW)",
+    "file": "re_molit_대구_explore.json",
+    "mode": "molit_explore"
+  },
+  {
+    "id": "re_molit_광주_apt",
+    "category": "re_광주",
+    "group": "단지 조회 (개별 아파트)",
+    "currency": "krw",
+    "label": "부동산 · 광주 · 단지 조회 (개별 아파트) (KRW)",
+    "file": "re_molit_광주_apt.json",
+    "mode": "molit_apt"
+  },
+  {
+    "id": "re_molit_광주_timing",
+    "category": "re_광주",
+    "group": "매매 타이밍 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 광주 · 매매 타이밍 전략 (실거래) (KRW)",
+    "file": "re_molit_광주_timing.json"
+  },
+  {
+    "id": "re_molit_광주",
+    "category": "re_광주",
+    "group": "시군구 매매 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 광주 · 시군구 매매 (실거래) (KRW)",
+    "file": "re_molit_광주.json"
+  },
+  {
+    "id": "re_molit_광주_select",
+    "category": "re_광주",
+    "group": "시군구 선택 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 광주 · 시군구 선택 전략 (실거래) (KRW)",
+    "file": "re_molit_광주_select.json"
+  },
+  {
+    "id": "re_molit_광주_explore",
+    "category": "re_광주",
+    "group": "시군구 조회 (거래량·전세가율·월세·실거래)",
+    "currency": "krw",
+    "label": "부동산 · 광주 · 시군구 조회 (거래량·전세가율·월세·실거래) (KRW)",
+    "file": "re_molit_광주_explore.json",
+    "mode": "molit_explore"
+  },
+  {
+    "id": "re_molit_대전_apt",
+    "category": "re_대전",
+    "group": "단지 조회 (개별 아파트)",
+    "currency": "krw",
+    "label": "부동산 · 대전 · 단지 조회 (개별 아파트) (KRW)",
+    "file": "re_molit_대전_apt.json",
+    "mode": "molit_apt"
+  },
+  {
+    "id": "re_molit_대전_timing",
+    "category": "re_대전",
+    "group": "매매 타이밍 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대전 · 매매 타이밍 전략 (실거래) (KRW)",
+    "file": "re_molit_대전_timing.json"
+  },
+  {
+    "id": "re_molit_대전",
+    "category": "re_대전",
+    "group": "시군구 매매 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대전 · 시군구 매매 (실거래) (KRW)",
+    "file": "re_molit_대전.json"
+  },
+  {
+    "id": "re_molit_대전_select",
+    "category": "re_대전",
+    "group": "시군구 선택 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대전 · 시군구 선택 전략 (실거래) (KRW)",
+    "file": "re_molit_대전_select.json"
+  },
+  {
+    "id": "re_molit_대전_explore",
+    "category": "re_대전",
+    "group": "시군구 조회 (거래량·전세가율·월세·실거래)",
+    "currency": "krw",
+    "label": "부동산 · 대전 · 시군구 조회 (거래량·전세가율·월세·실거래) (KRW)",
+    "file": "re_molit_대전_explore.json",
+    "mode": "molit_explore"
+  },
+  {
+    "id": "re_molit_울산_apt",
+    "category": "re_울산",
+    "group": "단지 조회 (개별 아파트)",
+    "currency": "krw",
+    "label": "부동산 · 울산 · 단지 조회 (개별 아파트) (KRW)",
+    "file": "re_molit_울산_apt.json",
+    "mode": "molit_apt"
+  },
+  {
+    "id": "re_molit_울산_timing",
+    "category": "re_울산",
+    "group": "매매 타이밍 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 울산 · 매매 타이밍 전략 (실거래) (KRW)",
+    "file": "re_molit_울산_timing.json"
+  },
+  {
+    "id": "re_molit_울산",
+    "category": "re_울산",
+    "group": "시군구 매매 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 울산 · 시군구 매매 (실거래) (KRW)",
+    "file": "re_molit_울산.json"
+  },
+  {
+    "id": "re_molit_울산_select",
+    "category": "re_울산",
+    "group": "시군구 선택 전략 (실거래)",
+    "currency": "krw",
+    "label": "부동산 · 울산 · 시군구 선택 전략 (실거래) (KRW)",
+    "file": "re_molit_울산_select.json"
+  },
+  {
+    "id": "re_molit_울산_explore",
+    "category": "re_울산",
+    "group": "시군구 조회 (거래량·전세가율·월세·실거래)",
+    "currency": "krw",
+    "label": "부동산 · 울산 · 시군구 조회 (거래량·전세가율·월세·실거래) (KRW)",
+    "file": "re_molit_울산_explore.json",
+    "mode": "molit_explore"
+  },
+  {
+    "id": "re_molit_세종_apt",
+    "category": "re_세종",
+    "group": "단지 조회 (개별 아파트)",
+    "currency": "krw",
+    "label": "부동산 · 세종 · 단지 조회 (개별 아파트) (KRW)",
+    "file": "re_molit_세종_apt.json",
+    "mode": "molit_apt"
   },
   {
     "id": "compare_usd",

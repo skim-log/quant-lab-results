@@ -163,7 +163,7 @@ const CAT_BLURB = {
   crypto: '암호화폐 전략: 매수후보유·DCA·이동평균선 추세(20/60/120/200일 × 달러·원화 신호). 곡선=TWR(위험비교), 적립 수익=XIRR.',
   analytics: '8자산 월수익 기반 정량분석 — 상관·효율적 프론티어·리스크패리티·위험수익(무위험 2%).',
   compare: '여러 전략을 한 곡선에 오버레이 비교(통화 토글 + 지표 열 클릭 정렬 리더보드).',
-  realestate: '국내 아파트 지수(한국부동산원·KB) 백테스트. 비용·세금 차감 후 매수후보유·전세vs매매·갭투자(정적·갭×추세·매크로 레짐 게이트)·지역 모멘텀. 월간·비유동 자료라 지수 평활로 변동성·Sharpe 해석에 주의.',
+  re_index: '국내 아파트 지수(한국부동산원·KB) 기반 — 매수후보유·전세vs매매·갭투자(정적·갭×추세·매크로 레짐 게이트)·지역 모멘텀. 월간·비유동 자료라 지수 평활로 변동성·Sharpe 해석에 주의.',
 };
 const MA_SUFFIX = ' · MA200';   // Python 곡선명 접미사(f"{name} · MA200")와 동일
 function stratDesc(name) {
@@ -997,6 +997,14 @@ const SUPER_OF = { guide: 'guide', dynamic: 'alloc', static: 'alloc', analytics:
   paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools' };
 const SUPER_ORDER = { guide: -1, alloc: 0, strat: 1, coin: 2, re: 3, tools: 4 };
 const SUPER_LABEL = { guide: '📖 가이드', alloc: '자산배분', strat: '주식', coin: '코인', re: '부동산', tools: '도구·지표' };
+// 부동산 분류 칩 = 지역(전국·지수 먼저, 그다음 도시). 카테고리 re_index/re_<도시>를 네비 맵에 등록.
+// 도시 추가 시 이 리스트만 갱신(build_dashboard.RE_CATS 와 동일 순서 유지).
+const RE_CATS = [['re_index', '전국·지수'], ['re_서울', '서울'], ['re_경기', '경기'], ['re_인천', '인천'],
+  ['re_부산', '부산'], ['re_대구', '대구'], ['re_광주', '광주'], ['re_대전', '대전'], ['re_울산', '울산'], ['re_세종', '세종']];
+RE_CATS.forEach(([k, lab], i) => {
+  SUPER_OF[k] = 're'; CAT_LABEL_NAV[k] = lab; CAT_ORDER[k] = 11 + i * 0.1;
+  if (k !== 're_index') CAT_BLURB[k] = '국토부 실거래(MOLIT) 기반 — 시군구 거래량·전세가율·월세·전월세전환율 추이 + 개별 단지 조회·백테스트.';
+});
 
 function catsPresent() {
   return [...new Set(state.manifest.map(m => m.category))]
@@ -1771,7 +1779,7 @@ function renderMolitExplore(d) {
       _meLayout('전월세 전환율 추이 (월세×12 / 전세−월세 보증금차, %)', '%'), cfg);
   }
 
-  const aptEntry = state.manifest.find(mf => mf.mode === 'molit_apt' && mf.group.startsWith(d.city));
+  const aptEntry = state.manifest.find(mf => mf.mode === 'molit_apt' && mf.category === 're_' + d.city);
   const rows = (d.recent || []).map(t =>
     `<tr><td>${t.region}</td><td class="name">${aptEntry
       ? `<a href="#" class="me-apt-link" data-region="${t.region}" data-apt="${t.apt}"` +
@@ -2240,7 +2248,7 @@ function _renderAptSelect(b) {
 }
 
 function _jumpToApt(city, regionShort, aptName, umd, area) {     // explore 표 → 단지 뷰 점프
-  const entry = state.manifest.find(mf => mf.mode === 'molit_apt' && mf.group.startsWith(city));
+  const entry = state.manifest.find(mf => mf.mode === 'molit_apt' && mf.category === 're_' + city);
   if (!entry) return;
   state.apt.preselect = { region: regionShort, apt: aptName, umd: umd || '', area: isNaN(area) ? null : area };
   if (state.nav.group === entry.group) loadTool(entry, 'molit_apt');
