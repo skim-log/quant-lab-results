@@ -2281,15 +2281,29 @@ const DXY_ZONES = [[0, 95, '#10b981'], [95, 105, '#6b7280'], [105, 200, '#ea580c
 const GSR_ZONES = [[0, 50, '#10b981'], [50, 80, '#6b7280'], [80, 400, '#ea580c']];
 const CRYPTO_ZONES = [[0, 25, '#dc2626'], [25, 45, '#ea580c'], [45, 55, '#6b7280'], [55, 75, '#84cc16'], [75, 100, '#10b981']];
 
+// .chart 컨테이너의 '내용영역' 높이(전체 − 패딩 − 보더). Plotly SVG 를 이 높이로 그려야 박스 안에
+// 꼭 맞는다 — clientHeight(=내용+패딩)로 그리면 SVG 가 패딩만큼 박스 밑으로 넘쳐 바로 아래 캡션
+// (#senti-note)을 덮는다(헤드리스 측정: clientHeight +7px 침범 vs 내용영역 −9px 여유). 높이를 안
+// 주면 Plotly 가 컨테이너를 못 재 기본 450px 로 그릴 수도 있어, 어느 경우든 이 값으로 명시한다.
+function _chartBodyHeight(elId) {
+  const el = document.getElementById(elId);
+  const cs = getComputedStyle(el);
+  const padV = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  const body = el.clientHeight - padV;                 // 보일 때: 정확한 내용영역 높이
+  if (body > 40) return body;
+  // 조상 숨김 등으로 측정 0 → 지정 height(border-box) − 패딩 − 보더로 추정, 없으면 282(=300px 박스).
+  const borderV = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+  const styleH = parseFloat(cs.height);
+  return styleH > 40 ? (styleH - padV - borderV) : 282;
+}
+
 // 범용 추세 라인 차트(+ 선택적 임계 컬러 존). points: [{t,v}]. 숨김 div 0폭 회피 위해 보일 때 호출.
 function _sentiChart(elId, title, points, zones, opts = {}) {
   const pts = (points || []).filter(p => p && p.v != null);
   if (!pts.length) { setHidden(elId, true); return; }
-  setHidden(elId, false);   // 보여야 컨테이너 높이를 잴 수 있음(숨김 상태면 0 → 아래 폴백)
+  setHidden(elId, false);   // 보여야 컨테이너 높이를 잴 수 있음(숨김 상태면 0 → _chartBodyHeight 폴백)
   const layout = baseLayout(title, opts.ytitle || '');
-  // 높이 명시: Plotly responsive 가 컨테이너 높이를 못 재면(조상 숨김/레이아웃 미정착) 기본 450px 로
-  // 그려 300px 박스를 넘쳐 아래 캡션(#senti-note)을 덮는다. clientHeight(보일 때) → 0이면 300 폴백.
-  layout.height = document.getElementById(elId).clientHeight || 300;
+  layout.height = _chartBodyHeight(elId);   // 내용영역 높이로 그려 캡션 겹침 방지(+패딩 오버플로 제거)
   if (opts.yrange) layout.yaxis.range = opts.yrange;
   if (zones) layout.shapes = zones.map(([y0, y1, c]) =>
     ({ type: 'rect', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0, y1, fillcolor: c, opacity: 0.1, line: { width: 0 }, layer: 'below' }));
@@ -2304,7 +2318,7 @@ function _metalPriceChart(elId, gold, silver) {
   setHidden(elId, false);   // 보여야 컨테이너 높이를 잴 수 있음 — _sentiChart 와 동일 이유
   const muted = cssVar('--chart-muted');
   const layout = baseLayout('금·은 가격 (5년)', '금 $/oz');
-  layout.height = document.getElementById(elId).clientHeight || 300;   // 450px 폴백→캡션 겹침 방지
+  layout.height = _chartBodyHeight(elId);   // 내용영역 높이로 그려 캡션 겹침 방지
   layout.yaxis2 = { title: { text: '은 $/oz', font: { color: muted } }, overlaying: 'y', side: 'right', showgrid: false, tickfont: { color: muted } };
   const tr = [];
   if (g.length) tr.push({ type: 'scatter', mode: 'lines', name: '금', x: g.map(p => p.t), y: g.map(p => p.v), line: { color: '#f59e0b', width: 2 }, hovertemplate: '금 $%{y:,.0f}<extra></extra>' });
