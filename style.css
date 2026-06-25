@@ -399,6 +399,8 @@ footer {
   color: var(--muted); font-size: 0.8rem; border-top: 1px solid var(--border);
 }
 footer code { background: var(--surface-2); padding: 0.05rem 0.35rem; border-radius: var(--radius-sm); }
+footer a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+footer a:hover { color: var(--accent); }
 
 /* ---- 정량분석 전용 뷰 (body.analytics-mode 일 때 그 외 섹션 숨김) ---- */
 #analytics-section > .panel:first-child { margin-top: 1.1rem; }
