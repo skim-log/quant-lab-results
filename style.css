@@ -286,6 +286,18 @@ body.blend-mode #strategies, body.blend-mode .ctl-cur { display: none !important
 #reco-section > .panel:first-child { margin-top: 1.1rem; }
 #reco-section p { line-height: 1.6; margin: 0.4rem 0; color: var(--fg); font-size: 0.9rem; }
 #reco-section p.period-note { color: var(--muted); }
+/* 전체 전략 랭킹(리더보드) 정렬표 */
+.lb-wrap { overflow-x: auto; margin-top: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.lb-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+.lb-table th, .lb-table td { padding: 0.32rem 0.6rem; border-bottom: 1px solid var(--border); white-space: nowrap; text-align: left; }
+.lb-table th { cursor: pointer; color: var(--muted); font-weight: 600; user-select: none;
+  position: sticky; top: 0; background: var(--card); z-index: 1; }
+.lb-table th:hover { color: var(--accent); }
+.lb-table th.num, .lb-table td.num { text-align: right; }
+.lb-table tbody tr { cursor: pointer; }
+.lb-table tbody tr:hover { background: var(--surface-2); }
+.lb-table tbody tr:last-child td { border-bottom: 0; }
+.lb-table .lb-name { font-weight: 600; color: var(--fg); }
 .blend-row { display: flex; align-items: center; gap: 0.5rem; margin: 0.35rem 0; flex-wrap: wrap; }
 .blend-row select { flex: 1 1 14rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--fg); }
 .blend-row input { width: 4.2rem; padding: 0.3rem 0.4rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--fg); }

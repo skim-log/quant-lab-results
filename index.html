@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=17d86c71" />
+  <link rel="stylesheet" href="style.css?v=d21403c6" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -210,6 +210,22 @@
         <h2>부동산 전략 <span class="muted">(국내 아파트)</span></h2>
         <div class="reco-caveat">⚠️ <strong>부동산은 금융자산과 기준이 다릅니다.</strong> 원화·월간 데이터이고, 지수 종류(시세 vs 실거래)에 따라 수익률이 수 %p씩 갈리며, <strong>전세 무이자 레버리지</strong>가 수익의 상당 부분을 만듭니다. 비유동·평활 특성상 변동성·Sharpe가 낮게 나올 수 있어 — <strong>위 금융자산 전략과 같은 잣대로 직접 비교하지 마세요.</strong></div>
         <div id="reco-re" class="reco-cards"></div>
+      </section>
+
+      <section class="panel">
+        <h2>전체 전략 랭킹 <span class="muted">(모든 전략 · 정렬·필터 가능)</span></h2>
+        <p class="period-note">이 사이트의 <strong>모든 금융 전략</strong>을 지표로 나열합니다. <strong>열 제목을 클릭</strong>하면 그 기준으로 정렬(기본 Sharpe↓), <strong>행을 클릭</strong>하면 전체 백테스트로 이동합니다. <strong>Sharpe</strong>=연수익÷연변동성 · <strong>Calmar</strong>=CAGR÷|MDD| · 무위험수익 0% 가정. 통화를 바꾸면 순위가 재계산됩니다(위기 때 원화 약세가 달러 자산 낙폭을 방어 → 통화별 순위 상이).</p>
+        <div id="reco-lb">
+          <div class="bt-controls">
+            <span class="muted">통화</span>
+            <div id="reco-lb-ccy" class="bt-toggle"><button type="button" data-ccy="krw" class="active">원화</button><button type="button" data-ccy="usd">달러</button></div>
+            <label>분류 <select id="reco-lb-cat">
+              <option value="all">전체</option><option value="dynamic">동적 자산배분</option><option value="static">정적 자산배분</option><option value="momentum">모멘텀·주식</option><option value="crypto">코인</option></select></label>
+            <span id="reco-lb-count" class="muted"></span>
+          </div>
+          <div class="lb-wrap"><table id="reco-lb-table" class="lb-table"></table></div>
+          <p class="period-note">⚠️ 코인·레버리지 전략은 지표가 높아도 <strong>낙폭(MDD)이 −50%대 이상</strong>일 수 있습니다. 전략마다 검증 기간이 다르니(전기간 기준) 같은 기간·같은 분류끼리 비교하세요. 부동산은 기준이 달라 이 표에서 제외했습니다.</p>
+        </div>
       </section>
     </div>
 
@@ -928,10 +944,10 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="alloc.js?v=17d86c71" defer></script>
-  <script src="re_apt.js?v=17d86c71" defer></script>
-  <script src="analytics-live.js?v=17d86c71" defer></script>
-  <script src="leverage.js?v=17d86c71" defer></script>
-  <script src="app.js?v=17d86c71" defer></script>
+  <script src="alloc.js?v=d21403c6" defer></script>
+  <script src="re_apt.js?v=d21403c6" defer></script>
+  <script src="analytics-live.js?v=d21403c6" defer></script>
+  <script src="leverage.js?v=d21403c6" defer></script>
+  <script src="app.js?v=d21403c6" defer></script>
 </body>
 </html>

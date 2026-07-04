@@ -1248,6 +1248,7 @@ function renderRecoTab() {
   _recoRenderInto('reco-fin-individual', RECO_FIN_PICKS);
   _recoRenderInto('reco-re', RECO_RE_PICKS);
   renderRecoBlendCards();
+  renderLeaderboard();
 }
 // 딥링크: manifest id → 기존 4단 네비 체인 구동(대분류/카테고리/그룹/통화 UI 동기화 + loadDataset).
 function gotoDataset(id) {
@@ -1262,6 +1263,75 @@ function gotoBlendPreset(key) {
   setSuperCategory('alloc'); setCategory('blend');
   applyRecoPreset(key);
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ⭐ 추천 > 전체 전략 랭킹(리더보드) — data/leaderboard.json(전 금융전략 지표) 정렬표.
+// 통화 토글(원화↔달러, 순위 재계산)·열 클릭 정렬(기본 Sharpe↓)·분류 필터·행 클릭 딥링크(gotoDataset).
+const LB_COLS = [
+  { k: 'name', t: '전략', kind: 'text' }, { k: 'cat', t: '분류', kind: 'cat' },
+  { k: 'cagr', t: 'CAGR', kind: 'pct' }, { k: 'mdd', t: 'MDD', kind: 'pct' },
+  { k: 'vol', t: '변동성', kind: 'pct' }, { k: 'sharpe', t: 'Sharpe', kind: 'ratio' },
+  { k: 'sortino', t: 'Sortino', kind: 'ratio' }, { k: 'calmar', t: 'Calmar', kind: 'ratio' },
+  { k: 'total', t: '총수익', kind: 'pct' }, { k: 'period', t: '기간', kind: 'per' },
+];
+const LB_CAT = { dynamic: '동적', static: '정적', momentum: '모멘텀', crypto: '코인' };
+async function _lbLoad() {
+  if (state.recoLb) return state.recoLb;
+  try { state.recoLb = ((await (await fetch('data/leaderboard.json', { cache: 'no-cache' })).json()).rows) || []; }
+  catch (e) { state.recoLb = []; }
+  return state.recoLb;
+}
+async function renderLeaderboard() {
+  const host = document.getElementById('reco-lb'); if (!host) return;
+  await _lbLoad();
+  state.recoLbCcy = state.recoLbCcy || 'krw';               // 기본 원화(한국 투자자 실경험 통화)
+  state.recoLbSort = state.recoLbSort || { k: 'sharpe', dir: -1 };   // 기본 Sharpe 내림차순
+  state.recoLbCat = state.recoLbCat || 'all';
+  if (!state._lbWired) {
+    host.addEventListener('click', e => {
+      const cc = e.target.closest('#reco-lb-ccy button');
+      if (cc) { state.recoLbCcy = cc.dataset.ccy; return _lbDraw(); }
+      const th = e.target.closest('th[data-k]');
+      if (th) {                                             // 같은 열 재클릭=방향 토글, 새 열=텍스트 오름·숫자 내림
+        const s = state.recoLbSort, k = th.dataset.k;
+        s.dir = (s.k === k) ? -s.dir : ((k === 'name' || k === 'period') ? 1 : -1); s.k = k;
+        return _lbDraw();
+      }
+      const tr = e.target.closest('tr[data-id]');
+      if (tr) return gotoDataset(tr.dataset.id);
+    });
+    const catSel = document.getElementById('reco-lb-cat');
+    if (catSel) catSel.addEventListener('change', () => { state.recoLbCat = catSel.value; _lbDraw(); });
+    state._lbWired = true;
+  }
+  _lbDraw();
+}
+function _lbDraw() {
+  const rows = state.recoLb || [], s = state.recoLbSort, cur = state.recoLbCcy, cat = state.recoLbCat;
+  const pct = x => (x == null || !isFinite(x)) ? '—' : (x * 100).toFixed(1) + '%';
+  const rat = x => (x == null || !isFinite(x)) ? '—' : Number(x).toFixed(2);
+  document.querySelectorAll('#reco-lb-ccy button').forEach(b => b.classList.toggle('active', b.dataset.ccy === cur));
+  const inf = s.dir > 0 ? Infinity : -Infinity;             // 결측은 항상 맨 아래로
+  const num = v => (v == null || !isFinite(v)) ? inf : v;
+  const list = rows.filter(r => r.cur === cur && (cat === 'all' || r.cat === cat)).slice().sort((a, b) => {
+    if (s.k === 'name' || s.k === 'period') return s.dir * String(a[s.k] || '').localeCompare(String(b[s.k] || ''));
+    return s.dir * (num(a[s.k]) - num(b[s.k]));
+  });
+  const head = '<tr>' + LB_COLS.map(c => {
+    const numc = !['name', 'cat', 'period'].includes(c.k);
+    const arr = (c.k === s.k) ? (s.dir < 0 ? ' ▼' : ' ▲') : '';
+    return `<th data-k="${c.k}"${numc ? ' class="num"' : ''}>${c.t}${arr}</th>`;
+  }).join('') + '</tr>';
+  const body = list.map(r => '<tr data-id="' + r.id + '" title="클릭 → 전체 백테스트">' + LB_COLS.map(c => {
+    if (c.k === 'name') return `<td class="lb-name">${r.name}</td>`;
+    if (c.k === 'cat') return `<td>${LB_CAT[r.cat] || r.cat}</td>`;
+    if (c.k === 'period') return `<td class="num">${_recoYears(r.period) || '—'}</td>`;
+    return `<td class="num">${c.kind === 'ratio' ? rat(r[c.k]) : pct(r[c.k])}</td>`;
+  }).join('') + '</tr>').join('');
+  const tbl = document.getElementById('reco-lb-table');
+  if (tbl) tbl.innerHTML = `<thead>${head}</thead><tbody>${body}</tbody>`;
+  const cnt = document.getElementById('reco-lb-count');
+  if (cnt) cnt.textContent = `${list.length}개 · ${cur === 'krw' ? '원화' : '달러'} 기준`;
 }
 
 // ③ '왜 자산배분' 그래프 — 실제 백테스트: 정적 '균형' 배분(파랑) vs S&P 500(빨강), USD 1997~.
