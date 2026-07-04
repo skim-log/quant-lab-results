@@ -1134,13 +1134,15 @@ function enterGuide() {
 // 카드 지표는 전략 dashboard JSON 의 metrics_raw 를 런타임 fetch(캐시)해 표시. 스파크라인은 CSS-var SVG.
 // ---------------------------------------------------------------------------
 // 개별 픽 = manifest id + 한 줄 근거. 통화 접미사·존재 여부는 렌더 시 manifest 로 확정(누락은 스킵).
+// 선정 = 지표 상위(공통기간 2007~2026 위험대비수익) + 성격 다양성. 순수 유명세로 넣었던 US60/40·올웨더는
+// 같은 기간에서 중위권이라 제외(벤치마크로만 참고). 코인·레버리지는 MDD/투기성 이유로 진입탭에서 제외.
 const RECO_FIN_PICKS = [
-  { id: 'multi_allocation_allweather_usd', why: '주식·채권·금 분산 올웨더 — 낮은 낙폭의 기본기' },
-  { id: 'multi_allocation_us6040_usd', why: '미국 주식 60 / 채권 40 — 가장 고전적인 벤치마크' },
-  { id: 'multi_dynamic_gem_usd', why: '단순·유명한 듀얼모멘텀(상대+절대) — 하락장 현금 회피' },
-  { id: 'multi_dynamic_baa_g_usd', why: '카나리아 신호로 방어하는 공격형 모멘텀' },
-  { id: 'multi_dynamic_nrp_usd', why: '변동성 역가중 리스크패리티 — 위험 균형' },
-  { id: 'us_idxmom_usd', why: '200일선 추세추종으로 큰 하락을 피하는 미국 지수' },
+  { id: 'multi_dynamic_baa_g_usd', why: '카나리아 신호로 방어하는 공격형 듀얼모멘텀 — 공통기간(2007~) 위험대비수익 1위' },
+  { id: 'multi_allocation_permanent_usd', why: '주식·채권·금·현금 4등분(영구 포트폴리오) — 90년+ 검증된 초저낙폭 정적 분산' },
+  { id: 'us_idxmom_usd', why: '나스닥100을 200일선으로 추세추종 — 큰 하락을 피하는 성장주 노출' },
+  { id: 'multi_dynamic_vaa_g4_usd', why: '카나리아로 공격/방어를 빠르게 전환하는 보호형 모멘텀 — 낙폭 대비 수익 우수' },
+  { id: 'multi_dynamic_gem_usd', why: '가장 유명한 입문 듀얼모멘텀(상대+절대) — 하락장 현금 회피' },
+  { id: 'multi_dynamic_nrp_usd', why: '변동성 역가중 리스크패리티 — 위험을 고르게 나눈 안정형 분산' },
 ];
 const RECO_RE_PICKS = [
   { id: 're_rentbuy', why: '전세 살까 vs 집 살까 — 국내 핵심 질문의 백테스트' },
@@ -1191,18 +1193,27 @@ async function _recoFetch(id) {                     // manifest id → {entry, d
   }
   return { entry, data: state.recoCache[id] };
 }
+function _recoYears(per) {                          // "YYYY-MM-DD~YYYY-MM-DD" → "19년"(대략). 일(-DD)은 선택.
+  const m = /(\d{4})-(\d{2})(?:-\d{2})?\D+(\d{4})-(\d{2})/.exec(per || '');
+  if (!m) return '';
+  const y = (+m[3] - +m[1]) + (+m[4] - +m[2]) / 12;
+  return y > 0 ? Math.round(y) + '년' : '';
+}
 function _recoCardHtml(entry, met, spark, why) {
   const pct = x => (x == null || !isFinite(x)) ? '—' : (x * 100).toFixed(1) + '%';
   const rat = x => (x == null || !isFinite(x)) ? '—' : Number(x).toFixed(2);
   const title = entry.label.replace(/\s*\((USD|KRW)\)\s*$/, '');
   const cur = entry.currency ? ` · ${entry.currency.toUpperCase()}` : '';
+  const yrs = _recoYears(met && met.period);
+  // 기간을 눈에 띄는 배지로(전략마다 검증 기간이 달라 지표 비교 시 주의 — 사용자 요청).
+  const period = `<div class="reco-period">📅 <b>${yrs || '기간 미상'}</b>${met && met.period ? ` · ${met.period}` : ''}${cur}</div>`;
   return `<div class="reco-card"><div class="reco-head">` +
     `<span class="reco-title">${title}</span>` +
     `<button type="button" class="reco-apply" data-reco-goto="${entry.id}">자세히 보기 →</button></div>` +
     `<div class="reco-why">${why}</div>${spark || ''}` +
     `<div class="reco-metrics"><span><b>CAGR</b> ${pct(met && met.cagr)}</span>` +
     `<span><b>MDD</b> ${pct(met && met.mdd)}</span><span><b>Sharpe</b> ${rat(met && met.sharpe)}</span></div>` +
-    `<div class="reco-period">${(met && met.period) || ''}${cur}</div></div>`;
+    period + `</div>`;
 }
 async function _recoRenderInto(elId, picks) {
   const el = document.getElementById(elId); if (!el) return;
