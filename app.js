@@ -873,6 +873,8 @@ async function loadDataset(file) {
       const ma = document.getElementById('alloc-ma');
       if (ma) ma.checked = false;     // 기본 OFF(사전계산 뷰엔 MA200 곡선·ma_ab가 이미 포함)
       _showAllocRebal(true);
+      // 이평선 필터 민감도(과최적화 점검): 이 배분의 여러 이평선 창 낙폭·Sharpe. panel 로드 후 렌더.
+      _ensurePanel().then(() => renderMaSensitivity('ma-sens-host', d.target_weights, state.nav.currency || 'krw')).catch(() => {});
     }
   } catch (err) {
     setStatus('데이터 로딩 실패: ' + err.message + ' (로컬에서 볼 때는 file:// 가 아니라 http 서버로 열어야 합니다)', true);
@@ -923,6 +925,11 @@ function applyTheme(theme, persist) {
     if (state.data.kind === 'analytics') renderAnalytics(state.data);
     else { render(); if (state.sweep) renderSweep(); if (state.blendFrontier) _drawBlendFrontier(); }   // 스윕·블렌드 프론티어도 새 테마로 재색
   }
+  // 이평선 민감도 차트(정적·추천)도 새 테마로 재색(캐시된 _sweep 재사용).
+  ['ma-sens-host', 'reco-ma-host'].forEach(h => {
+    const el = document.getElementById(h);
+    if (el && el._sweep) _drawMaSweep(document.getElementById(h + '-chart'), el._sweep, el._active);
+  });
 }
 function setupTheme() {
   syncThemeButton();
@@ -1261,7 +1268,20 @@ function renderRecoTab() {
   _recoRenderInto('reco-fin-ma', RECO_MA200_PICKS);
   _recoRenderInto('reco-re', RECO_RE_PICKS);
   renderRecoBlendCards();
+  renderRecoMaSensitivity();
   renderLeaderboard();
+}
+// ⭐추천 > 정적+MA 섹션의 이평선 민감도(과최적화 점검) — 프리셋 드롭다운 + 창 스윕 차트.
+function renderRecoMaSensitivity() {
+  const sel = document.getElementById('reco-ma-preset'); if (!sel) return;
+  _ensurePanel().then(panel => {
+    const pick = () => (panel.presets && (panel.presets[sel.value] || panel.presets[Object.keys(panel.presets)[0]]));
+    if (!state._recoMaWired) {
+      sel.addEventListener('change', () => { const p = pick(); if (p) renderMaSensitivity('reco-ma-host', p.weights, 'krw'); });
+      state._recoMaWired = true;
+    }
+    const p = pick(); if (p) renderMaSensitivity('reco-ma-host', p.weights, 'krw');
+  }).catch(() => {});
 }
 // 딥링크: manifest id → 기존 4단 네비 체인 구동(대분류/카테고리/그룹/통화 UI 동기화 + loadDataset).
 function gotoDataset(id) {
@@ -3382,6 +3402,89 @@ function renderSweep() {
     SWEEP_REBALS.map((r, ri) => { const v = val(grid[bi][ri]); return `<td data-label="${x[ri]}">${v == null ? '—' : (m.pct ? fmtPct(v) : fmtRatio(v))}</td>`; }).join('') + '</tr>').join('');
   document.getElementById('sweep-table').innerHTML = head + '<tbody>' + body + '</tbody>';
 }
+// ── 이평선 필터 민감도 (과최적화 점검) — panel.ma_signals 다중 창 + ALLOC 라이브 스윕. 정적·추천 탭 공용.
+// 특정 일수(200) 튜닝이 아니라 넓은 창(50~300)에서 낙폭이 줄어드는지 보여 강건성/과최적화를 점검한다.
+function _maSweepCompute(panel, weights, ccy) {
+  const ids = panel.assets.map(a => a.id);
+  const base = { rebalance: 'quarterly', bandRatio: 0.2, costs: panel.costs };
+  const metricsOf = maSignal => {
+    const res = ALLOC.runBacktest(panel.dates, panel.krw_prices, ids, weights, Object.assign({ maSignal }, base));
+    if (!res) return null;
+    const nav = ALLOC.navToCcy(res.navKrw, res.win.map(t => panel.fx[t]), ccy), cn = [], cd = [];
+    nav.forEach((v, i) => { if (v != null) { cn.push(v); cd.push(res.dates[i]); } });
+    if (cn.length < 3) return null;
+    const b0 = cn[0];
+    return computeMetrics(cd, cn.map(v => v / b0), 12);
+  };
+  const baseline = metricsOf(null), sigs = panel.ma_signals || {};
+  const rows = (panel.ma_windows || [50, 100, 150, 200, 250, 300]).map(w => {
+    const m = sigs[String(w)] ? metricsOf(sigs[String(w)]) : null;
+    return m ? { w, cagr: m.CAGR, mdd: m.mdd, sharpe: m.sharpe, calmar: m.calmar } : null;
+  }).filter(Boolean);
+  return { baseline, rows };
+}
+function _drawMaSweep(el, sweep, activeW) {
+  if (!el || typeof Plotly === 'undefined' || !sweep || !sweep.rows.length) return;
+  const xs = sweep.rows.map(r => r.w);
+  const acc = cssVar('--accent'), muted = cssVar('--chart-muted'), neg = cssVar('--neg') || '#ef4444';
+  const traces = [
+    { type: 'bar', name: 'MDD', x: xs, y: sweep.rows.map(r => r.mdd * 100), yaxis: 'y',
+      marker: { color: xs.map(w => (w === activeW ? acc : muted)) },
+      hovertemplate: '창 %{x}일 · MDD %{y:.1f}%<extra></extra>' },
+    { type: 'scatter', mode: 'lines+markers', name: 'Sharpe', x: xs, y: sweep.rows.map(r => r.sharpe),
+      yaxis: 'y2', line: { color: acc, width: 2 }, marker: { size: 6 },
+      hovertemplate: '창 %{x}일 · Sharpe %{y:.2f}<extra></extra>' },
+  ];
+  const layout = baseLayout('이평선 창별 낙폭(MDD)·Sharpe — 넓은 범위서 개선되면 강건', 'MDD (%)');
+  layout.xaxis.type = 'linear';
+  layout.xaxis.title = { text: '이동평균 창 (거래일)', font: { color: muted } };
+  layout.yaxis2 = { overlaying: 'y', side: 'right', title: { text: 'Sharpe', font: { color: acc } },
+    tickfont: { color: muted }, showgrid: false, zeroline: false };
+  if (sweep.baseline && sweep.baseline.mdd != null) {
+    const bm = sweep.baseline.mdd * 100;
+    layout.shapes = [{ type: 'line', xref: 'paper', x0: 0, x1: 1, yref: 'y', y0: bm, y1: bm,
+      line: { color: neg, dash: 'dot', width: 1.5 } }];
+    layout.annotations = [{ xref: 'paper', x: 0.02, yref: 'y', y: bm, yanchor: 'bottom',
+      text: `무필터 MDD ${bm.toFixed(0)}%`, showarrow: false, font: { color: neg, size: 11 } }];
+  }
+  Plotly.react(el, traces, layout, PLOTCFG);
+}
+function _maReadout(hostId, sweep, w) {
+  const el = document.getElementById(hostId + '-readout'); if (!el) return;
+  const r = sweep.rows.find(x => x.w === w), b = sweep.baseline;
+  const p = x => (x == null || !isFinite(x)) ? '—' : (x * 100).toFixed(1) + '%';
+  const rr = x => (x == null || !isFinite(x)) ? '—' : Number(x).toFixed(2);
+  if (!r) { el.textContent = ''; return; }
+  el.innerHTML = `선택 <strong>${w}일선</strong> — CAGR ${p(r.cagr)} · MDD ${p(r.mdd)} · Sharpe ${rr(r.sharpe)} · Calmar ${rr(r.calmar)}` +
+    (b ? ` <span class="muted">vs 무필터 CAGR ${p(b.CAGR)} · MDD ${p(b.mdd)} · Sharpe ${rr(b.sharpe)}</span>` : '');
+}
+// hostId 컨테이너에 창 선택기 + 스윕 차트 + 읽기값 렌더. state.panelCache 필요(_ensurePanel 선행).
+function renderMaSensitivity(hostId, weights, ccy) {
+  const host = document.getElementById(hostId), panel = state.panelCache;
+  if (!host || !panel || typeof ALLOC === 'undefined' || !weights) return;
+  const sweep = _maSweepCompute(panel, weights, ccy || 'krw');
+  if (!sweep.rows.length) { host.innerHTML = '<p class="period-note">민감도 계산 불가(패널 데이터 확인).</p>'; return; }
+  const wins = sweep.rows.map(r => r.w), activeW = wins.includes(200) ? 200 : wins[0];
+  if (!host._built) {
+    host.innerHTML =
+      '<div class="bt-toggle ma-sel">' + wins.map(w => `<button type="button" data-maw="${w}">${w}일</button>`).join('') + '</div>' +
+      `<div class="chart" id="${hostId}-chart" style="height:300px;margin-top:0.4rem"></div>` +
+      `<p class="period-note" id="${hostId}-readout"></p>`;
+    host.addEventListener('click', e => {
+      const btn = e.target.closest('button[data-maw]'); if (!btn || !host._sweep) return;
+      host._active = +btn.dataset.maw;
+      host.querySelectorAll('button[data-maw]').forEach(x => x.classList.toggle('active', +x.dataset.maw === host._active));
+      _drawMaSweep(document.getElementById(hostId + '-chart'), host._sweep, host._active);
+      _maReadout(hostId, host._sweep, host._active);
+    });
+    host._built = true;
+  }
+  host._sweep = sweep; host._active = activeW;
+  host.querySelectorAll('button[data-maw]').forEach(x => x.classList.toggle('active', +x.dataset.maw === activeW));
+  _drawMaSweep(document.getElementById(hostId + '-chart'), sweep, activeW);
+  _maReadout(hostId, sweep, activeW);
+}
+
 async function _ensurePanel() {
   if (state.panelCache) return state.panelCache;
   try {
