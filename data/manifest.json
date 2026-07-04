@@ -1086,6 +1086,15 @@
     "file": "panel.json"
   },
   {
+    "id": "reco",
+    "category": "reco",
+    "group": "추천 전략",
+    "currency": "",
+    "mode": "reco",
+    "label": "추천 전략 — 시작하기",
+    "file": ""
+  },
+  {
     "id": "guide",
     "category": "guide",
     "group": "초보자 가이드",

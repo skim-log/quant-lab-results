@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=ff03b23e" />
+  <link rel="stylesheet" href="style.css?v=d0d3abbd" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -185,6 +185,30 @@
         <h2>리스크 패리티 <span class="muted">(역변동성 비중)</span></h2>
         <p class="period-note">변동성 역가중 추천 비중 vs 글로벌 분산(귀금속 강화) 목표비중. 변동성 큰 자산일수록 비중↓.</p>
         <div id="an-riskparity" class="rp-rows"></div>
+      </section>
+    </div>
+
+    <!-- ⭐ 추천 전략 (client-only 큐레이션 — 카드가 런타임에 지표 fetch + 전체 뷰로 딥링크) -->
+    <div id="reco-section" class="hidden">
+      <section class="panel">
+        <h2>추천 전략 <span class="muted">— 어디서 시작할지 고르는 큐레이션</span></h2>
+        <p class="period-note">이 사이트엔 수십 개의 전략이 있어 처음엔 막막할 수 있습니다. 아래는 <strong>대표적이고 공부하기 좋은 출발점</strong> 몇 가지를 추린 것입니다. 카드의 <em>“자세히 보기”</em>를 누르면 그 전략의 전체 백테스트 화면으로 이동합니다. <strong>특정 전략을 권유하는 것이 아니며, 모든 수치는 과거 백테스트</strong>라 미래 수익을 보장하지 않습니다.</p>
+      </section>
+
+      <section class="panel">
+        <h2>핵심 금융자산 전략</h2>
+        <p class="period-note">유동적인 ETF·자산배분 전략(기본 달러 기준, 이동 후 통화 전환 가능). 지표는 현재 배포 데이터 기준 자동 표시 — <strong>CAGR</strong> 연복리수익 · <strong>MDD</strong> 최대낙폭 · <strong>Sharpe</strong> 위험 대비 효율.</p>
+        <h3 class="reco-presets-title">개별 전략</h3>
+        <div id="reco-fin-individual" class="reco-cards"></div>
+        <h3 class="reco-presets-title">큐레이션 조합 (전략 블렌딩)</h3>
+        <p class="period-note">여러 전략을 비중 결합한 조합입니다. “블렌딩에서 열기”를 누르면 <strong>전략 블렌딩</strong> 탭에서 비중이 적용된 채로 열려 바로 조정·재실행할 수 있습니다.</p>
+        <div id="reco-fin-blends" class="reco-cards"></div>
+      </section>
+
+      <section class="panel">
+        <h2>부동산 전략 <span class="muted">(국내 아파트)</span></h2>
+        <div class="reco-caveat">⚠️ <strong>부동산은 금융자산과 기준이 다릅니다.</strong> 원화·월간 데이터이고, 지수 종류(시세 vs 실거래)에 따라 수익률이 수 %p씩 갈리며, <strong>전세 무이자 레버리지</strong>가 수익의 상당 부분을 만듭니다. 비유동·평활 특성상 변동성·Sharpe가 낮게 나올 수 있어 — <strong>위 금융자산 전략과 같은 잣대로 직접 비교하지 마세요.</strong></div>
+        <div id="reco-re" class="reco-cards"></div>
       </section>
     </div>
 
@@ -903,10 +927,10 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="alloc.js?v=ff03b23e" defer></script>
-  <script src="re_apt.js?v=ff03b23e" defer></script>
-  <script src="analytics-live.js?v=ff03b23e" defer></script>
-  <script src="leverage.js?v=ff03b23e" defer></script>
-  <script src="app.js?v=ff03b23e" defer></script>
+  <script src="alloc.js?v=d0d3abbd" defer></script>
+  <script src="re_apt.js?v=d0d3abbd" defer></script>
+  <script src="analytics-live.js?v=d0d3abbd" defer></script>
+  <script src="leverage.js?v=d0d3abbd" defer></script>
+  <script src="app.js?v=d0d3abbd" defer></script>
 </body>
 </html>

@@ -985,18 +985,18 @@ function clearPresetActive() {
 // ---------------------------------------------------------------------------
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
-const CAT_ORDER = { guide: -1, dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, crypto: 3,
+const CAT_ORDER = { reco: -2, guide: -1, dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, crypto: 3,
   realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10 };
-const CAT_LABEL_NAV = { guide: '초보자 가이드', dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
+const CAT_LABEL_NAV = { reco: '추천 전략', guide: '초보자 가이드', dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
   crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩', realestate: '부동산',
   paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도' };
 // 4대분류: 자산배분(8자산) / 주식(한국 모멘텀·미국 TQQQ·지수 모멘텀) / 코인(BTC/ETH/XRP) /
 //          도구·지표(계산기·심리·경보·데이터정확도). 코인은 전통자산과 위험특성이 달라 독립 영역.
-const SUPER_OF = { guide: 'guide', dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
+const SUPER_OF = { reco: 'reco', guide: 'guide', dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
   momentum: 'strat', crypto: 'coin', realestate: 're',
   paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools' };
-const SUPER_ORDER = { guide: -1, alloc: 0, strat: 1, coin: 2, re: 3, tools: 4 };
-const SUPER_LABEL = { guide: '📖 가이드', alloc: '자산배분', strat: '주식', coin: '코인', re: '부동산', tools: '도구·지표' };
+const SUPER_ORDER = { reco: -2, guide: -1, alloc: 0, strat: 1, coin: 2, re: 3, tools: 4 };
+const SUPER_LABEL = { reco: '⭐ 추천', guide: '📖 가이드', alloc: '자산배분', strat: '주식', coin: '코인', re: '부동산', tools: '도구·지표' };
 // 부동산 분류 칩 = 지역(전국·지수 먼저, 그다음 도시). 카테고리 re_index/re_<도시>를 네비 맵에 등록.
 // 도시 추가 시 이 리스트만 갱신(build_dashboard.RE_CATS 와 동일 순서 유지).
 const RE_CATS = [['re_index', '전국·지수'], ['re_서울', '서울'], ['re_경기', '경기'], ['re_인천', '인천'],
@@ -1085,6 +1085,7 @@ function setCurrency(cur) {
   if (!entry) return;
   document.body.classList.toggle('blend-mode', entry.mode === 'blend');   // 블렌딩 뷰 전용 컨트롤 표시
   // 도구·지표: 낙원계산기(클라이언트)·시장심리/추세경보/데이터정확도(JSON 로드) — mode 분기.
+  if (entry.mode === 'reco') return enterReco();                          // ⭐ 추천 전략(큐레이션 + 딥링크)
   if (entry.mode === 'guide') return enterGuide();                        // 📖 초보자 가이드(정적 콘텐츠)
   if (entry.mode === 'blend') return enterBlend();
   if (entry.mode === 'paradise') return enterParadise();
@@ -1111,7 +1112,7 @@ function setAnalyticsMode(on) {
 function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
   document.body.classList.toggle('tools-mode', !!on);
   if (on) document.body.classList.remove('analytics-mode');
-  ['guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage'].forEach(t => {
+  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.classList.toggle('hidden', !(on && t === tool));
   });
@@ -1125,6 +1126,131 @@ function enterGuide() {
   document.getElementById('meta').textContent = '초보자를 위한 설명 — 용어 · 자산배분 · 전략 · 도구 · 사용법';
   setStatus('');
   _renderGuideAllocChart();
+}
+
+// ---------------------------------------------------------------------------
+// ⭐ 추천 전략 (reco) — client-only 큐레이션 탭. 대표 개별 전략 + 큐레이션 조합을 카드로 소개하고
+// 각 카드에서 전체 뷰로 딥링크. 금융자산/부동산 두 섹션 분리(RE 는 원화·월간·기준 상이라 랭킹 미혼합).
+// 카드 지표는 전략 dashboard JSON 의 metrics_raw 를 런타임 fetch(캐시)해 표시. 스파크라인은 CSS-var SVG.
+// ---------------------------------------------------------------------------
+// 개별 픽 = manifest id + 한 줄 근거. 통화 접미사·존재 여부는 렌더 시 manifest 로 확정(누락은 스킵).
+const RECO_FIN_PICKS = [
+  { id: 'multi_allocation_allweather_usd', why: '주식·채권·금 분산 올웨더 — 낮은 낙폭의 기본기' },
+  { id: 'multi_allocation_us6040_usd', why: '미국 주식 60 / 채권 40 — 가장 고전적인 벤치마크' },
+  { id: 'multi_dynamic_gem_usd', why: '단순·유명한 듀얼모멘텀(상대+절대) — 하락장 현금 회피' },
+  { id: 'multi_dynamic_baa_g_usd', why: '카나리아 신호로 방어하는 공격형 모멘텀' },
+  { id: 'multi_dynamic_nrp_usd', why: '변동성 역가중 리스크패리티 — 위험 균형' },
+  { id: 'us_idxmom_usd', why: '200일선 추세추종으로 큰 하락을 피하는 미국 지수' },
+];
+const RECO_RE_PICKS = [
+  { id: 're_rentbuy', why: '전세 살까 vs 집 살까 — 국내 핵심 질문의 백테스트' },
+  { id: 're_gap', why: '전세 무이자 레버리지(갭투자)를 무레버 매수와 비교 — 문서상 유일하게 살아남은 엣지' },
+  { id: 're_gaptiming', why: '갭 × 실거래지수 추세 타이밍' },
+];
+
+function enterReco() {
+  setAnalyticsMode(false); setToolsMode(true, 'reco');
+  state.playground = false; state.data = null; state.allocCtx = null; _showAllocRebal(false);
+  state.tool = { kind: 'reco' };   // 순수 DOM/CSS-var SVG 라 테마 토글 시 재렌더 불필요(CSS 가 자동 반영)
+  document.getElementById('meta').textContent = '추천 전략 — 어디서 시작할지 고르는 큐레이션 (과거 백테스트 · 투자 자문 아님)';
+  setStatus('');
+  renderRecoTab();
+}
+// 데이터셋의 대표(전략) 시리즈명 — 벤치마크로 보이는 이름은 뒤로, 그 외 첫 항목.
+function _recoPrimaryName(d) {
+  const names = Object.keys(d.metrics_raw || {});
+  if (!names.length) return (d.series && d.series[0] && d.series[0].name) || null;
+  const isBench = n => /KOSPI|코스피|S&P|벤치|benchmark|buy\s*&?\s*hold|매수후보유|바이앤홀드/i.test(n);
+  return names.find(n => !isBench(n)) || names[0];
+}
+function _recoMetrics(d) {                         // {name, cagr, mdd, sharpe, period} (raw) 또는 null
+  const name = _recoPrimaryName(d); if (!name) return null;
+  const m = (d.metrics_raw || {})[name] || {};
+  const td = (d.table_display || {})[name] || {};
+  const sMatch = (d.series || []).find(s => s.name === name);
+  const per = td['기간'] || (sMatch && sMatch.period) || (d.series && d.series[0] && d.series[0].period) || '';
+  return { name, cagr: m.CAGR, mdd: m.mdd, sharpe: m.sharpe, period: per };
+}
+function _sparkline(nav) {                          // 경량 인라인 SVG(스트로크=CSS var → 테마 자동)
+  if (!Array.isArray(nav)) return '';
+  const v = nav.filter(x => x != null); if (v.length < 2) return '';
+  const step = Math.max(1, Math.floor(v.length / 60)), pts = [];
+  for (let i = 0; i < v.length; i += step) pts.push(v[i]);
+  if (pts[pts.length - 1] !== v[v.length - 1]) pts.push(v[v.length - 1]);
+  const lo = Math.min(...pts), hi = Math.max(...pts), rng = hi - lo || 1, W = 160, H = 34;
+  const path = pts.map((y, i) => `${(i / (pts.length - 1) * W).toFixed(1)},${(H - (y - lo) / rng * H).toFixed(1)}`).join(' ');
+  return `<svg class="reco-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><polyline points="${path}" /></svg>`;
+}
+async function _recoFetch(id) {                     // manifest id → {entry, data}; 캐시. 누락은 null.
+  const entry = state.manifest.find(m => m.id === id);
+  if (!entry || !entry.file) return null;
+  state.recoCache = state.recoCache || {};
+  if (!(id in state.recoCache)) {
+    try { state.recoCache[id] = await (await fetch('data/' + entry.file, { cache: 'no-cache' })).json(); }
+    catch (e) { state.recoCache[id] = null; }
+  }
+  return { entry, data: state.recoCache[id] };
+}
+function _recoCardHtml(entry, met, spark, why) {
+  const pct = x => (x == null || !isFinite(x)) ? '—' : (x * 100).toFixed(1) + '%';
+  const rat = x => (x == null || !isFinite(x)) ? '—' : Number(x).toFixed(2);
+  const title = entry.label.replace(/\s*\((USD|KRW)\)\s*$/, '');
+  const cur = entry.currency ? ` · ${entry.currency.toUpperCase()}` : '';
+  return `<div class="reco-card"><div class="reco-head">` +
+    `<span class="reco-title">${title}</span>` +
+    `<button type="button" class="reco-apply" data-reco-goto="${entry.id}">자세히 보기 →</button></div>` +
+    `<div class="reco-why">${why}</div>${spark || ''}` +
+    `<div class="reco-metrics"><span><b>CAGR</b> ${pct(met && met.cagr)}</span>` +
+    `<span><b>MDD</b> ${pct(met && met.mdd)}</span><span><b>Sharpe</b> ${rat(met && met.sharpe)}</span></div>` +
+    `<div class="reco-period">${(met && met.period) || ''}${cur}</div></div>`;
+}
+async function _recoRenderInto(elId, picks) {
+  const el = document.getElementById(elId); if (!el) return;
+  const results = await Promise.all(picks.map(p => _recoFetch(p.id).then(r => ({ r, why: p.why }))));
+  const html = results.map(({ r, why }) => {
+    if (!r || !r.data) return '';                   // 데이터셋 누락 시 우아하게 스킵
+    const met = _recoMetrics(r.data);
+    const s = (r.data.series || []).find(x => met && x.name === met.name) || (r.data.series || [])[0];
+    return _recoCardHtml(r.entry, met, s && _sparkline(s.nav), why);
+  }).filter(Boolean).join('');
+  el.innerHTML = html || '<p class="period-note">표시할 추천 데이터가 없습니다(빌드 전이거나 데이터셋 누락).</p>';
+}
+function renderRecoBlendCards() {                   // 큐레이션 조합(블렌딩 탭의 RECO_BLENDS 재사용)
+  const el = document.getElementById('reco-fin-blends'); if (!el) return;
+  const card = r => `<div class="reco-card"><div class="reco-head">` +
+    `<span class="reco-title">${r.title}</span>` +
+    `<button type="button" class="reco-apply" data-reco-blend="${r.key}">블렌딩에서 열기 →</button></div>` +
+    `<div class="reco-why">${r.desc}</div>` +
+    `<div class="reco-w">${r.legs.map(l => `${RECO_LABEL[l.base] || l.base} ${l.w}%`).join(' · ')}</div>` +
+    `<div class="reco-period">${r.statKrw} · 원화 기준 참고치</div></div>`;
+  el.innerHTML = RECO_BLENDS.map(card).join('');
+}
+function renderRecoTab() {
+  if (!state._recoWired) {                           // 카드 클릭 위임(딥링크 · 조합 열기)
+    const sec = document.getElementById('reco-section');
+    if (sec) sec.addEventListener('click', e => {
+      const g = e.target.closest('button[data-reco-goto]'); if (g) return gotoDataset(g.dataset.recoGoto);
+      const b = e.target.closest('button[data-reco-blend]'); if (b) return gotoBlendPreset(b.dataset.recoBlend);
+    });
+    state._recoWired = true;
+  }
+  _recoRenderInto('reco-fin-individual', RECO_FIN_PICKS);
+  _recoRenderInto('reco-re', RECO_RE_PICKS);
+  renderRecoBlendCards();
+}
+// 딥링크: manifest id → 기존 4단 네비 체인 구동(대분류/카테고리/그룹/통화 UI 동기화 + loadDataset).
+function gotoDataset(id) {
+  const e = state.manifest.find(m => m.id === id); if (!e) return;
+  setSuperCategory(SUPER_OF[e.category] || 'etc');
+  setCategory(e.category); setGroup(e.group);
+  if (e.currency) setCurrency(e.currency);          // 빈 통화(도구)면 setGroup 이 이미 로드
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+// 큐레이션 조합 → 블렌딩 탭 진입(setCategory('blend') 가 enterBlend 경유) 후 프리셋 적용.
+function gotoBlendPreset(key) {
+  setSuperCategory('alloc'); setCategory('blend');
+  applyRecoPreset(key);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ③ '왜 자산배분' 그래프 — 실제 백테스트: 정적 '균형' 배분(파랑) vs S&P 500(빨강), USD 1997~.
