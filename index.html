@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=d21403c6" />
+  <link rel="stylesheet" href="style.css?v=4865d44b" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -197,7 +197,7 @@
 
       <section class="panel">
         <h2>핵심 금융자산 전략</h2>
-        <p class="period-note">유동적인 ETF·자산배분 전략(기본 달러 기준, 이동 후 통화 전환 가능). 공통기간(2007~) 위험 대비 수익(Sharpe·Calmar) 상위 + 성격 다양성으로 선별했습니다. 지표는 현재 배포 데이터 기준 자동 표시 — <strong>CAGR</strong> 연복리수익 · <strong>MDD</strong> 최대낙폭 · <strong>Sharpe</strong> 위험 대비 효율.</p>
+        <p class="period-note">유동적인 ETF·자산배분 전략을 <strong>원화 기준</strong>으로 봅니다(카드 클릭 후 달러 전환 가능). <strong>원화 위험 대비 수익(Sharpe) 상위 + 성격 다양성</strong>으로 선별했습니다(전체 순위는 아래 “전체 전략 랭킹” 참고). 지표는 현재 배포 데이터 기준 자동 표시 — <strong>CAGR</strong> 연복리수익 · <strong>MDD</strong> 최대낙폭 · <strong>Sharpe</strong> 위험 대비 효율.</p>
         <p class="period-note">⏱ <strong>전략마다 검증 기간이 다릅니다</strong>(예: 영구 포트폴리오 90년+ vs BAA 19년). 기간이 길수록 대공황·오일쇼크 같은 <strong>혹독한 구간</strong>을 포함해 CAGR가 낮고 MDD가 크게 보일 수 있으니, 카드의 <strong>📅 기간 배지</strong>를 함께 보고 같은 기간끼리 비교하세요.</p>
         <h3 class="reco-presets-title">개별 전략</h3>
         <div id="reco-fin-individual" class="reco-cards"></div>
@@ -214,7 +214,19 @@
 
       <section class="panel">
         <h2>전체 전략 랭킹 <span class="muted">(모든 전략 · 정렬·필터 가능)</span></h2>
-        <p class="period-note">이 사이트의 <strong>모든 금융 전략</strong>을 지표로 나열합니다. <strong>열 제목을 클릭</strong>하면 그 기준으로 정렬(기본 Sharpe↓), <strong>행을 클릭</strong>하면 전체 백테스트로 이동합니다. <strong>Sharpe</strong>=연수익÷연변동성 · <strong>Calmar</strong>=CAGR÷|MDD| · 무위험수익 0% 가정. 통화를 바꾸면 순위가 재계산됩니다(위기 때 원화 약세가 달러 자산 낙폭을 방어 → 통화별 순위 상이).</p>
+        <p class="period-note">이 사이트의 <strong>모든 금융 전략</strong>을 지표로 나열합니다. 통화를 바꾸면 순위가 재계산됩니다(위기 때 원화 약세가 달러 자산 낙폭을 방어 → 통화별 순위 상이). 무위험수익 0% 가정.</p>
+        <details class="lb-glossary-box" open>
+          <summary>📖 지표 뜻 (클릭해 접기)</summary>
+          <div class="lb-glossary">
+            <span><b>CAGR</b> 연복리수익률 — 매년 평균 몇 %씩 불었나 <em>(↑ 높을수록 좋음)</em></span>
+            <span><b>MDD</b> 최대낙폭 — 고점 대비 최악의 하락 <em>(0에 가까울수록 좋음)</em></span>
+            <span><b>변동성</b> 수익이 출렁이는 정도 <em>(↓ 작을수록 안정적)</em></span>
+            <span><b>Sharpe</b> = 연수익 ÷ 연변동성 — 출렁임 1단위당 수익(효율) <em>(↑)</em></span>
+            <span><b>Sortino</b> = Sharpe와 같되 <em>하락</em> 변동만 위험으로 봄 <em>(↑)</em></span>
+            <span><b>Calmar</b> = CAGR ÷ |MDD| — 낙폭 1단위당 수익 <em>(↑)</em></span>
+          </div>
+        </details>
+        <p class="lb-hint">🔀 <strong>열 제목(CAGR · MDD · Sharpe · Sortino · Calmar …)을 클릭</strong>하면 그 지표 기준으로 정렬됩니다(<span class="sort-ind">↕</span> 표시된 열 전부 가능). <strong>행을 클릭</strong>하면 전체 백테스트로 이동합니다.</p>
         <div id="reco-lb">
           <div class="bt-controls">
             <span class="muted">통화</span>
@@ -944,10 +956,10 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="alloc.js?v=d21403c6" defer></script>
-  <script src="re_apt.js?v=d21403c6" defer></script>
-  <script src="analytics-live.js?v=d21403c6" defer></script>
-  <script src="leverage.js?v=d21403c6" defer></script>
-  <script src="app.js?v=d21403c6" defer></script>
+  <script src="alloc.js?v=4865d44b" defer></script>
+  <script src="re_apt.js?v=4865d44b" defer></script>
+  <script src="analytics-live.js?v=4865d44b" defer></script>
+  <script src="leverage.js?v=4865d44b" defer></script>
+  <script src="app.js?v=4865d44b" defer></script>
 </body>
 </html>

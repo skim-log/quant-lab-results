@@ -1134,15 +1134,16 @@ function enterGuide() {
 // 카드 지표는 전략 dashboard JSON 의 metrics_raw 를 런타임 fetch(캐시)해 표시. 스파크라인은 CSS-var SVG.
 // ---------------------------------------------------------------------------
 // 개별 픽 = manifest id + 한 줄 근거. 통화 접미사·존재 여부는 렌더 시 manifest 로 확정(누락은 스킵).
-// 선정 = 지표 상위(공통기간 2007~2026 위험대비수익) + 성격 다양성. 순수 유명세로 넣었던 US60/40·올웨더는
-// 같은 기간에서 중위권이라 제외(벤치마크로만 참고). 코인·레버리지는 MDD/투기성 이유로 진입탭에서 제외.
+// 선정 = 원화(KRW) 기준 위험대비수익(Sharpe) 상위 + 성격 다양성(정적/방어/공격/고CAGR). 대상이 한국
+// 투자자라 원화 기준으로 뽑음 — 환헤지 효과로 순위가 USD와 다름(위기 때 원화 약세가 달러자산 낙폭 방어).
+// 코인·레버리지(TQQQ 등)는 MDD/투기성 이유로 진입탭 제외. 전체 순위는 아래 '전체 전략 랭킹' 참고.
 const RECO_FIN_PICKS = [
-  { id: 'multi_dynamic_baa_g_usd', why: '카나리아 신호로 방어하는 공격형 듀얼모멘텀 — 공통기간(2007~) 위험대비수익 1위' },
-  { id: 'multi_allocation_permanent_usd', why: '주식·채권·금·현금 4등분(영구 포트폴리오) — 90년+ 검증된 초저낙폭 정적 분산' },
-  { id: 'us_idxmom_usd', why: '나스닥100을 200일선으로 추세추종 — 큰 하락을 피하는 성장주 노출' },
-  { id: 'multi_dynamic_vaa_g4_usd', why: '카나리아로 공격/방어를 빠르게 전환하는 보호형 모멘텀 — 낙폭 대비 수익 우수' },
-  { id: 'multi_dynamic_gem_usd', why: '가장 유명한 입문 듀얼모멘텀(상대+절대) — 하락장 현금 회피' },
-  { id: 'multi_dynamic_nrp_usd', why: '변동성 역가중 리스크패리티 — 위험을 고르게 나눈 안정형 분산' },
+  { id: 'multi_allocation_rebal_krw', why: '주식·채권·금·귀금속 글로벌 분산 — 원화 위험대비수익 1위, 낙폭 −12%대의 정적 분산' },
+  { id: 'multi_dynamic_baa_g_krw', why: '카나리아 신호로 방어하는 공격형 듀얼모멘텀 — 원화 CAGR 14%대·낙폭 방어' },
+  { id: 'multi_dynamic_vaa_g4_krw', why: '카나리아로 공격/방어를 빠르게 전환하는 보호형 모멘텀' },
+  { id: 'multi_dynamic_kr_us_gold_core6_krw', why: '한미 주식 6개월 모멘텀 + 금 위성 — 원화 CAGR 15%대 고수익형(낙폭도 원화라 −20%대)' },
+  { id: 'multi_dynamic_gem_krw', why: '가장 유명한 입문 듀얼모멘텀(상대+절대) — 하락장 현금 회피' },
+  { id: 'multi_dynamic_daa_g12_krw', why: '방어형 자산배분(DAA-G12) — 낙폭 −15%대로 꾸준한 안정형' },
 ];
 const RECO_RE_PICKS = [
   { id: 're_rentbuy', why: '전세 살까 vs 집 살까 — 국내 핵심 질문의 백테스트' },
@@ -1319,8 +1320,9 @@ function _lbDraw() {
   });
   const head = '<tr>' + LB_COLS.map(c => {
     const numc = !['name', 'cat', 'period'].includes(c.k);
-    const arr = (c.k === s.k) ? (s.dir < 0 ? ' ▼' : ' ▲') : '';
-    return `<th data-k="${c.k}"${numc ? ' class="num"' : ''}>${c.t}${arr}</th>`;
+    // 활성 열은 ▲/▼, 그 외 정렬 가능한 열은 흐린 ↕ 를 항상 표시 → "클릭해 정렬" 신호를 명시.
+    const arr = (c.k === s.k) ? `<span class="sort-active">${s.dir < 0 ? '▼' : '▲'}</span>` : '<span class="sort-ind">↕</span>';
+    return `<th data-k="${c.k}"${numc ? ' class="num"' : ''}>${c.t} ${arr}</th>`;
   }).join('') + '</tr>';
   const body = list.map(r => '<tr data-id="' + r.id + '" title="클릭 → 전체 백테스트">' + LB_COLS.map(c => {
     if (c.k === 'name') return `<td class="lb-name">${r.name}</td>`;
