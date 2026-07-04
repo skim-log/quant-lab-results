@@ -3583,6 +3583,31 @@ function enterBlend() {
   _populateBlendRows();
   runBlend();
 }
+// 블렌드 벤치마크 오버레이: 통화별 S&P 500·KOSPI(allocation_balanced 데이터셋의 벤치 시리즈)를
+// 블렌드 월 그리드(YYYY-MM)에 재색인 + 시작=1 리베이스해 깨끗한 배열로 반환(결측 월은 제외 → computeMetrics 안전).
+function _blendBenchmarkCurve(label, bench, blendDates) {
+  const m = {};
+  (bench.dates || []).forEach((dt, i) => { m[dt.slice(0, 7)] = bench.nav[i]; });
+  const dates = [], raw = [];
+  blendDates.forEach(dt => { const v = m[dt.slice(0, 7)]; if (v != null) { dates.push(dt); raw.push(v); } });
+  if (raw.length < 2) return null;
+  const base = raw[0];
+  return { name: label, dates, nav: raw.map(v => v / base) };
+}
+async function _blendBenchmarks(ccy, blendDates) {
+  state.benchCache = state.benchCache || {};
+  const file = `multi_allocation_balanced_${ccy}.json`;   // 이 데이터셋은 통화별로 'S&P 500'·'KOSPI' 벤치 시리즈 보유
+  if (!(file in state.benchCache)) {
+    try { state.benchCache[file] = ((await (await fetch('data/' + file, { cache: 'no-cache' })).json()).series) || []; }
+    catch (e) { state.benchCache[file] = []; }
+  }
+  const series = state.benchCache[file], out = [];
+  [['S&P 500', 'S&P 500 (벤치마크)'], ['KOSPI', 'KOSPI (벤치마크)']].forEach(([src, label]) => {
+    const s = series.find(x => x.name === src);
+    if (s && s.dates && s.nav) { const c = _blendBenchmarkCurve(label, s, blendDates); if (c) out.push(c); }
+  });
+  return out;
+}
 async function runBlend() {
   const rows = [...document.querySelectorAll('#blend-pick .blend-row')].map(r => ({
     file: r.querySelector('.blend-sel').value, w: (parseFloat(r.querySelector('.blend-w').value) || 0) / 100,
@@ -3608,6 +3633,7 @@ async function runBlend() {
   setStatus('');
   const curves = [{ name: '블렌드', dates: blended.dates, nav: blended.nav }];
   comps.forEach((c, ci) => curves.push({ name: c.name, dates: blended.dates, nav: aligned.navByName[ci] }));
+  (await _blendBenchmarks(state.blendCcy, blended.dates)).forEach(c => curves.push(c));   // S&P500·KOSPI 벤치마크 오버레이(그래프+표)
   state.data = _synthDataset(curves, '전략 블렌딩');
   const wsum = comps.reduce((s, c) => s + c.w, 0) || 1;
   state.data.target_weights = Object.fromEntries(comps.map(c => [c.name, c.w / wsum]));
