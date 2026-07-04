@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=fc77dd21" />
+  <link rel="stylesheet" href="style.css?v=ed869644" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -199,8 +199,11 @@
         <h2>핵심 금융자산 전략</h2>
         <p class="period-note">유동적인 ETF·자산배분 전략을 <strong>원화 기준</strong>으로 봅니다(카드 클릭 후 달러 전환 가능). <strong>원화 위험 대비 수익(Sharpe) 상위 + 성격 다양성</strong>으로 선별했습니다(전체 순위는 아래 “전체 전략 랭킹” 참고). 지표는 현재 배포 데이터 기준 자동 표시 — <strong>CAGR</strong> 연복리수익 · <strong>MDD</strong> 최대낙폭 · <strong>Sharpe</strong> 위험 대비 효율.</p>
         <p class="period-note">⏱ <strong>전략마다 검증 기간이 다릅니다</strong>(예: 영구 포트폴리오 90년+ vs BAA 19년). 기간이 길수록 대공황·오일쇼크 같은 <strong>혹독한 구간</strong>을 포함해 CAGR가 낮고 MDD가 크게 보일 수 있으니, 카드의 <strong>📅 기간 배지</strong>를 함께 보고 같은 기간끼리 비교하세요.</p>
-        <h3 class="reco-presets-title">개별 전략</h3>
+        <h3 class="reco-presets-title">개별 전략 <span class="muted">(동적·모멘텀)</span></h3>
         <div id="reco-fin-individual" class="reco-cards"></div>
+        <h3 class="reco-presets-title">정적 배분 + 200일선(MA200) 필터 <span class="muted">— 추세 필터로 낙폭 방어</span></h3>
+        <p class="period-note">정적 분산에 “가격이 200일 이동평균선 위일 때만 보유(아래로 내려오면 현금)” 추세 필터를 더한 변형입니다. 수익은 소폭 낮아질 수 있어도 <strong>최대낙폭(MDD)이 크게 줄어</strong> 위험 대비 수익(Sharpe·Calmar)이 개선됩니다. 지표는 원화 기준.</p>
+        <div id="reco-fin-ma" class="reco-cards"></div>
         <h3 class="reco-presets-title">큐레이션 조합 (전략 블렌딩)</h3>
         <p class="period-note">여러 전략을 비중 결합한 조합입니다. “블렌딩에서 열기”를 누르면 <strong>전략 블렌딩</strong> 탭에서 비중이 적용된 채로 열려 바로 조정·재실행할 수 있습니다.</p>
         <div id="reco-fin-blends" class="reco-cards"></div>
@@ -956,10 +959,10 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="alloc.js?v=fc77dd21" defer></script>
-  <script src="re_apt.js?v=fc77dd21" defer></script>
-  <script src="analytics-live.js?v=fc77dd21" defer></script>
-  <script src="leverage.js?v=fc77dd21" defer></script>
-  <script src="app.js?v=fc77dd21" defer></script>
+  <script src="alloc.js?v=ed869644" defer></script>
+  <script src="re_apt.js?v=ed869644" defer></script>
+  <script src="analytics-live.js?v=ed869644" defer></script>
+  <script src="leverage.js?v=ed869644" defer></script>
+  <script src="app.js?v=ed869644" defer></script>
 </body>
 </html>

@@ -1137,13 +1137,23 @@ function enterGuide() {
 // 선정 = 원화(KRW) 기준 위험대비수익(Sharpe) 상위 + 성격 다양성(정적/방어/공격/고CAGR). 대상이 한국
 // 투자자라 원화 기준으로 뽑음 — 환헤지 효과로 순위가 USD와 다름(위기 때 원화 약세가 달러자산 낙폭 방어).
 // 코인·레버리지(TQQQ 등)는 MDD/투기성 이유로 진입탭 제외. 전체 순위는 아래 '전체 전략 랭킹' 참고.
-const RECO_FIN_PICKS = [
-  { id: 'multi_allocation_rebal_krw', why: '주식·채권·금·귀금속 글로벌 분산 — 원화 위험대비수익 1위, 낙폭 −12%대의 정적 분산' },
+const RECO_FIN_PICKS = [   // 동적·모멘텀 계열(정적은 아래 MA200 섹션으로 분리)
   { id: 'multi_dynamic_baa_g_krw', why: '카나리아 신호로 방어하는 공격형 듀얼모멘텀 — 원화 CAGR 14%대·낙폭 방어' },
   { id: 'multi_dynamic_vaa_g4_krw', why: '카나리아로 공격/방어를 빠르게 전환하는 보호형 모멘텀' },
   { id: 'multi_dynamic_kr_us_gold_core6_krw', why: '한미 주식 6개월 모멘텀 + 금 위성 — 원화 CAGR 15%대 고수익형(낙폭도 원화라 −20%대)' },
   { id: 'multi_dynamic_gem_krw', why: '가장 유명한 입문 듀얼모멘텀(상대+절대) — 하락장 현금 회피' },
   { id: 'multi_dynamic_daa_g12_krw', why: '방어형 자산배분(DAA-G12) — 낙폭 −15%대로 꾸준한 안정형' },
+];
+// 정적 배분 + 200일선(MA200) 추세 필터 변형 — 각 정적 데이터셋 안의 별도 시리즈(series 지정). 필터가 낙폭을 크게 줄임.
+const RECO_MA200_PICKS = [
+  { id: 'multi_allocation_rebal_krw', series: '글로벌 분산 (귀금속 강화) · 분기 · 밴드 20% · MA200',
+    label: '글로벌 분산(귀금속) + 200일선', why: '원화 위험대비수익 1위 — 200일선 필터로 낙폭 −22%→−12%' },
+  { id: 'multi_allocation_us6040_krw', series: 'US 60/40 · 분기 · 밴드 20% · MA200',
+    label: 'US 60/40 + 200일선', why: '고전 60/40 — 필터로 낙폭 −65%→−22% 급감(하락장 회피)' },
+  { id: 'multi_allocation_allweather_full_krw', series: '올웨더 (Dalio, 충실판) · 분기 · 밴드 20% · MA200',
+    label: '올웨더(Dalio) + 200일선', why: 'Dalio 올웨더 — 필터로 낙폭 −14%대 방어하며 꾸준' },
+  { id: 'multi_allocation_balanced_krw', series: '균형 · 분기 · 밴드 20% · MA200',
+    label: '균형 배분 + 200일선', why: '균형 분산 — 필터로 낙폭 −20%→−13%, 안정적' },
 ];
 const RECO_RE_PICKS = [
   { id: 're_rentbuy', why: '전세 살까 vs 집 살까 — 국내 핵심 질문의 백테스트' },
@@ -1166,8 +1176,9 @@ function _recoPrimaryName(d) {
   const isBench = n => /KOSPI|코스피|S&P|벤치|benchmark|buy\s*&?\s*hold|매수후보유|바이앤홀드/i.test(n);
   return names.find(n => !isBench(n)) || names[0];
 }
-function _recoMetrics(d) {                         // {name, cagr, mdd, sharpe, period} (raw) 또는 null
-  const name = _recoPrimaryName(d); if (!name) return null;
+function _recoMetrics(d, seriesName) {              // {name, cagr, mdd, sharpe, period} (raw) 또는 null. seriesName 지정 시 그 시리즈 사용.
+  const name = (seriesName && (d.metrics_raw || {})[seriesName]) ? seriesName : _recoPrimaryName(d);
+  if (!name) return null;
   const m = (d.metrics_raw || {})[name] || {};
   const td = (d.table_display || {})[name] || {};
   const sMatch = (d.series || []).find(s => s.name === name);
@@ -1200,10 +1211,10 @@ function _recoYears(per) {                          // "YYYY-MM-DD~YYYY-MM-DD" �
   const y = (+m[3] - +m[1]) + (+m[4] - +m[2]) / 12;
   return y > 0 ? Math.round(y) + '년' : '';
 }
-function _recoCardHtml(entry, met, spark, why) {
+function _recoCardHtml(entry, met, spark, why, labelOverride) {
   const pct = x => (x == null || !isFinite(x)) ? '—' : (x * 100).toFixed(1) + '%';
   const rat = x => (x == null || !isFinite(x)) ? '—' : Number(x).toFixed(2);
-  const title = entry.label.replace(/\s*\((USD|KRW)\)\s*$/, '');
+  const title = labelOverride || entry.label.replace(/\s*\((USD|KRW)\)\s*$/, '');
   const cur = entry.currency ? ` · ${entry.currency.toUpperCase()}` : '';
   const yrs = _recoYears(met && met.period);
   // 기간을 눈에 띄는 배지로(전략마다 검증 기간이 달라 지표 비교 시 주의 — 사용자 요청).
@@ -1218,12 +1229,12 @@ function _recoCardHtml(entry, met, spark, why) {
 }
 async function _recoRenderInto(elId, picks) {
   const el = document.getElementById(elId); if (!el) return;
-  const results = await Promise.all(picks.map(p => _recoFetch(p.id).then(r => ({ r, why: p.why }))));
-  const html = results.map(({ r, why }) => {
+  const results = await Promise.all(picks.map(p => _recoFetch(p.id).then(r => ({ r, p }))));
+  const html = results.map(({ r, p }) => {
     if (!r || !r.data) return '';                   // 데이터셋 누락 시 우아하게 스킵
-    const met = _recoMetrics(r.data);
+    const met = _recoMetrics(r.data, p.series);      // p.series 지정 시 그 변형(예: MA200) 지표 표시
     const s = (r.data.series || []).find(x => met && x.name === met.name) || (r.data.series || [])[0];
-    return _recoCardHtml(r.entry, met, s && _sparkline(s.nav), why);
+    return _recoCardHtml(r.entry, met, s && _sparkline(s.nav), p.why, p.label);
   }).filter(Boolean).join('');
   el.innerHTML = html || '<p class="period-note">표시할 추천 데이터가 없습니다(빌드 전이거나 데이터셋 누락).</p>';
 }
@@ -1247,6 +1258,7 @@ function renderRecoTab() {
     state._recoWired = true;
   }
   _recoRenderInto('reco-fin-individual', RECO_FIN_PICKS);
+  _recoRenderInto('reco-fin-ma', RECO_MA200_PICKS);
   _recoRenderInto('reco-re', RECO_RE_PICKS);
   renderRecoBlendCards();
   renderLeaderboard();
