@@ -213,6 +213,7 @@ function renderDescription() {
 
 function render() {
   if (!state.data) return;
+  if (!_hasCryptoMa(state.data)) setHidden('crypto-ma-section', true);   // 코인 아닌 뷰(블렌드·플레이그라운드 등)에선 숨김
   const { s, e } = currentWindow();
   const names = checkedNames();
   const ppy = state.data.periods_per_year;
@@ -859,6 +860,7 @@ async function loadDataset(file) {
       `${d.title || ''} · 생성일 ${d.generated_at || '-'} · 빈도 ${d.freq === 'D' ? '일별' : '월별'}`;
     setStatus('');
     render();
+    _maybeCryptoMaSensitivity(d);   // 코인 데이터셋이면 이평선 필터 민감도 섹션 표시(아니면 숨김)
     // 정적 프리셋: 리밸런싱 주기·밴드 셀렉터 노출(즉석 재계산). target_weights 있는 정적(allocation)만.
     if (d.kind === 'allocation' && d.target_weights && Object.keys(d.target_weights).length) {
       state.allocCtx = { file, weights: d.target_weights, defaultRebal: d.rebalance || 'quarterly',
@@ -926,7 +928,7 @@ function applyTheme(theme, persist) {
     else { render(); if (state.sweep) renderSweep(); if (state.blendFrontier) _drawBlendFrontier(); }   // 스윕·블렌드 프론티어도 새 테마로 재색
   }
   // 이평선 민감도 차트(정적·추천)도 새 테마로 재색(캐시된 _sweep 재사용).
-  ['ma-sens-host', 'reco-ma-host'].forEach(h => {
+  ['ma-sens-host', 'reco-ma-host', 'crypto-ma-host'].forEach(h => {
     const el = document.getElementById(h);
     if (el && el._sweep) _drawMaSweep(document.getElementById(h + '-chart'), el._sweep, el._active);
   });
@@ -3458,18 +3460,44 @@ function _maReadout(hostId, sweep, w) {
   el.innerHTML = `선택 <strong>${w}일선</strong> — CAGR ${p(r.cagr)} · MDD ${p(r.mdd)} · Sharpe ${rr(r.sharpe)} · Calmar ${rr(r.calmar)}` +
     (b ? ` <span class="muted">vs 무필터 CAGR ${p(b.CAGR)} · MDD ${p(b.mdd)} · Sharpe ${rr(b.sharpe)}</span>` : '');
 }
-// hostId 컨테이너에 창 선택기 + 스윕 차트 + 읽기값 렌더. state.panelCache 필요(_ensurePanel 선행).
-function renderMaSensitivity(hostId, weights, ccy) {
-  const host = document.getElementById(hostId), panel = state.panelCache;
-  if (!host || !panel || typeof ALLOC === 'undefined' || !weights) return;
-  const sweep = _maSweepCompute(panel, weights, ccy || 'krw');
-  if (!sweep.rows.length) { host.innerHTML = '<p class="period-note">민감도 계산 불가(패널 데이터 확인).</p>'; return; }
-  const wins = sweep.rows.map(r => r.w), activeW = wins.includes(200) ? 200 : wins[0];
-  if (!host._built) {
+// 분석 코멘트(과최적화 판정) — 무필터 대비 개선 창 비율 + 최적 창(Sharpe/Calmar)·최소낙폭 창 요약.
+function _maVerdict(sweep, unit) {
+  if (!sweep || !sweep.rows.length) return '';
+  unit = unit || '일';
+  const rows = sweep.rows, b = sweep.baseline, n = rows.length;
+  const p = x => (x == null || !isFinite(x)) ? '—' : (x * 100).toFixed(1) + '%';
+  const bMdd = b ? b.mdd : null;
+  let improved = 0;
+  if (bMdd != null) rows.forEach(r => { if (r.mdd - bMdd > 0.03) improved++; });   // 낙폭 ≥3%p 얕아진 창
+  const bySharpe = [...rows].sort((a, c) => c.sharpe - a.sharpe)[0];
+  const byCalmar = [...rows].sort((a, c) => (c.calmar || -9) - (a.calmar || -9))[0];
+  const shallow = [...rows].sort((a, c) => c.mdd - a.mdd)[0];
+  let head, cls;
+  if (bMdd == null) { head = '기준(무필터) 없음 — 창 간 상대 비교만'; cls = ''; }
+  else if (improved >= Math.ceil(n * 0.8)) { head = '✅ 강건 — 특정 일수 과최적화가 아님'; cls = 'ok'; }
+  else if (improved >= Math.ceil(n * 0.5)) { head = '◐ 대체로 강건 — 일부 창에서만 개선'; cls = ''; }
+  else if (improved >= 1) { head = '⚠ 과최적화 의심 — 소수 창에서만 개선'; cls = 'warn'; }
+  else { head = '✗ 이평선 필터 효과 미미'; cls = 'warn'; }
+  const parts = [];
+  if (bMdd != null) parts.push(`${rows[0].w}~${rows[n - 1].w}${unit} 중 <strong>${improved}/${n}개</strong> 창에서 낙폭이 무필터(${p(bMdd)}) 대비 뚜렷이 얕아짐`);
+  parts.push(`Sharpe 최고 <strong>${bySharpe.w}${unit}</strong>(${bySharpe.sharpe.toFixed(2)})`);
+  if (byCalmar && byCalmar.calmar != null) parts.push(`Calmar 최고 ${byCalmar.w}${unit}(${byCalmar.calmar.toFixed(2)})`);
+  parts.push(`낙폭 최소 ${shallow.w}${unit}(${p(shallow.mdd)})`);
+  return `<div class="ma-verdict ${cls}"><strong>${head}.</strong> ${parts.join(' · ')}.</div>`;
+}
+// 공용 렌더: 창 선택기 → 선택값 읽기 → 분석 판정 → 차트. 텍스트를 차트 위에 둬 가려지지 않게 한다.
+function _renderMaSweepBlock(hostId, sweep, opts) {
+  opts = opts || {};
+  const host = document.getElementById(hostId); if (!host) return;
+  if (!sweep || !sweep.rows.length) { host.innerHTML = '<p class="period-note">민감도 데이터를 계산할 수 없습니다(패널·시리즈 확인).</p>'; return; }
+  const wins = sweep.rows.map(r => r.w), unit = opts.unit || '일';
+  const activeW = wins.includes(200) ? 200 : wins[Math.floor(wins.length / 2)];
+  if (host._maReady !== true) {
     host.innerHTML =
-      '<div class="bt-toggle ma-sel">' + wins.map(w => `<button type="button" data-maw="${w}">${w}일</button>`).join('') + '</div>' +
-      `<div class="chart" id="${hostId}-chart" style="height:300px;margin-top:0.4rem"></div>` +
-      `<p class="period-note" id="${hostId}-readout"></p>`;
+      '<div class="bt-toggle ma-sel">' + wins.map(w => `<button type="button" data-maw="${w}">${w}${unit}</button>`).join('') + '</div>' +
+      `<p class="period-note ma-readout" id="${hostId}-readout"></p>` +
+      `<div id="${hostId}-verdict"></div>` +
+      `<div class="chart" id="${hostId}-chart" style="height:300px;margin-top:0.4rem"></div>`;
     host.addEventListener('click', e => {
       const btn = e.target.closest('button[data-maw]'); if (!btn || !host._sweep) return;
       host._active = +btn.dataset.maw;
@@ -3477,12 +3505,37 @@ function renderMaSensitivity(hostId, weights, ccy) {
       _drawMaSweep(document.getElementById(hostId + '-chart'), host._sweep, host._active);
       _maReadout(hostId, host._sweep, host._active);
     });
-    host._built = true;
+    host._maReady = true;
   }
-  host._sweep = sweep; host._active = activeW;
+  host._sweep = sweep; host._active = activeW; host._unit = unit;
   host.querySelectorAll('button[data-maw]').forEach(x => x.classList.toggle('active', +x.dataset.maw === activeW));
+  const vEl = document.getElementById(hostId + '-verdict'); if (vEl) vEl.innerHTML = _maVerdict(sweep, unit);
   _drawMaSweep(document.getElementById(hostId + '-chart'), sweep, activeW);
   _maReadout(hostId, sweep, activeW);
+}
+// 정적 자산배분: panel + ALLOC 로 창별 라이브 스윕. state.panelCache 필요(_ensurePanel 선행).
+function renderMaSensitivity(hostId, weights, ccy) {
+  const panel = state.panelCache;
+  if (!document.getElementById(hostId) || !panel || typeof ALLOC === 'undefined' || !weights) return;
+  _renderMaSweepBlock(hostId, _maSweepCompute(panel, weights, ccy || 'krw'), { unit: '일' });
+}
+// 코인: 로드된 대시보드의 'N일선 · <통화>신호' 시리즈 지표에서 스윕 구성(엔진 재계산 불필요). 기준=매수후보유.
+function _hasCryptoMa(d) {
+  return !!(d && d.metrics_raw && Object.keys(d.metrics_raw).some(k => /^\d+일선 · (달러|원화)신호$/.test(k)));
+}
+function _cryptoMaSweep(d, ccy) {
+  const mr = d.metrics_raw || {}, sig = (ccy === 'usd') ? '달러신호' : '원화신호';
+  const rows = [20, 60, 120, 200].map(w => {
+    const m = mr[`${w}일선 · ${sig}`];
+    return m ? { w, cagr: m.CAGR, mdd: m.mdd, sharpe: m.sharpe, calmar: m.calmar } : null;
+  }).filter(Boolean);
+  const bh = mr['매수후보유'];
+  return { baseline: bh ? { CAGR: bh.CAGR, mdd: bh.mdd, sharpe: bh.sharpe } : null, rows };
+}
+function _maybeCryptoMaSensitivity(d) {
+  if (!_hasCryptoMa(d)) { setHidden('crypto-ma-section', true); return; }
+  setHidden('crypto-ma-section', false);
+  _renderMaSweepBlock('crypto-ma-host', _cryptoMaSweep(d, state.nav.currency || 'krw'), { unit: '일' });
 }
 
 async function _ensurePanel() {

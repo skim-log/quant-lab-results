@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=9e6e176e" />
+  <link rel="stylesheet" href="style.css?v=14cf905e" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -937,6 +937,13 @@
       <div id="ma-sens-host"></div>
     </section>
 
+    <!-- 코인 이평선 필터 민감도 (코인 데이터셋 로드 시에만 표시 — _maybeCryptoMaSensitivity 토글) -->
+    <section id="crypto-ma-section" class="panel hidden">
+      <h2>이평선 필터 민감도 (과최적화 점검)</h2>
+      <p class="period-note">이 코인을 <strong>여러 이동평균 창(20~200일)</strong>으로 추세추종(가격이 이평선 위면 보유, 아래면 현금)했을 때의 낙폭(MDD)·Sharpe입니다(신호통화=현재 통화, 점선=<strong>매수후보유</strong> 낙폭). <strong>넓은 범위에서 낙폭이 줄면</strong> 특정 일수 과최적화가 아니라 추세필터 자체가 강건. 단, 코인은 필터를 써도 낙폭이 −50%대 이상으로 큽니다(고위험).</p>
+      <div id="crypto-ma-host"></div>
+    </section>
+
     <section id="events-section" class="panel hidden">
       <details>
         <summary>리밸런싱 이벤트 (<span id="events-count">0</span>)</summary>
@@ -973,10 +980,10 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="alloc.js?v=9e6e176e" defer></script>
-  <script src="re_apt.js?v=9e6e176e" defer></script>
-  <script src="analytics-live.js?v=9e6e176e" defer></script>
-  <script src="leverage.js?v=9e6e176e" defer></script>
-  <script src="app.js?v=9e6e176e" defer></script>
+  <script src="alloc.js?v=14cf905e" defer></script>
+  <script src="re_apt.js?v=14cf905e" defer></script>
+  <script src="analytics-live.js?v=14cf905e" defer></script>
+  <script src="leverage.js?v=14cf905e" defer></script>
+  <script src="app.js?v=14cf905e" defer></script>
 </body>
 </html>
