@@ -35,6 +35,8 @@ const state = {
   globalStart: '',   // 데이터셋 전체 최소 날짜 (ISO)
   globalEnd: '',     // 데이터셋 전체 최대 날짜 (ISO)
   nav: { super: '', category: '', group: '', currency: '' },  // 4축 네비(대분류→소분류→그룹→통화)
+  _navToken: 0,      // 내비게이션 레이스 가드 — 최신 요청만 렌더(비동기 fetch 응답 순서 뒤섞임 방지)
+  _navSilent: false, // true면 set*가 UI·상태만 갱신하고 로드 생략(gotoDataset 이 1회만 로드하도록)
   playground: false, panel: null, _pgWired: false,  // 플레이그라운드 상태
   analyticsActive: false, analyticsPayload: null, _analyticsCur: null,   // 정량분석 기간조절 재계산(월수익 행렬 보관)
   explorerCtx: null, explorer: null, _expWired: false,   // 전략 탐색기(위험성향 슬라이더·내 비중 점)
@@ -891,11 +893,14 @@ function setGlobalRange(d) {
 }
 
 async function loadDataset(file) {
+  const token = ++state._navToken;   // 로드 시작 = 최신 표식(setCurrency 우회 호출부 포함 모든 경로). 이후 다른 로드/내비가 오면 폐기.
   setStatus('데이터 불러오는 중…');
   try {
     const resp = await fetch('data/' + file, { cache: 'no-cache' });
+    if (token !== state._navToken) return;   // 다른 전략으로 이동됨 → 이 응답 무시(오이동 방지)
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const d = await resp.json();
+    if (token !== state._navToken) return;
     state.analyticsActive = false;
     state.allocCtx = null; _showAllocRebal(false);   // 정적 리밸런싱 셀렉터 기본 숨김(정적이면 아래서 재노출)
     if (d.kind === 'analytics') { setStatus(''); return enterAnalytics(d); }
@@ -1144,6 +1149,9 @@ function setCurrency(cur) {
   });
   const entry = resolveEntry(state.nav.category, state.nav.group, cur);
   if (!entry) return;
+  if (state._navSilent) return;   // 무음 내비: UI·상태만 갱신, 실제 로드는 호출부(gotoDataset 등)가 1회만 수행
+  state._navToken++;   // 뷰 전환 시작 표식 → 진행 중이던 비동기 로드 무효화. loadX 도 진입 시 증가하지만,
+                       // enterReco/guide/blend 등 '동기' 뷰는 로더를 안 거치므로 여기서 올려야 stale 로드가 덮어쓰지 못함.
   document.body.classList.toggle('blend-mode', entry.mode === 'blend');   // 블렌딩 뷰 전용 컨트롤 표시
   // 도구·지표: 낙원계산기(클라이언트)·시장심리/추세경보/데이터정확도(JSON 로드) — mode 분기.
   if (entry.mode === 'reco') return enterReco();                          // ⭐ 추천 전략(큐레이션 + 딥링크)
@@ -1340,14 +1348,22 @@ function renderRecoMaSensitivity() {
 // 딥링크: manifest id → 기존 4단 네비 체인 구동(대분류/카테고리/그룹/통화 UI 동기화 + loadDataset).
 function gotoDataset(id) {
   const e = state.manifest.find(m => m.id === id); if (!e) return;
-  setSuperCategory(SUPER_OF[e.category] || 'etc');
-  setCategory(e.category); setGroup(e.group);
-  if (e.currency) setCurrency(e.currency);          // 빈 통화(도구)면 setGroup 이 이미 로드
+  // UI(대분류·분류·그룹·통화)는 '무음'으로 한 번에 맞추고, 실제 데이터 로드는 마지막 setCurrency 에서
+  // 딱 1회만 수행한다 → 예전엔 단계마다 loadDataset 가 겹쳐 발화(3회 낭비 + 응답 뒤섞임)했던 것을 제거.
+  state._navSilent = true;
+  try {
+    setSuperCategory(SUPER_OF[e.category] || 'etc');
+    setCategory(e.category);
+    setGroup(e.group);
+  } finally { state._navSilent = false; }
+  setCurrency(e.currency || pickCurrency(e.category, e.group));   // 여기서만 로드(레이스 가드 토큰도 1회만 증가)
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
-// 큐레이션 조합 → 블렌딩 탭 진입(setCategory('blend') 가 enterBlend 경유) 후 프리셋 적용.
+// 큐레이션 조합 → 블렌딩 탭 진입 후 프리셋 적용. 위와 동일하게 UI는 무음, 로드는 1회.
 function gotoBlendPreset(key) {
-  setSuperCategory('alloc'); setCategory('blend');
+  state._navSilent = true;
+  try { setSuperCategory('alloc'); setCategory('blend'); } finally { state._navSilent = false; }
+  setCurrency(state.nav.currency);   // 1회 커밋 → enterBlend
   applyRecoPreset(key);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -1702,9 +1718,11 @@ async function loadTool(entry, kind) {
   state.playground = false; state.analyticsActive = false; state._analyticsCur = null; state.data = null;
   state.allocCtx = null; _showAllocRebal(false);
   setStatus('불러오는 중…');
+  const token = ++state._navToken;   // 로드 시작 = 최신 표식(우회 호출부 포함)
   try {
     const d = await fetch('data/' + entry.file, { cache: 'no-cache' })
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    if (token !== state._navToken) return;   // 더 최신 내비게이션 시작됨 → 폐기
     state.tool = { kind, data: d };
     setStatus('');
     document.getElementById('meta').textContent = `${entry.group} · 생성일 ${d.generated_at || '-'}`;
@@ -3174,6 +3192,7 @@ function renderRiskParity(d) {
 }
 
 async function loadMultiDatasets(files, title) {
+  const token = ++state._navToken;   // 로드 시작 = 최신 표식(우회 호출부 포함)
   setStatus('여러 데이터셋 불러오는 중…');
   setAnalyticsMode(false); setToolsMode(false);
   state.playground = false; setHidden('playground', true);
@@ -3181,6 +3200,7 @@ async function loadMultiDatasets(files, title) {
   try {
     const ds = await Promise.all(files.map(f =>
       fetch('data/' + f, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })));
+    if (token !== state._navToken) return;   // 더 최신 내비게이션 시작됨 → 폐기
     const base = ds[0];
     const merged = {
       schema_version: 1, title: title || '전략 비교', freq: base.freq,
