@@ -730,25 +730,29 @@ function renderMonthlyHeatmap(rows) {
   const fmt = v => v == null ? '' : (v > 0 ? '+' : '') + (v * 100).toFixed(1);
   const muted = cssVar('--chart-muted');
   const CS = [[0, '#dc2626'], [0.5, '#f1f5f9'], [1, '#16a34a']];
-  // 월별(트레이스1): 월수익 스케일 ── 연간 열은 스케일이 달라(±수십%) 같이 담으면 뭉개지므로 분리한다.
+  const tf = { size: 12, color: '#0f172a' };
+  // 셀 숫자로 값이 다 보이므로 컬러바는 생략(showscale:false) — 월별·연간 모두.
+  // 연간 열은 월과 스케일(±수십% vs ±몇%)이 달라 색이 뭉개지고, 단일열 heatmap을 같은 축에 얹으면
+  // 셀 폭을 못 정해 저 멀리 밀린다 → 연간은 자기 x축(x2)에 두고 도메인을 월 패널 바로 옆에 붙인다.
   const amax = Math.max(0.01, ...z.flat().filter(v => v != null).map(Math.abs));
   const monthTrace = { type: 'heatmap', z: z.map(r => r.map(v => v == null ? null : v * 100)), x: months, y: years,
-    text: z.map(r => r.map(fmt)), texttemplate: '%{text}', textfont: { size: 12, color: '#0f172a' },
-    zmid: 0, zmin: -amax * 100, zmax: amax * 100, colorscale: CS, xgap: 2, ygap: 2,
-    colorbar: { tickfont: { color: muted }, outlinewidth: 0, len: 0.92, thickness: 12, ticksuffix: '%' },
+    xaxis: 'x', yaxis: 'y', text: z.map(r => r.map(fmt)), texttemplate: '%{text}', textfont: tf,
+    zmid: 0, zmin: -amax * 100, zmax: amax * 100, colorscale: CS, xgap: 2, ygap: 2, showscale: false,
     hovertemplate: '%{y} %{x}<br>%{z:.1f}%<extra></extra>' };
-  // 연간(트레이스2): 그 해 월수익 복리 합, 자체 색 스케일(별도 정규화)·컬러바 없음.
   const annual = annualReturnsFromMatrix(z);
-  const aamax = Math.max(0.01, ...annual.filter(v => v != null).map(Math.abs));
+  const aamax = Math.max(0.01, ...annual.filter(v => v != null).map(Math.abs));   // 연간 자체 색 스케일
   const yearTrace = { type: 'heatmap', z: annual.map(v => [v == null ? null : v * 100]), x: [YEAR_COL], y: years,
-    text: annual.map(v => [fmt(v)]), texttemplate: '%{text}', textfont: { size: 12, color: '#0f172a' },
+    xaxis: 'x2', yaxis: 'y', text: annual.map(v => [fmt(v)]), texttemplate: '%{text}', textfont: tf,
     zmid: 0, zmin: -aamax * 100, zmax: aamax * 100, colorscale: CS, xgap: 2, ygap: 2, showscale: false,
     hovertemplate: '%{y}년 연간<br>%{z:.1f}%<extra></extra>' };
   const layout = baseLayout('', '');
   layout.margin = { l: 48, r: 10, t: 24, b: 16 };
-  layout.xaxis = { tickfont: { color: muted, size: 11 }, side: 'top', automargin: true,
-                   categoryorder: 'array', categoryarray: [...months, YEAR_COL] };   // 연간을 항상 맨 오른쪽
-  layout.yaxis = { tickfont: { color: muted, size: 11 }, automargin: true, autorange: 'reversed' };
+  // 월 12열 + 연간 1열이 같은 셀 폭이 되도록 도메인 배분(총 13열). 사이 gap 1.2%만 띄워 '붙여' 배치.
+  const mDom = 0.88, cellW = mDom / 12, gap = 0.012;
+  layout.xaxis = { domain: [0, mDom], anchor: 'y', tickfont: { color: muted, size: 11 }, side: 'top', automargin: true };
+  layout.xaxis2 = { domain: [mDom + gap, Math.min(1, mDom + gap + cellW)], anchor: 'y',
+                    tickfont: { color: muted, size: 11 }, side: 'top', automargin: true };
+  layout.yaxis = { anchor: 'x', tickfont: { color: muted, size: 11 }, automargin: true, autorange: 'reversed' };
   delete layout.legend; layout.hovermode = 'closest';
   // 연도(행) 수에 비례해 높이를 키워 셀이 짧아지지 않게(글씨 가독성). 기간 길수록(20년+) 효과 큼.
   const H = Math.max(360, years.length * 26 + 90);
