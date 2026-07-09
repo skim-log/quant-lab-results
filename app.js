@@ -711,6 +711,13 @@ function monthlyReturnsMatrix(dates, nav) {
   }));
   return { years, z };
 }
+/** 연×월 행렬에서 연도별 연간 수익률 = 그 해 non-null 월수익의 복리 곱(−1). 전부 결측이면 null. */
+function annualReturnsFromMatrix(z) {
+  return z.map(row => {
+    const vals = row.filter(v => v != null);
+    return vals.length ? vals.reduce((acc, v) => acc * (1 + v), 1) - 1 : null;
+  });
+}
 function renderMonthlyHeatmap(rows) {
   if (!rows.length) { setHidden('monthly-hm-section', true); return; }
   const pr = primaryRow(rows);
@@ -719,25 +726,35 @@ function renderMonthlyHeatmap(rows) {
   setHidden('monthly-hm-section', false);
   document.getElementById('monthly-hm-for').textContent = `— ${pr.name}`;
   const months = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
-  const amax = Math.max(0.01, ...z.flat().filter(v => v != null).map(Math.abs));
-  const text = z.map(r => r.map(v => v == null ? '' : (v > 0 ? '+' : '') + (v * 100).toFixed(1)));
+  const YEAR_COL = '연간';
+  const fmt = v => v == null ? '' : (v > 0 ? '+' : '') + (v * 100).toFixed(1);
   const muted = cssVar('--chart-muted');
-  const trace = { type: 'heatmap', z: z.map(r => r.map(v => v == null ? null : v * 100)), x: months, y: years,
-    text, texttemplate: '%{text}', textfont: { size: 12, color: '#0f172a' },
-    zmid: 0, zmin: -amax * 100, zmax: amax * 100,
-    colorscale: [[0, '#dc2626'], [0.5, '#f1f5f9'], [1, '#16a34a']], xgap: 2, ygap: 2,
+  const CS = [[0, '#dc2626'], [0.5, '#f1f5f9'], [1, '#16a34a']];
+  // 월별(트레이스1): 월수익 스케일 ── 연간 열은 스케일이 달라(±수십%) 같이 담으면 뭉개지므로 분리한다.
+  const amax = Math.max(0.01, ...z.flat().filter(v => v != null).map(Math.abs));
+  const monthTrace = { type: 'heatmap', z: z.map(r => r.map(v => v == null ? null : v * 100)), x: months, y: years,
+    text: z.map(r => r.map(fmt)), texttemplate: '%{text}', textfont: { size: 12, color: '#0f172a' },
+    zmid: 0, zmin: -amax * 100, zmax: amax * 100, colorscale: CS, xgap: 2, ygap: 2,
     colorbar: { tickfont: { color: muted }, outlinewidth: 0, len: 0.92, thickness: 12, ticksuffix: '%' },
     hovertemplate: '%{y} %{x}<br>%{z:.1f}%<extra></extra>' };
+  // 연간(트레이스2): 그 해 월수익 복리 합, 자체 색 스케일(별도 정규화)·컬러바 없음.
+  const annual = annualReturnsFromMatrix(z);
+  const aamax = Math.max(0.01, ...annual.filter(v => v != null).map(Math.abs));
+  const yearTrace = { type: 'heatmap', z: annual.map(v => [v == null ? null : v * 100]), x: [YEAR_COL], y: years,
+    text: annual.map(v => [fmt(v)]), texttemplate: '%{text}', textfont: { size: 12, color: '#0f172a' },
+    zmid: 0, zmin: -aamax * 100, zmax: aamax * 100, colorscale: CS, xgap: 2, ygap: 2, showscale: false,
+    hovertemplate: '%{y}년 연간<br>%{z:.1f}%<extra></extra>' };
   const layout = baseLayout('', '');
   layout.margin = { l: 48, r: 10, t: 24, b: 16 };
-  layout.xaxis = { tickfont: { color: muted, size: 11 }, side: 'top', automargin: true };
+  layout.xaxis = { tickfont: { color: muted, size: 11 }, side: 'top', automargin: true,
+                   categoryorder: 'array', categoryarray: [...months, YEAR_COL] };   // 연간을 항상 맨 오른쪽
   layout.yaxis = { tickfont: { color: muted, size: 11 }, automargin: true, autorange: 'reversed' };
   delete layout.legend; layout.hovermode = 'closest';
   // 연도(행) 수에 비례해 높이를 키워 셀이 짧아지지 않게(글씨 가독성). 기간 길수록(20년+) 효과 큼.
   const H = Math.max(360, years.length * 26 + 90);
   layout.height = H;
   document.getElementById('chart-monthly-hm').style.height = H + 'px';
-  Plotly.react('chart-monthly-hm', [trace], layout, PLOTCFG);
+  Plotly.react('chart-monthly-hm', [monthTrace, yearTrace], layout, PLOTCFG);
 }
 
 // 지표별 ON/OFF/차이 표(밴드 A/B·MA A/B 공용). better<0 = 작을수록 좋음(연변동성).
