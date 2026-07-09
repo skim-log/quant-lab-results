@@ -247,7 +247,26 @@ function render() {
     ? `전체 기간 (${state.globalStart} ~ ${state.globalEnd})`
     : `선택 구간 (${s} ~ ${e}) · 재정규화된 뷰 — 전체기간 전용 지표는 "—"`;
   document.getElementById('period-note').textContent = note;
+  renderFreqNote();
   renderDescription();
+}
+
+// 데이터 주기(월봉/일봉) 안내 — 데이터셋 freq 필드 기반(수익곡선·낙폭 차트 아래 + 성과표 아래에 자동 표기).
+// 월봉(freq≠'D')이면 월말 종가라 장중 급락이 눌려 MDD·변동성이 실제보다 축소될 수 있음을 명시한다.
+// 크립토는 일별(freq='D')이라 경고를 낮추고, 블렌드·플레이그라운드 synth 데이터셋은 freq='M'(월봉).
+function renderFreqNote() {
+  const daily = !!(state.data && state.data.freq === 'D');
+  const txt = daily
+    ? '📅 <strong>일별(日) 종가</strong> 기준 백테스트 — 장중 저점까지는 반영되지 않습니다.'
+    : '⚠️ <strong>월말(月末) 종가</strong> 기준 백테스트 — MDD·연변동성 등 위험지표는 장중 실제 낙폭보다 '
+      + '<strong>축소</strong>될 수 있습니다 (예: 코로나 2020-03 — 월말 −20% vs 장중 −34%).';
+  ['freq-note-dd', 'freq-note-table'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = txt;
+    el.classList.toggle('freq-note-warn', !daily);   // 월봉일 때만 강조(왼쪽 액센트)
+    el.classList.remove('hidden');
+  });
 }
 
 // 코인 적립식(DCA) — 매월 동일액 적립 시 납입누계 vs 평가액 + XIRR(금액가중). 메인 곡선은 TWR(현금흐름
@@ -368,8 +387,20 @@ function renderTable(rows, fullPeriod) {
   const ratio = new Set(d.ratio_cols);
 
   const arrow = c => (state.sort.col === c ? (state.sort.dir < 0 ? ' ▾' : ' ▴') : '');
+  // 월봉 데이터셋(freq≠'D')이면 월말 종가라 장중 낙폭이 안 잡혀 위험지표가 축소될 수 있음을 열 헤더 툴팁으로 안내.
+  const TH_TIP = (d.freq !== 'D') ? {
+    'MDD': '월말 종가 기준 최대낙폭 — 장중 저점은 반영되지 않아 실제보다 축소될 수 있습니다',
+    '연변동성': '월간 수익률의 연환산 변동성 — 일간 등락은 반영되지 않습니다',
+    'Calmar': 'CAGR ÷ |MDD| — MDD가 월말 기준이라 실제보다 커(좋아) 보일 수 있습니다',
+    'Sharpe': '월간 수익률 기준 — 월말 데이터라 위험이 과소평가될 수 있습니다',
+    'Sortino': '월간 하락 수익률 기준 — 월말 데이터라 위험이 과소평가될 수 있습니다',
+  } : {};
+  const thCell = c => {
+    const tip = TH_TIP[c];
+    return `<th class="sortable${tip ? ' has-tip' : ''}" data-col="${c}"${tip ? ` title="${tip}"` : ''}>${c}${arrow(c)}</th>`;
+  };
   const thead = '<thead><tr><th class="name sortable" data-col="이름">전략' + arrow('이름') + '</th>' +
-    cols.map(c => `<th class="sortable" data-col="${c}">${c}${arrow(c)}</th>`).join('') + '</tr></thead>';
+    cols.map(thCell).join('') + '</tr></thead>';
 
   const fmtDisplay = (col, v) => pct.has(col) ? fmtPctScaled(v) : ratio.has(col) ? fmtRatio(v) : fmtPlain(v);
 

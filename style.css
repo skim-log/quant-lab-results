@@ -443,6 +443,12 @@ table#metrics-table, #bandab-table, .diag-table {
 .metrics { margin-top: 1.6rem; }
 .metrics h2 { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.3rem; letter-spacing: -0.01em; }
 .period-note { color: var(--muted); font-size: 0.85rem; margin: 0 0 0.6rem; }
+/* 데이터 주기 캡션(월봉/일봉) — 월봉일 때만 경고색 왼쪽 액센트로 강조 */
+.freq-note { font-size: 0.82rem; }
+.freq-note.freq-note-warn { color: var(--warn-fg); border-left: 3px solid var(--warn-fg); padding-left: 0.55rem; }
+.charts .freq-note { margin-top: 0.2rem; margin-bottom: 0.2rem; }
+/* 성과표 헤더 툴팁 힌트 — 점선 밑줄 + 도움 커서(hover 시 title 표시) */
+#metrics-table th.has-tip { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
 
 .disclaimer {
   font-size: 0.82rem; color: var(--warn-fg); background: var(--warn-soft);
