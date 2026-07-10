@@ -1052,17 +1052,17 @@ function clearPresetActive() {
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
 const CAT_ORDER = { reco: -2, guide: -1, dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, crypto: 3,
-  realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10 };
+  realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10, lab_rotation: 12 };
 const CAT_LABEL_NAV = { reco: '추천 전략', guide: '초보자 가이드', dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
   crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩', realestate: '부동산',
-  paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도' };
+  paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도', lab_rotation: '전략 로테이션' };
 // 4대분류: 자산배분(8자산) / 주식(한국 모멘텀·미국 TQQQ·지수 모멘텀) / 코인(BTC/ETH/XRP) /
 //          도구·지표(계산기·심리·경보·데이터정확도). 코인은 전통자산과 위험특성이 달라 독립 영역.
 const SUPER_OF = { reco: 'reco', guide: 'guide', dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
   momentum: 'strat', crypto: 'coin', realestate: 're',
-  paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools' };
-const SUPER_ORDER = { reco: -2, guide: -1, alloc: 0, strat: 1, coin: 2, re: 3, tools: 4 };
-const SUPER_LABEL = { reco: '⭐ 추천', guide: '📖 가이드', alloc: '자산배분', strat: '주식', coin: '코인', re: '부동산', tools: '도구·지표' };
+  paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools', lab_rotation: 'lab' };
+const SUPER_ORDER = { reco: -2, guide: -1, alloc: 0, strat: 1, coin: 2, re: 3, tools: 4, lab: 5 };
+const SUPER_LABEL = { reco: '⭐ 추천', guide: '📖 가이드', alloc: '자산배분', strat: '주식', coin: '코인', re: '부동산', tools: '도구·지표', lab: '🧪 실험실' };
 // 부동산 분류 칩 = 지역(전국·지수 먼저, 그다음 도시). 카테고리 re_index/re_<도시>를 네비 맵에 등록.
 // 도시 추가 시 이 리스트만 갱신(build_dashboard.RE_CATS 와 동일 순서 유지).
 const RE_CATS = [['re_index', '전국·지수'], ['re_서울', '서울'], ['re_경기', '경기'], ['re_인천', '인천'],
@@ -1163,6 +1163,7 @@ function setCurrency(cur) {
   if (entry.mode === 'molit_explore') return loadTool(entry, 'molit_explore');  // 시군구 조회(거래량·전세가율·실거래표)
   if (entry.mode === 'molit_apt') return loadTool(entry, 'molit_apt');          // 단지 조회(개별 아파트 추이·백테스트)
   if (entry.mode === 'leverage') return loadTool(entry, 'leverage');            // 최적 레버리지(일별 상수레버리지 스윕)
+  if (entry.mode === 'lab_rotation') return loadTool(entry, 'lab_rotation');    // 🧪 실험실: 전략 로테이션(메타 모멘텀)
   // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
   if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
   else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
@@ -1181,7 +1182,7 @@ function setAnalyticsMode(on) {
 function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
   document.body.classList.toggle('tools-mode', !!on);
   if (on) document.body.classList.remove('analytics-mode');
-  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage'].forEach(t => {
+  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage', 'lab_rotation'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.classList.toggle('hidden', !(on && t === tool));
   });
@@ -1731,8 +1732,79 @@ async function loadTool(entry, kind) {
     else if (kind === 'molit_explore') renderMolitExplore(d);
     else if (kind === 'molit_apt') enterMolitApt(d);
     else if (kind === 'leverage') enterLeverage(d);
+    else if (kind === 'lab_rotation') enterRotation(d);
     else renderTrend(d);
   } catch (e) { setStatus(entry.group + ' 로딩 실패: ' + e.message, true); }
+}
+
+// ---------------------------------------------------------------------------
+// 🧪 실험실 — 전략 로테이션(메타 모멘텀). web/lab.js(ROTATION)가 브라우저에서 즉석 재계산.
+// "최근 잘나가는 전략으로 매월 교체"가 '전부 균등보유'를 (위험조정 기준) 못 이긴다는 걸 직접 만져보며 확인.
+// ---------------------------------------------------------------------------
+function enterRotation(d) {
+  setToolsMode(true, 'lab_rotation');
+  state.playground = false; state.analyticsActive = false; state.data = null; state.allocCtx = null;
+  state.tool = { kind: 'lab_rotation', data: d };
+  state.rotData = (d && d.strategies) || [];
+  document.getElementById('meta').textContent =
+    `🧪 실험실 · 전략 로테이션 (전략 ${state.rotData.length}개 · 생성일 ${d.generated_at || '-'})`;
+  if (!state._rotWired) {
+    ['lab-L', 'lab-metric', 'lab-topk', 'lab-abs', 'lab-cost'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.addEventListener('input', renderRotation);
+    });
+    document.querySelectorAll('input[name="lab-uni"]').forEach(r => r.addEventListener('change', renderRotation));
+    state._rotWired = true;
+  }
+  renderRotation();
+}
+
+function renderRotation() {
+  const strats = state.rotData || []; if (!strats.length) return;
+  const uni = (document.querySelector('input[name="lab-uni"]:checked') || {}).value || 'dynamic';
+  const L = parseInt(_pgv('lab-L', 6), 10);
+  const topk = parseInt((document.getElementById('lab-topk') || {}).value || 1, 10);
+  const metric = (document.getElementById('lab-metric') || {}).value || 'ret';
+  const absFilter = !!(document.getElementById('lab-abs') || {}).checked;
+  const cost = (parseFloat(_pgv('lab-cost', 0.2)) || 0) / 100;
+  const roL = document.getElementById('lab-L-readout'); if (roL) roL.textContent = L + '개월';
+  const res = ROTATION.run(strats, { universe: uni, lookback: L, topk, metric, absFilter, cost });
+  if (!res) { setStatus('이 유니버스의 공통 구간이 부족합니다(전략·룩백 확인).', true); return; }
+  setStatus('');
+  const pct = v => (v == null || isNaN(v)) ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  const num = v => (v == null || isNaN(v)) ? '—' : v.toFixed(2);
+  const rot = res.rotation, eq = res.eq, best = res.best;
+
+  // 판정 배너 — 균등보유 Sharpe 대비
+  const vb = document.getElementById('lab-verdict');
+  const VMAP = { lose: ['✗ 못 이김', 'verdict-lose'], tie: ['≈ 사실상 동률', 'verdict-tie'], win: ['✓ 이김', 'verdict-win'] };
+  const [vtxt, vcls] = VMAP[res.verdict];
+  if (vb) {
+    vb.className = 'lab-verdict ' + vcls;
+    vb.innerHTML = `로테이션 <b>Sharpe ${num(rot.sharpe)}</b> vs 전부 균등보유 <b>${num(eq.sharpe)}</b> → <b>${vtxt}</b>` +
+      `<div class="lab-verdict-sub">${res.period.n}개 전략 · ${res.period.start}~${res.period.end} · 교체 ${rot.turnover.toFixed(1)}회/년 (비용 반영)</div>`;
+  }
+
+  // 곡선 — 로테이션 vs 균등보유(기준) vs 사후최고(참고)
+  const acc = cssVar('--accent'), muted = cssVar('--chart-muted');
+  const traces = [
+    { type: 'scatter', mode: 'lines', name: '전략 로테이션', x: rot.dates, y: rot.nav, line: { width: 2.3, color: acc }, hovertemplate: '%{y:.2f}배<extra>로테이션</extra>' },
+    { type: 'scatter', mode: 'lines', name: '전부 균등보유 (기준)', x: eq.dates, y: eq.nav, line: { width: 2, color: '#16a34a' }, hovertemplate: '%{y:.2f}배<extra>균등보유</extra>' },
+  ];
+  if (best) traces.push({ type: 'scatter', mode: 'lines', name: `사후 최고: ${best.name}`, x: best.dates, y: best.nav, line: { width: 1.3, color: muted, dash: 'dot' }, hovertemplate: '%{y:.2f}배<extra>사후최고</extra>' });
+  const layout = baseLayout('', '누적 성장 (배, 시작=1·로그)');
+  layout.yaxis.type = 'log';
+  Plotly.react('lab-chart', traces, layout, PLOTCFG);
+
+  // 지표 표
+  const row = (name, m, cls) => `<tr class="${cls || ''}"><td class="name">${name}</td>` +
+    `<td>${pct(m.cagr)}</td><td>${pct(m.mdd)}</td><td>${num(m.sharpe)}</td>` +
+    `<td>${m.turnover != null ? m.turnover.toFixed(1) + '회/년' : '—'}</td></tr>`;
+  document.getElementById('lab-metrics').innerHTML =
+    '<thead><tr><th class="name">구성</th><th>CAGR</th><th>MDD</th><th>Sharpe</th><th>교체</th></tr></thead><tbody>' +
+    row('전략 로테이션', rot, 'lab-row-rot') +
+    row('전부 균등보유 (기준)', eq, 'lab-row-eq') +
+    (best ? row(`사후 최고 단일: ${best.name}`, best, 'lab-row-best') : '') +
+    '</tbody>';
 }
 
 // ---------------------------------------------------------------------------

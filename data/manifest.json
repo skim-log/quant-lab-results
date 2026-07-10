@@ -1149,6 +1149,15 @@
     "file": "leverage.json"
   },
   {
+    "id": "lab_rotation",
+    "category": "lab_rotation",
+    "group": "전략 로테이션은 왜 잘 안 되는가",
+    "currency": "krw",
+    "mode": "lab_rotation",
+    "label": "🧪 실험실 · 전략 로테이션 (KRW)",
+    "file": "strategy_rotation.json"
+  },
+  {
     "id": "tool_reliability",
     "category": "reliability",
     "group": "데이터 정확도",
