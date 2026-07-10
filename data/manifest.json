@@ -1158,6 +1158,51 @@
     "file": "strategy_rotation.json"
   },
   {
+    "id": "lab_rotation_usd",
+    "category": "lab_rotation",
+    "group": "전략 로테이션은 왜 잘 안 되는가",
+    "currency": "usd",
+    "mode": "lab_rotation",
+    "label": "🧪 실험실 · 전략 로테이션 (USD)",
+    "file": "strategy_rotation.json"
+  },
+  {
+    "id": "lab_rebal",
+    "category": "lab_rebal",
+    "group": "리밸런싱, 자주 할수록 좋을까 (주기 민감도)",
+    "currency": "krw",
+    "mode": "lab_rebal",
+    "label": "🧪 실험실 · 리밸 주기 민감도 (KRW)",
+    "file": "strategy_rotation.json"
+  },
+  {
+    "id": "lab_rebal_usd",
+    "category": "lab_rebal",
+    "group": "리밸런싱, 자주 할수록 좋을까 (주기 민감도)",
+    "currency": "usd",
+    "mode": "lab_rebal",
+    "label": "🧪 실험실 · 리밸 주기 민감도 (USD)",
+    "file": "strategy_rotation.json"
+  },
+  {
+    "id": "lab_blend",
+    "category": "lab_blend",
+    "group": "최적 고정 블렌드 vs 균등가중 (과최적화 점검)",
+    "currency": "krw",
+    "mode": "lab_blend",
+    "label": "🧪 실험실 · 고정 블렌드 최적화 (KRW)",
+    "file": "strategy_rotation.json"
+  },
+  {
+    "id": "lab_blend_usd",
+    "category": "lab_blend",
+    "group": "최적 고정 블렌드 vs 균등가중 (과최적화 점검)",
+    "currency": "usd",
+    "mode": "lab_blend",
+    "label": "🧪 실험실 · 고정 블렌드 최적화 (USD)",
+    "file": "strategy_rotation.json"
+  },
+  {
     "id": "tool_reliability",
     "category": "reliability",
     "group": "데이터 정확도",

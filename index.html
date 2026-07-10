@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=61954416" />
+  <link rel="stylesheet" href="style.css?v=2083cb9d" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -761,6 +761,55 @@
       </section>
     </div>
 
+    <!-- 🧪 실험실 · 리밸 주기 민감도 -->
+    <div id="lab_rebal-section" class="hidden">
+      <section class="panel">
+        <h2>🧪 리밸런싱, 자주 할수록 좋을까? <span class="muted">(리밸 주기 민감도)</span></h2>
+        <p class="period-note">전략들을 <strong>균등비중으로 고정 보유</strong>하되 리밸런싱 주기만 매수후보유↔연↔반기↔분기↔월로 바꿔봅니다. "부지런히 리밸런싱하면 유리하다"는 통념이 실제로 성과를 얼마나 바꾸는지 확인하세요. <span class="muted">통화는 상단 토글.</span></p>
+        <p class="period-note" style="border-left:3px solid var(--warn-fg);padding-left:.55rem;color:var(--warn-fg)">⚠️ 실험·교육용. 공통구간·월말 기준, 거래비용·세금 미반영(잦은 리밸일수록 실제 비용은 더 커짐 → 유리함이 더 줄어듦).</p>
+        <div class="bt-controls">
+          <span class="muted">유니버스</span>
+          <label class="lab-radio"><input type="radio" name="lab2-uni" value="dynamic" /> 동적만</label>
+          <label class="lab-radio"><input type="radio" name="lab2-uni" value="static" /> 정적만</label>
+          <label class="lab-radio"><input type="radio" name="lab2-uni" value="both" checked /> 동적+정적</label>
+        </div>
+        <div id="lab2-verdict" class="lab-verdict"></div>
+        <div id="lab2-chart" class="chart"></div>
+        <div class="table-wrap"><table id="lab2-metrics" class="diag-table"></table></div>
+        <details class="theory" open>
+          <summary>💡 왜 리밸 주기는 생각보다 안 중요한가</summary>
+          <div class="theory-body">
+            <p>여러 전략을 섞은 블렌드는 이미 서로 상쇄돼 <strong>표류(drift)가 작습니다.</strong> 그래서 리밸 주기를 바꿔도 CAGR·Sharpe가 거의 안 변합니다(대개 <strong>Sharpe 차이 0.1 미만</strong>). 오히려 <strong>자주 리밸할수록 거래비용·세금이 쌓여</strong> 실제로는 불리해질 수 있습니다. 리밸은 "규율(비중 유지)" 목적이면 충분하고, 성과를 짜내려 주기를 튜닝하는 건 과최적화에 가깝습니다.</p>
+          </div>
+        </details>
+      </section>
+    </div>
+
+    <!-- 🧪 실험실 · 고정 블렌드 최적화 -->
+    <div id="lab_blend-section" class="hidden">
+      <section class="panel">
+        <h2>🧪 최적의 고정 블렌드가 균등가중을 이길까? <span class="muted">(블렌드 최적화 · 과최적화 점검)</span></h2>
+        <p class="period-note">전략들을 <strong>고정 비중</strong>으로 섞을 때, 최대 Sharpe·최소분산 조합을 무작위 표본(몬테카를로)으로 찾아 <strong>균등가중</strong>과 비교합니다. 그리고 <strong>훈련구간에서 뽑은 최적 비중이 검정구간(미래)에서도 통하는지</strong>로 과최적화를 점검합니다. <span class="muted">통화는 상단 토글.</span></p>
+        <p class="period-note" style="border-left:3px solid var(--warn-fg);padding-left:.55rem;color:var(--warn-fg)">⚠️ 실험·교육용. '사후(in-sample) 최대 Sharpe'는 과거에 맞춘 값이라 미래를 보장하지 않습니다 — 아래 훈련/검정 판정을 꼭 보세요.</p>
+        <div class="bt-controls">
+          <span class="muted">유니버스</span>
+          <label class="lab-radio"><input type="radio" name="lab3-uni" value="dynamic" /> 동적만</label>
+          <label class="lab-radio"><input type="radio" name="lab3-uni" value="static" /> 정적만</label>
+          <label class="lab-radio"><input type="radio" name="lab3-uni" value="both" checked /> 동적+정적</label>
+        </div>
+        <div id="lab3-verdict" class="lab-verdict"></div>
+        <div id="lab3-chart" class="chart"></div>
+        <div class="table-wrap"><table id="lab3-metrics" class="diag-table"></table></div>
+        <p class="period-note" id="lab3-weights"></p>
+        <details class="theory" open>
+          <summary>💡 왜 '최적' 블렌드가 균등가중을 못 이기나</summary>
+          <div class="theory-body">
+            <p>과거 데이터에 <strong>딱 맞춘(사후) 최대 Sharpe 비중</strong>은 그래프상 균등가중보다 살짝 위에 있습니다. 하지만 그 비중은 <strong>특정 전략에 쏠린 베팅</strong>이라, 추정오차에 민감하고 <strong>미래(검정구간)엔 대개 균등가중을 못 이깁니다</strong>(위 훈련/검정 판정). 상관·기대수익 추정이 조금만 틀려도 최적해가 크게 흔들리기 때문입니다. 그래서 실무에선 <strong>균등가중·최소분산·리스크패리티</strong> 같은 <strong>강건한(추정 덜 타는) 규칙</strong>을 선호합니다 — "정교한 최적화"보다 "단순한 분산"이 이기는 흔한 사례입니다.</p>
+          </div>
+        </details>
+      </section>
+    </div>
+
     <!-- 시군구 조회 (molit_explore): 거래량·전세가율 추이 + 최근 실거래 상세표 -->
     <div id="molit_explore-section" class="hidden">
       <section class="panel">
@@ -1028,11 +1077,11 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="alloc.js?v=61954416" defer></script>
-  <script src="re_apt.js?v=61954416" defer></script>
-  <script src="analytics-live.js?v=61954416" defer></script>
-  <script src="leverage.js?v=61954416" defer></script>
-  <script src="lab.js?v=61954416" defer></script>
-  <script src="app.js?v=61954416" defer></script>
+  <script src="alloc.js?v=2083cb9d" defer></script>
+  <script src="re_apt.js?v=2083cb9d" defer></script>
+  <script src="analytics-live.js?v=2083cb9d" defer></script>
+  <script src="leverage.js?v=2083cb9d" defer></script>
+  <script src="lab.js?v=2083cb9d" defer></script>
+  <script src="app.js?v=2083cb9d" defer></script>
 </body>
 </html>

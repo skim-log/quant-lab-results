@@ -1052,15 +1052,17 @@ function clearPresetActive() {
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
 const CAT_ORDER = { reco: -2, guide: -1, dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, crypto: 3,
-  realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10, lab_rotation: 12 };
+  realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10, lab_rotation: 12, lab_rebal: 13, lab_blend: 14 };
 const CAT_LABEL_NAV = { reco: '추천 전략', guide: '초보자 가이드', dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
   crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩', realestate: '부동산',
-  paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도', lab_rotation: '전략 로테이션' };
+  paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도',
+  lab_rotation: '전략 로테이션', lab_rebal: '리밸 주기 민감도', lab_blend: '고정 블렌드 최적화' };
 // 4대분류: 자산배분(8자산) / 주식(한국 모멘텀·미국 TQQQ·지수 모멘텀) / 코인(BTC/ETH/XRP) /
 //          도구·지표(계산기·심리·경보·데이터정확도). 코인은 전통자산과 위험특성이 달라 독립 영역.
 const SUPER_OF = { reco: 'reco', guide: 'guide', dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
   momentum: 'strat', crypto: 'coin', realestate: 're',
-  paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools', lab_rotation: 'lab' };
+  paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools',
+  lab_rotation: 'lab', lab_rebal: 'lab', lab_blend: 'lab' };
 const SUPER_ORDER = { reco: -2, guide: -1, alloc: 0, strat: 1, coin: 2, re: 3, tools: 4, lab: 5 };
 const SUPER_LABEL = { reco: '⭐ 추천', guide: '📖 가이드', alloc: '자산배분', strat: '주식', coin: '코인', re: '부동산', tools: '도구·지표', lab: '🧪 실험실' };
 // 부동산 분류 칩 = 지역(전국·지수 먼저, 그다음 도시). 카테고리 re_index/re_<도시>를 네비 맵에 등록.
@@ -1164,6 +1166,8 @@ function setCurrency(cur) {
   if (entry.mode === 'molit_apt') return loadTool(entry, 'molit_apt');          // 단지 조회(개별 아파트 추이·백테스트)
   if (entry.mode === 'leverage') return loadTool(entry, 'leverage');            // 최적 레버리지(일별 상수레버리지 스윕)
   if (entry.mode === 'lab_rotation') return loadTool(entry, 'lab_rotation');    // 🧪 실험실: 전략 로테이션(메타 모멘텀)
+  if (entry.mode === 'lab_rebal') return loadTool(entry, 'lab_rebal');          // 🧪 실험실: 리밸 주기 민감도
+  if (entry.mode === 'lab_blend') return loadTool(entry, 'lab_blend');          // 🧪 실험실: 고정 블렌드 최적화
   // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
   if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
   else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
@@ -1182,7 +1186,7 @@ function setAnalyticsMode(on) {
 function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
   document.body.classList.toggle('tools-mode', !!on);
   if (on) document.body.classList.remove('analytics-mode');
-  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage', 'lab_rotation'].forEach(t => {
+  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage', 'lab_rotation', 'lab_rebal', 'lab_blend'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.classList.toggle('hidden', !(on && t === tool));
   });
@@ -1733,6 +1737,8 @@ async function loadTool(entry, kind) {
     else if (kind === 'molit_apt') enterMolitApt(d);
     else if (kind === 'leverage') enterLeverage(d);
     else if (kind === 'lab_rotation') enterRotation(d);
+    else if (kind === 'lab_rebal') enterRebal(d);
+    else if (kind === 'lab_blend') enterBlendOpt(d);
     else renderTrend(d);
   } catch (e) { setStatus(entry.group + ' 로딩 실패: ' + e.message, true); }
 }
@@ -1767,7 +1773,7 @@ function renderRotation() {
   const absFilter = !!(document.getElementById('lab-abs') || {}).checked;
   const cost = (parseFloat(_pgv('lab-cost', 0.2)) || 0) / 100;
   const roL = document.getElementById('lab-L-readout'); if (roL) roL.textContent = L + '개월';
-  const res = ROTATION.run(strats, { universe: uni, lookback: L, topk, metric, absFilter, cost });
+  const res = ROTATION.run(strats, { universe: uni, currency: state.nav.currency || 'krw', lookback: L, topk, metric, absFilter, cost });
   if (!res) { setStatus('이 유니버스의 공통 구간이 부족합니다(전략·룩백 확인).', true); return; }
   setStatus('');
   const pct = v => (v == null || isNaN(v)) ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
@@ -1805,6 +1811,98 @@ function renderRotation() {
     row('전부 균등보유 (기준)', eq, 'lab-row-eq') +
     (best ? row(`사후 최고 단일: ${best.name}`, best, 'lab-row-best') : '') +
     '</tbody>';
+}
+
+// 🧪 실험② 리밸 주기 민감도 — 고정 균등비중 블렌드의 리밸 주기(매수후보유~월)별 성과. "자주 리밸할수록 좋은가?"
+function enterRebal(d) {
+  setToolsMode(true, 'lab_rebal');
+  state.playground = false; state.analyticsActive = false; state.data = null; state.allocCtx = null;
+  state.tool = { kind: 'lab_rebal', data: d };
+  state.rotData = (d && d.strategies) || [];
+  document.getElementById('meta').textContent = `🧪 실험실 · 리밸 주기 민감도 (전략 ${state.rotData.length}개)`;
+  if (!state._rebalWired) {
+    document.querySelectorAll('input[name="lab2-uni"]').forEach(r => r.addEventListener('change', renderRebal));
+    state._rebalWired = true;
+  }
+  renderRebal();
+}
+function renderRebal() {
+  const strats = state.rotData || []; if (!strats.length) return;
+  const uni = (document.querySelector('input[name="lab2-uni"]:checked') || {}).value || 'both';
+  const res = ROTATION.rebalSweep(strats, { universe: uni, currency: state.nav.currency || 'krw' });
+  if (!res) { setStatus('이 유니버스의 공통 구간이 부족합니다.', true); return; }
+  setStatus('');
+  const pct = v => (v == null || isNaN(v)) ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  const num = v => (v == null || isNaN(v)) ? '—' : v.toFixed(2);
+  const vb = document.getElementById('lab2-verdict'); const small = res.sharpeSpread < 0.15;
+  if (vb) {
+    vb.className = 'lab-verdict ' + (small ? 'verdict-tie' : 'verdict-win');
+    vb.innerHTML = `리밸 주기를 매수후보유↔월로 바꿔도 <b>Sharpe 최대-최소 차이 ${num(res.sharpeSpread)}</b> → <b>${small ? '거의 무의미' : '유의미'}</b>` +
+      `<div class="lab-verdict-sub">${res.period.n}개 전략 균등비중 블렌드 · ${res.period.start}~${res.period.end}</div>`;
+  }
+  const acc = cssVar('--accent');
+  const COLORS = ['#9ca3af', '#f59e0b', '#10b981', acc, '#ef4444'];
+  const traces = res.rows.map((r, i) => ({ type: 'scatter', mode: 'lines', name: r.label, x: r.dates, y: r.nav,
+    line: { width: 1.8, color: COLORS[i % COLORS.length] }, hovertemplate: '%{y:.2f}배<extra>' + r.label + '</extra>' }));
+  const layout = baseLayout('', '누적 성장 (배, 시작=1·로그)'); layout.yaxis.type = 'log';
+  Plotly.react('lab2-chart', traces, layout, PLOTCFG);
+  const row = r => `<tr><td class="name">${r.label}</td><td>${pct(r.cagr)}</td><td>${pct(r.mdd)}</td><td>${num(r.sharpe)}</td><td>${r.rebalPerYr ? r.rebalPerYr.toFixed(0) + '회/년' : '0'}</td></tr>`;
+  document.getElementById('lab2-metrics').innerHTML =
+    '<thead><tr><th class="name">리밸 주기</th><th>CAGR</th><th>MDD</th><th>Sharpe</th><th>리밸</th></tr></thead><tbody>' +
+    res.rows.map(row).join('') + '</tbody>';
+}
+
+// 🧪 실험③ 고정 블렌드 최적화 — 최대Sharpe/최소분산 vs 균등가중(MC 프론티어) + 훈련/검정 과최적화 점검.
+function enterBlendOpt(d) {
+  setToolsMode(true, 'lab_blend');
+  state.playground = false; state.analyticsActive = false; state.data = null; state.allocCtx = null;
+  state.tool = { kind: 'lab_blend', data: d };
+  state.rotData = (d && d.strategies) || [];
+  document.getElementById('meta').textContent = `🧪 실험실 · 고정 블렌드 최적화 (전략 ${state.rotData.length}개)`;
+  if (!state._blendOptWired) {
+    document.querySelectorAll('input[name="lab3-uni"]').forEach(r => r.addEventListener('change', renderBlendOpt));
+    state._blendOptWired = true;
+  }
+  renderBlendOpt();
+}
+function renderBlendOpt() {
+  const strats = state.rotData || []; if (!strats.length) return;
+  const uni = (document.querySelector('input[name="lab3-uni"]:checked') || {}).value || 'both';
+  setStatus('최적화 표본 계산 중…');
+  const res = ROTATION.blendOptimize(strats, { universe: uni, currency: state.nav.currency || 'krw', samples: 2500 });
+  if (!res) { setStatus('이 유니버스의 공통 구간이 부족합니다.', true); return; }
+  setStatus('');
+  const pct = v => (v == null || isNaN(v)) ? '—' : (v * 100).toFixed(1) + '%';
+  const num = v => (v == null || isNaN(v)) ? '—' : v.toFixed(2);
+  const vb = document.getElementById('lab3-verdict'); const tt = res.trainTest;
+  const VMAP = { lose: ['✗ 못 이김 (과최적화)', 'verdict-lose'], tie: ['≈ 동률', 'verdict-tie'], win: ['✓ 이김', 'verdict-win'] };
+  const [vt, vc] = VMAP[tt.verdict];
+  if (vb) {
+    vb.className = 'lab-verdict ' + vc;
+    vb.innerHTML = `훈련구간(~${tt.split})에서 뽑은 <b>최대 Sharpe 가중</b>을 검정구간에 적용 → Sharpe <b>${num(tt.opt.sharpe)}</b> vs 균등가중 <b>${num(tt.eq.sharpe)}</b> → <b>${vt}</b>` +
+      `<div class="lab-verdict-sub">사후(in-sample) 최적은 좋아 보여도 미래(검정구간)엔 균등가중을 못 이깁니다 · ${res.period.n}개 전략 · ${res.period.start}~${res.period.end}</div>`;
+  }
+  const cloud = res.cloud;
+  const traces = [
+    { type: 'scatter', mode: 'markers', name: '무작위 블렌드', x: cloud.map(p => p.vol * 100), y: cloud.map(p => p.ret * 100),
+      marker: { size: 4, color: cloud.map(p => p.sharpe), colorscale: 'Viridis', showscale: true, colorbar: { title: 'Sharpe', thickness: 12, len: 0.85 }, opacity: 0.5 },
+      hovertemplate: '변동성 %{x:.1f}% · 수익 %{y:.1f}%<extra></extra>' },
+    { type: 'scatter', mode: 'markers', name: '균등가중', x: [res.eq.vol * 100], y: [res.eq.ret * 100],
+      marker: { size: 15, color: '#16a34a', symbol: 'circle', line: { width: 1.5, color: '#fff' } }, hovertemplate: '균등가중<br>Sharpe ' + num(res.eq.sharpe) + '<extra></extra>' },
+    { type: 'scatter', mode: 'markers', name: '최대 Sharpe(사후)', x: [res.maxSharpe.vol * 100], y: [res.maxSharpe.ret * 100],
+      marker: { size: 17, color: '#eab308', symbol: 'star', line: { width: 1, color: '#000' } }, hovertemplate: '최대 Sharpe(사후)<br>Sharpe ' + num(res.maxSharpe.sharpe) + '<extra></extra>' },
+    { type: 'scatter', mode: 'markers', name: '최소분산', x: [res.minVol.vol * 100], y: [res.minVol.ret * 100],
+      marker: { size: 14, color: '#3b82f6', symbol: 'diamond', line: { width: 1, color: '#fff' } }, hovertemplate: '최소분산<br>Sharpe ' + num(res.minVol.sharpe) + '<extra></extra>' },
+  ];
+  const layout = baseLayout('', '연 수익률 (%)');
+  layout.xaxis = Object.assign(layout.xaxis || {}, { title: { text: '연 변동성 (%)' } });
+  Plotly.react('lab3-chart', traces, layout, PLOTCFG);
+  const r = (name, m, cls) => `<tr class="${cls || ''}"><td class="name">${name}</td><td>${pct(m.ret)}</td><td>${pct(m.vol)}</td><td>${num(m.sharpe)}</td></tr>`;
+  document.getElementById('lab3-metrics').innerHTML =
+    '<thead><tr><th class="name">블렌드</th><th>연수익</th><th>연변동성</th><th>Sharpe</th></tr></thead><tbody>' +
+    r('균등가중 (기준)', res.eq, 'lab-row-eq') + r('최대 Sharpe (사후·과최적)', res.maxSharpe) + r('최소분산', res.minVol) + '</tbody>';
+  const tw = res.topW.map(w => `${w.name} <b>${(w.w * 100).toFixed(0)}%</b>`).join(' · ');
+  document.getElementById('lab3-weights').innerHTML = `사후 최대-Sharpe 상위 비중: ${tw} <span class="muted">— 특정 전략에 쏠린(불안정) 베팅</span>`;
 }
 
 // ---------------------------------------------------------------------------
