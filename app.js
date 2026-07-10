@@ -1052,17 +1052,17 @@ function clearPresetActive() {
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
 const CAT_ORDER = { reco: -2, guide: -1, dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, crypto: 3,
-  realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10, lab_rotation: 12, lab_rebal: 13, lab_blend: 14 };
+  realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10, lab_rotation: 12, lab_rebal: 13, lab_blend: 14, lab_dailyrisk: 15 };
 const CAT_LABEL_NAV = { reco: '추천 전략', guide: '초보자 가이드', dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
   crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩', realestate: '부동산',
   paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도',
-  lab_rotation: '전략 로테이션', lab_rebal: '리밸 주기 민감도', lab_blend: '고정 블렌드 최적화' };
+  lab_rotation: '전략 로테이션', lab_rebal: '리밸 주기 민감도', lab_blend: '고정 블렌드 최적화', lab_dailyrisk: '일별 vs 월별 위험' };
 // 4대분류: 자산배분(8자산) / 주식(한국 모멘텀·미국 TQQQ·지수 모멘텀) / 코인(BTC/ETH/XRP) /
 //          도구·지표(계산기·심리·경보·데이터정확도). 코인은 전통자산과 위험특성이 달라 독립 영역.
 const SUPER_OF = { reco: 'reco', guide: 'guide', dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
   momentum: 'strat', crypto: 'coin', realestate: 're',
   paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools',
-  lab_rotation: 'lab', lab_rebal: 'lab', lab_blend: 'lab' };
+  lab_rotation: 'lab', lab_rebal: 'lab', lab_blend: 'lab', lab_dailyrisk: 'lab' };
 const SUPER_ORDER = { reco: -2, guide: -1, alloc: 0, strat: 1, coin: 2, re: 3, tools: 4, lab: 5 };
 const SUPER_LABEL = { reco: '⭐ 추천', guide: '📖 가이드', alloc: '자산배분', strat: '주식', coin: '코인', re: '부동산', tools: '도구·지표', lab: '🧪 실험실' };
 // 부동산 분류 칩 = 지역(전국·지수 먼저, 그다음 도시). 카테고리 re_index/re_<도시>를 네비 맵에 등록.
@@ -1168,6 +1168,7 @@ function setCurrency(cur) {
   if (entry.mode === 'lab_rotation') return loadTool(entry, 'lab_rotation');    // 🧪 실험실: 전략 로테이션(메타 모멘텀)
   if (entry.mode === 'lab_rebal') return loadTool(entry, 'lab_rebal');          // 🧪 실험실: 리밸 주기 민감도
   if (entry.mode === 'lab_blend') return loadTool(entry, 'lab_blend');          // 🧪 실험실: 고정 블렌드 최적화
+  if (entry.mode === 'lab_dailyrisk') return loadTool(entry, 'lab_dailyrisk');  // 🧪 실험실: 일별 vs 월별 위험 렌즈
   // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
   if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
   else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
@@ -1186,7 +1187,7 @@ function setAnalyticsMode(on) {
 function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
   document.body.classList.toggle('tools-mode', !!on);
   if (on) document.body.classList.remove('analytics-mode');
-  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage', 'lab_rotation', 'lab_rebal', 'lab_blend'].forEach(t => {
+  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage', 'lab_rotation', 'lab_rebal', 'lab_blend', 'lab_dailyrisk'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.classList.toggle('hidden', !(on && t === tool));
   });
@@ -1739,6 +1740,7 @@ async function loadTool(entry, kind) {
     else if (kind === 'lab_rotation') enterRotation(d);
     else if (kind === 'lab_rebal') enterRebal(d);
     else if (kind === 'lab_blend') enterBlendOpt(d);
+    else if (kind === 'lab_dailyrisk') enterDailyRisk(d);
     else renderTrend(d);
   } catch (e) { setStatus(entry.group + ' 로딩 실패: ' + e.message, true); }
 }
@@ -1903,6 +1905,62 @@ function renderBlendOpt() {
     r('균등가중 (기준)', res.eq, 'lab-row-eq') + r('최대 Sharpe (사후·과최적)', res.maxSharpe) + r('최소분산', res.minVol) + '</tbody>';
   const tw = res.topW.map(w => `${w.name} <b>${(w.w * 100).toFixed(0)}%</b>`).join(' · ');
   document.getElementById('lab3-weights').innerHTML = `사후 최대-Sharpe 상위 비중: ${tw} <span class="muted">— 특정 전략에 쏠린(불안정) 베팅</span>`;
+}
+
+// 🧪 실험④ 일별 vs 월별 위험 렌즈 — 정적 배분을 일별로 정확 재구성(사전계산 daily_risk.json)해
+// 같은 포트폴리오의 낙폭을 일별(정밀) vs 월별(축소)로 대비. 월말 데이터가 코로나 급락을 얼마나 감추는지.
+function enterDailyRisk(d) {
+  setToolsMode(true, 'lab_dailyrisk');
+  state.playground = false; state.analyticsActive = false; state.data = null; state.allocCtx = null;
+  state.tool = { kind: 'lab_dailyrisk', data: d };
+  state.drData = (d && d.presets) || [];
+  document.getElementById('meta').textContent = `🧪 실험실 · 일별 vs 월별 위험 렌즈 (정적 배분 ${state.drData.length}종)`;
+  const sel = document.getElementById('lab4-preset');
+  if (sel && sel.dataset.n !== String(state.drData.length)) {
+    sel.innerHTML = state.drData.map((p, i) => `<option value="${i}">${p.label}</option>`).join('');
+    sel.dataset.n = String(state.drData.length);
+  }
+  if (!state._drWired) { if (sel) sel.addEventListener('change', renderDailyRisk); state._drWired = true; }
+  renderDailyRisk();
+}
+function renderDailyRisk() {
+  const presets = state.drData || []; if (!presets.length) return;
+  const sel = document.getElementById('lab4-preset');
+  const p = presets[sel ? (parseInt(sel.value, 10) || 0) : 0]; if (!p) return;
+  const cur = state.nav.currency || 'krw';
+  const b = p[cur] || p.krw || p.usd; if (!b) { setStatus('이 통화 데이터가 없습니다.', true); return; }
+  setStatus('');
+  const num = v => (v == null || isNaN(v)) ? '—' : v.toFixed(1);
+  const cd = b.windows.covid.d, cm = b.windows.covid.m;
+  const ratio = (cd && cm && cm !== 0) ? Math.abs(cd / cm) : null;
+  const vb = document.getElementById('lab4-verdict');
+  if (vb) {
+    vb.className = 'lab-verdict verdict-lose';
+    vb.innerHTML = `코로나(2020) 낙폭 — 월별 <b>${num(cm)}%</b> vs 일별 <b>${num(cd)}%</b>` +
+      (ratio ? ` → 월별이 실제 스트레스를 <b>약 ${ratio.toFixed(1)}배 축소</b>` : '') +
+      `<div class="lab-verdict-sub">단, 전체기간 최악은 월별 ${num(b.mdd_monthly)}% ≈ 일별 ${num(b.mdd_daily)}% — 느린 하락은 월별로도 정확해 <b>긴-역사 헤드라인은 유효</b> · ${b.start}~${b.end}</div>`;
+  }
+  const acc = cssVar('--accent');
+  const traces = [
+    { type: 'scatter', mode: 'lines', name: '일별 해상도 (정밀)', x: b.dd_daily.dates, y: b.dd_daily.v,
+      line: { width: 0.9, color: acc }, fill: 'tozeroy', fillcolor: 'rgba(37,99,235,0.15)', hovertemplate: '%{x}<br>%{y:.1f}%<extra>일별</extra>' },
+    { type: 'scatter', mode: 'lines', name: '월별 해상도 (축소)', x: b.dd_monthly.dates, y: b.dd_monthly.v,
+      line: { width: 1.7, color: '#dc2626', shape: 'hv' }, hovertemplate: '%{x}<br>%{y:.1f}%<extra>월별</extra>' },
+  ];
+  const layout = baseLayout('', '고점 대비 낙폭 (%)');
+  Plotly.react('lab4-chart', traces, layout, PLOTCFG);
+  const W = b.windows;
+  const row = (lbl, dd, mm) => `<tr><td class="name">${lbl}</td><td>${num(dd)}%</td><td>${num(mm)}%</td>` +
+    `<td>${(dd != null && mm != null) ? '+' + (mm - dd).toFixed(1) + '%p' : '—'}</td></tr>`;
+  document.getElementById('lab4-metrics').innerHTML =
+    '<thead><tr><th class="name">구간</th><th>일별 MDD</th><th>월별 MDD</th><th>월별 축소</th></tr></thead><tbody>' +
+    row('전체기간', b.mdd_daily, b.mdd_monthly) +
+    row('코로나 2020', W.covid.d, W.covid.m) +
+    row('금융위기 08', W.gfc.d, W.gfc.m) +
+    row('2022 약세장', W.y2022.d, W.y2022.m) +
+    `<tr><td class="name">연변동성</td><td>${num(b.vol_daily)}%</td><td>${num(b.vol_monthly)}%</td><td class="muted">—</td></tr>` +
+    `<tr><td class="name">Sharpe</td><td>${num(b.sharpe_daily)}</td><td>${num(b.sharpe_monthly)}</td><td class="muted">—</td></tr>` +
+    '</tbody>';
 }
 
 // ---------------------------------------------------------------------------

@@ -1203,6 +1203,24 @@
     "file": "strategy_rotation.json"
   },
   {
+    "id": "lab_dailyrisk",
+    "category": "lab_dailyrisk",
+    "group": "월말 데이터는 위험을 얼마나 감추나 (일별 vs 월별)",
+    "currency": "krw",
+    "mode": "lab_dailyrisk",
+    "label": "🧪 실험실 · 일별 vs 월별 위험 (KRW)",
+    "file": "daily_risk.json"
+  },
+  {
+    "id": "lab_dailyrisk_usd",
+    "category": "lab_dailyrisk",
+    "group": "월말 데이터는 위험을 얼마나 감추나 (일별 vs 월별)",
+    "currency": "usd",
+    "mode": "lab_dailyrisk",
+    "label": "🧪 실험실 · 일별 vs 월별 위험 (USD)",
+    "file": "daily_risk.json"
+  },
+  {
     "id": "tool_reliability",
     "category": "reliability",
     "group": "데이터 정확도",

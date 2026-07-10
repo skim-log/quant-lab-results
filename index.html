@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=2083cb9d" />
+  <link rel="stylesheet" href="style.css?v=16fab603" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -810,6 +810,29 @@
       </section>
     </div>
 
+    <!-- 🧪 실험실 · 일별 vs 월별 위험 렌즈 -->
+    <div id="lab_dailyrisk-section" class="hidden">
+      <section class="panel">
+        <h2>🧪 월말 데이터는 위험을 얼마나 감출까? <span class="muted">(일별 vs 월별 낙폭)</span></h2>
+        <p class="period-note">정적 배분을 <strong>일별로 정확 재구성</strong>해(일별 환율 반영), 같은 포트폴리오의 낙폭을 <strong>일별(정밀) vs 월말(축소)</strong> 해상도로 대비합니다. 월말 데이터가 코로나 같은 <strong>한 달 안의 급락</strong>을 얼마나 얕게 보이게 하는지 직접 확인하세요. <span class="muted">통화는 상단 토글(원화·달러 각각 정확 산출).</span></p>
+        <p class="period-note" style="border-left:3px solid var(--warn-fg);padding-left:.55rem;color:var(--warn-fg)">⚠️ 일별 위험자산(미국주식·금·은·미국채·인도·한국주식)은 일별로 정밀 재구성. 저변동 슬리브(현금·한국채)·중국은 근사(낙폭엔 무해). 신호는 월 1회(고정비중 분기 리밸).</p>
+        <div class="bt-controls">
+          <label>정적 배분 <select id="lab4-preset"></select></label>
+        </div>
+        <div id="lab4-verdict" class="lab-verdict"></div>
+        <div id="lab4-chart" class="chart"></div>
+        <div class="table-wrap"><table id="lab4-metrics" class="diag-table"></table></div>
+        <details class="theory" open>
+          <summary>💡 왜 월말 데이터는 급락을 얕게 보이나 — 그리고 언제 괜찮은가</summary>
+          <div class="theory-body">
+            <p>월말 종가만 보면 <strong>월 안에서 바닥을 찍고 회복한 급락은 사라집니다.</strong> 코로나(2020-03)는 3월 안에 폭락→반등해서, 월말 기준으론 낙폭이 실제의 몇 분의 1로 줄어 보입니다. <strong>방어적·분산된 배분일수록 이 착시가 큽니다</strong> — 채권·금이 완충해 월말엔 "거의 안 빠진 것"처럼 보이지만, 일별로는 두 자릿수 스트레스가 있었습니다.</p>
+            <p>반대로 <strong>2008년처럼 수개월에 걸친 느린 하락은 월말로도 거의 정확</strong>합니다. 그래서 <strong>전체기간 최악 낙폭은 월별≈일별</strong>이고, <strong>긴-역사 월별 백테스트 헤드라인은 그대로 신뢰</strong>할 수 있습니다. 일별의 실익은 "최근의 빠른 급락 스트레스를 정직하게 드러내는 것"에 집중됩니다.</p>
+            <p class="muted">→ 해석 요령: 월별 MDD는 <strong>느린 하락엔 정확, 빠른 급락엔 하한(下限)</strong>으로 읽으세요. "우리 배분은 위기에도 −3%밖에 안 빠진다"는 월말 착각을 일별이 교정합니다.</p>
+          </div>
+        </details>
+      </section>
+    </div>
+
     <!-- 시군구 조회 (molit_explore): 거래량·전세가율 추이 + 최근 실거래 상세표 -->
     <div id="molit_explore-section" class="hidden">
       <section class="panel">
@@ -1077,11 +1100,11 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="alloc.js?v=2083cb9d" defer></script>
-  <script src="re_apt.js?v=2083cb9d" defer></script>
-  <script src="analytics-live.js?v=2083cb9d" defer></script>
-  <script src="leverage.js?v=2083cb9d" defer></script>
-  <script src="lab.js?v=2083cb9d" defer></script>
-  <script src="app.js?v=2083cb9d" defer></script>
+  <script src="alloc.js?v=16fab603" defer></script>
+  <script src="re_apt.js?v=16fab603" defer></script>
+  <script src="analytics-live.js?v=16fab603" defer></script>
+  <script src="leverage.js?v=16fab603" defer></script>
+  <script src="lab.js?v=16fab603" defer></script>
+  <script src="app.js?v=16fab603" defer></script>
 </body>
 </html>
