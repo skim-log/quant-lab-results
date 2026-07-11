@@ -166,5 +166,66 @@
              trainTest: { opt: optTest, eq: eqTest, verdict: ttVerdict, split: grid[half] } };
   }
 
-  root.ROTATION = { run, rebalSweep, blendOptimize, cagr, mdd, sharpe, selectUniverse };
+  // ─── ETF 조합 일별 리스크 렌즈 — 임의 비중 → 일별 vs 월별 낙폭(플레이그라운드 조합용, 클라이언트 재구성) ─
+  function _periodKey(ds, m) {
+    const y = ds.slice(0, 4), mo = +ds.slice(5, 7);
+    if (m === 1) return ds.slice(0, 7);
+    if (m === 3) return y + 'Q' + Math.ceil(mo / 3);
+    if (m === 6) return y + 'H' + Math.ceil(mo / 6);
+    return y;
+  }
+  function _mddRange(dates, nav, a, b) {
+    let pk = -Infinity, m = 0, any = false;
+    for (let i = 0; i < dates.length; i++) {
+      if (dates[i] >= a && dates[i] <= b) { any = true; const v = nav[i]; if (v > pk) pk = v; const dd = v / pk - 1; if (dd < m) m = dd; }
+    }
+    return any ? +(m * 100).toFixed(1) : null;
+  }
+  // daily = {dates:['YYYY-MM-DD'], fx:[krw/usd], etfs:{ticker:[px(USD)|null]}}. weights={ticker:frac}. opts={currency,rebalance}
+  function etfDailyRisk(daily, weights, opts) {
+    if (!daily || !daily.dates) return null;
+    const cur = (opts && opts.currency) || 'krw';
+    const names = Object.keys(weights).filter(n => weights[n] > 0 && daily.etfs[n]);
+    if (!names.length) return null;
+    const D = daily.dates, FX = daily.fx;
+    const idx = [];
+    for (let i = 0; i < D.length; i++) if (names.every(n => daily.etfs[n][i] != null)) idx.push(i);
+    if (idx.length < 60) return null;
+    let tot = 0; names.forEach(n => { tot += weights[n]; }); const w = {}; names.forEach(n => { w[n] = weights[n] / tot; });
+    const px = {}; names.forEach(n => { px[n] = idx.map(i => cur === 'krw' ? daily.etfs[n][i] * FX[i] : daily.etfs[n][i]); });
+    const dates = idx.map(i => D[i]);
+    const rebalM = ({ never: Infinity, monthly: 1, quarterly: 3, semiannual: 6, yearly: 12 })[(opts && opts.rebalance)];
+    const rm = rebalM === undefined ? 3 : rebalM;
+    const val = {}; names.forEach(n => { val[n] = w[n]; });
+    const nav = [1]; let lastKey = _periodKey(dates[0], rm);
+    for (let k = 1; k < dates.length; k++) {
+      names.forEach(n => { val[n] *= px[n][k] / px[n][k - 1]; });
+      let s = names.reduce((a, n) => a + val[n], 0);
+      if (rm !== Infinity) { const key = _periodKey(dates[k], rm); if (key !== lastKey) { names.forEach(n => { val[n] = w[n] * s; }); lastKey = key; } }
+      nav.push(names.reduce((a, n) => a + val[n], 0));
+    }
+    const ddDaily = []; { let pk = -Infinity; for (const v of nav) { if (v > pk) pk = v; ddDaily.push((v / pk - 1) * 100); } }
+    const retD = []; for (let i = 1; i < nav.length; i++) retD.push(nav[i] / nav[i - 1] - 1);
+    const mLast = new Map(); dates.forEach((d, i) => mLast.set(d.slice(0, 7), i));
+    const mIdx = [...mLast.values()].sort((a, b) => a - b);
+    const navM = mIdx.map(i => nav[i]), datesM = mIdx.map(i => dates[i]);
+    const ddM = []; { let pk = -Infinity; for (const v of navM) { if (v > pk) pk = v; ddM.push((v / pk - 1) * 100); } }
+    const retM = []; for (let i = 1; i < navM.length; i++) retM.push(navM[i] / navM[i - 1] - 1);
+    const ds10 = [], v10 = []; for (let i = 0; i < ddDaily.length; i += 10) { ds10.push(dates[i]); v10.push(+ddDaily[i].toFixed(2)); }
+    const sqrt = Math.sqrt, sdD = sampleStd(retD), sdM = sampleStd(retM);
+    const win = (a, b) => ({ d: _mddRange(dates, nav, a, b), m: _mddRange(datesM, navM, a, b) });
+    return {
+      start: dates[0], end: dates[dates.length - 1],
+      dd_daily: { dates: ds10, v: v10 },
+      dd_monthly: { dates: datesM, v: ddM.map(x => +x.toFixed(2)) },
+      mdd_daily: +(mdd(nav) * 100).toFixed(1), mdd_monthly: +(mdd(navM) * 100).toFixed(1),
+      vol_daily: +(sdD * sqrt(252) * 100).toFixed(1), vol_monthly: +(sdM * sqrt(12) * 100).toFixed(1),
+      sharpe_daily: +(sdD > 0 ? mean(retD) / sdD * sqrt(252) : NaN).toFixed(2),
+      sharpe_monthly: +(sdM > 0 ? mean(retM) / sdM * sqrt(12) : NaN).toFixed(2),
+      windows: { covid: win('2020-01-01', '2020-06-30'), gfc: win('2007-06-01', '2009-07-31'), y2022: win('2022-01-01', '2022-12-31') },
+      n: names.length,
+    };
+  }
+
+  root.ROTATION = { run, rebalSweep, blendOptimize, etfDailyRisk, cagr, mdd, sharpe, selectUniverse };
 })(typeof window !== 'undefined' ? window : this);
