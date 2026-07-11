@@ -368,6 +368,70 @@
     "file": "multi_allocation_rebal_usd.json"
   },
   {
+    "id": "multi_allocation_us_etf_schdqqq55_krw",
+    "category": "static",
+    "group": "미국ETF SCHD+QQQ 5:5",
+    "currency": "krw",
+    "label": "정적 자산배분 · 미국ETF SCHD+QQQ 5:5 (KRW)",
+    "file": "multi_allocation_us_etf_schdqqq55_krw.json"
+  },
+  {
+    "id": "multi_allocation_us_etf_schdqqq55_usd",
+    "category": "static",
+    "group": "미국ETF SCHD+QQQ 5:5",
+    "currency": "usd",
+    "label": "정적 자산배분 · 미국ETF SCHD+QQQ 5:5 (USD)",
+    "file": "multi_allocation_us_etf_schdqqq55_usd.json"
+  },
+  {
+    "id": "multi_allocation_us_etf_schdqqq73_krw",
+    "category": "static",
+    "group": "미국ETF SCHD+QQQ 7:3",
+    "currency": "krw",
+    "label": "정적 자산배분 · 미국ETF SCHD+QQQ 7:3 (KRW)",
+    "file": "multi_allocation_us_etf_schdqqq73_krw.json"
+  },
+  {
+    "id": "multi_allocation_us_etf_schdqqq73_usd",
+    "category": "static",
+    "group": "미국ETF SCHD+QQQ 7:3",
+    "currency": "usd",
+    "label": "정적 자산배분 · 미국ETF SCHD+QQQ 7:3 (USD)",
+    "file": "multi_allocation_us_etf_schdqqq73_usd.json"
+  },
+  {
+    "id": "multi_allocation_us_etf_schdqqqgld_krw",
+    "category": "static",
+    "group": "미국ETF SCHD·QQQ·금 4:4:2",
+    "currency": "krw",
+    "label": "정적 자산배분 · 미국ETF SCHD·QQQ·금 4:4:2 (KRW)",
+    "file": "multi_allocation_us_etf_schdqqqgld_krw.json"
+  },
+  {
+    "id": "multi_allocation_us_etf_schdqqqgld_usd",
+    "category": "static",
+    "group": "미국ETF SCHD·QQQ·금 4:4:2",
+    "currency": "usd",
+    "label": "정적 자산배분 · 미국ETF SCHD·QQQ·금 4:4:2 (USD)",
+    "file": "multi_allocation_us_etf_schdqqqgld_usd.json"
+  },
+  {
+    "id": "multi_allocation_us_etf_3way_krw",
+    "category": "static",
+    "group": "미국ETF SCHD·SPY·QQQ 3분할",
+    "currency": "krw",
+    "label": "정적 자산배분 · 미국ETF SCHD·SPY·QQQ 3분할 (KRW)",
+    "file": "multi_allocation_us_etf_3way_krw.json"
+  },
+  {
+    "id": "multi_allocation_us_etf_3way_usd",
+    "category": "static",
+    "group": "미국ETF SCHD·SPY·QQQ 3분할",
+    "currency": "usd",
+    "label": "정적 자산배분 · 미국ETF SCHD·SPY·QQQ 3분할 (USD)",
+    "file": "multi_allocation_us_etf_3way_usd.json"
+  },
+  {
     "id": "multi_allocation_defensive_krw",
     "category": "static",
     "group": "방어적",
@@ -1038,6 +1102,10 @@
       "multi_allocation_us6040_usd.json",
       "multi_allocation_balanced_usd.json",
       "multi_allocation_rebal_usd.json",
+      "multi_allocation_us_etf_schdqqq55_usd.json",
+      "multi_allocation_us_etf_schdqqq73_usd.json",
+      "multi_allocation_us_etf_schdqqqgld_usd.json",
+      "multi_allocation_us_etf_3way_usd.json",
       "multi_allocation_defensive_usd.json",
       "multi_allocation_permanent_usd.json",
       "multi_allocation_allweather_full_usd.json",
@@ -1076,6 +1144,10 @@
       "multi_allocation_us6040_krw.json",
       "multi_allocation_balanced_krw.json",
       "multi_allocation_rebal_krw.json",
+      "multi_allocation_us_etf_schdqqq55_krw.json",
+      "multi_allocation_us_etf_schdqqq73_krw.json",
+      "multi_allocation_us_etf_schdqqqgld_krw.json",
+      "multi_allocation_us_etf_3way_krw.json",
       "multi_allocation_defensive_krw.json",
       "multi_allocation_permanent_krw.json",
       "multi_allocation_allweather_full_krw.json",

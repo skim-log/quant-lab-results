@@ -1230,22 +1230,24 @@ const RECO_MA200_PICKS = [
     label: '올웨더(Dalio) + 200일선', why: 'Dalio 올웨더 — 필터로 낙폭 −14%대 방어하며 꾸준' },
   { id: 'multi_allocation_balanced_krw', series: '균형 · 분기 · 밴드 20% · MA200',
     label: '균형 배분 + 200일선', why: '균형 분산 — 필터로 낙폭 −20%→−13%, 안정적' },
+  // 미국 ETF 고정배분(정적 전략으로 승격) — run_etf_allocation. 별도 카드로 빼지 않고 정적+MA200 로 흡수.
+  // 카드는 MA200 시리즈 지표를 표시(섹션 주제). '자세히 보기'에서 필터 ON/OFF·밴드·벤치마크 전 시리즈 비교.
+  { id: 'multi_allocation_us_etf_schdqqqgld_krw', series: '미국ETF SCHD·QQQ·금 4:4:2 · 분기 · 밴드 20% · MA200',
+    label: 'SCHD·QQQ·금 4:4:2 (미국 ETF)', why: 'SCHD·QQQ에 금 20% — 금 분산으로 이 조합 그룹 최고 위험대비수익(Sharpe 1.3), 필터로 낙폭 −14%→−10%' },
+  { id: 'multi_allocation_us_etf_schdqqq55_krw', series: '미국ETF SCHD+QQQ 5:5 · 분기 · 밴드 20% · MA200',
+    label: 'SCHD+QQQ 5:5 (미국 ETF)', why: '배당(SCHD)+성장(QQQ) 저상관 반반 — 유튜브 대표 조합. 필터로 낙폭 −21%→−18%' },
+  { id: 'multi_allocation_us_etf_3way_krw', series: '미국ETF SCHD·SPY·QQQ 3분할 · 분기 · 밴드 20% · MA200',
+    label: 'SCHD·SPY·QQQ 3분할 (미국 ETF)', why: '미국 대형주·나스닥·배당 균등 3분할 — 가장 단순한 시작점. 필터로 낙폭 −21%→−15%' },
+  { id: 'multi_allocation_us_etf_schdqqq73_krw', series: '미국ETF SCHD+QQQ 7:3 · 분기 · 밴드 20% · MA200',
+    label: 'SCHD+QQQ 7:3 (미국 ETF)', why: 'SCHD 비중↑ 방어형 — 필터로 낙폭 −20%→−13%로 이 그룹 중 가장 크게 축소' },
 ];
 const RECO_RE_PICKS = [
   { id: 're_rentbuy', why: '전세 살까 vs 집 살까 — 국내 핵심 질문의 백테스트' },
   { id: 're_gap', why: '전세 무이자 레버리지(갭투자)를 무레버 매수와 비교 — 문서상 유일하게 살아남은 엣지' },
   { id: 're_gaptiming', why: '갭 × 실거래지수 추세 타이밍' },
 ];
-// 미국 ETF 직접 조합 큐레이션 — dashboard 전략이 아니라 플레이그라운드(panel_usetf) 프리셋으로 딥링크.
-// preset 키는 scripts/us/run_etf_combo.py PRESETS / _optimal_presets 와 일치해야 함(불일치 시 기본 비중으로 열림).
-const RECO_ETF = [
-  { preset: 'schd_qqq_55', title: 'SCHD + QQQ 5:5', badge: '저상관 방어',
-    why: '성장(QQQ)과 배당·방어(SCHD)를 반반 — 두 ETF 상관이 낮아(≈0.65) 서로의 낙폭을 상쇄. 영상이 미는 대표 조합.' },
-  { preset: 'three_equal', title: 'SCHD · SPY · QQQ 3분할', badge: '단순 균형',
-    why: '가장 단순한 균등 3분할. 미국 대형주(SPY)·나스닥(QQQ)·배당(SCHD)을 한 번에 — 고민 없이 시작하기 좋음.' },
-  { preset: 'opt_sharpe', title: '★ 최적 Max-Sharpe', badge: '사후 최적 · 참고',
-    why: '과거 위험대비수익이 가장 높았던 비중(정통 마코위츠 접점). 사후 최적이라 미래를 보장하진 않음 — 벤치마크로만.' },
-];
+// 미국 ETF 조합은 별도 카드가 아니라 '정적 배분 + MA200' 랭킹 전략으로 흡수됨(RECO_MA200_PICKS 참조).
+// 인터랙티브 비중 탐색은 미국 ETF 조합 플레이그라운드(etf_playground_*) + 정량분석 상호링크로 계속 제공.
 
 function enterReco() {
   setAnalyticsMode(false); setToolsMode(true, 'reco');
@@ -1334,21 +1336,12 @@ function renderRecoBlendCards() {                   // 큐레이션 조합(블�
     `<div class="reco-period">${r.statKrw} · 원화 기준 참고치</div></div>`;
   el.innerHTML = RECO_BLENDS.map(card).join('');
 }
-function renderRecoEtf() {                           // 미국 ETF 직접 조합 — 플레이그라운드(panel_usetf) 프리셋 딥링크
-  const el = document.getElementById('reco-etf'); if (!el) return;
-  el.innerHTML = RECO_ETF.map(r => `<div class="reco-card"><div class="reco-head">` +
-    `<span class="reco-title">${r.title}</span>` +
-    `<button type="button" class="reco-apply" data-reco-etf="${r.preset}">플레이그라운드에서 열기 →</button></div>` +
-    `<div class="reco-why">${r.why}</div>` +
-    `<div class="reco-period">🇺🇸 미국 ETF · 총수익(비용 전) · <b>${r.badge}</b> · 연금은 국내 대체 ETF로</div></div>`).join('');
-}
 function renderRecoTab() {
   if (!state._recoWired) {                           // 카드 클릭 위임(딥링크 · 조합 열기)
     const sec = document.getElementById('reco-section');
     if (sec) sec.addEventListener('click', e => {
       const g = e.target.closest('button[data-reco-goto]'); if (g) return gotoDataset(g.dataset.recoGoto);
       const b = e.target.closest('button[data-reco-blend]'); if (b) return gotoBlendPreset(b.dataset.recoBlend);
-      const p = e.target.closest('button[data-reco-etf]'); if (p) return gotoEtfPreset(p.dataset.recoEtf);
     });
     state._recoWired = true;
   }
@@ -1356,14 +1349,8 @@ function renderRecoTab() {
   _recoRenderInto('reco-fin-ma', RECO_MA200_PICKS);
   _recoRenderInto('reco-re', RECO_RE_PICKS);
   renderRecoBlendCards();
-  renderRecoEtf();
   renderRecoMaSensitivity();
   renderLeaderboard();
-}
-// 추천 > 미국 ETF 카드 → ETF 플레이그라운드를 해당 프리셋이 적용된 채로 연다(enterPlayground 가 _pendingPgPreset 소비).
-function gotoEtfPreset(preset) {
-  state._pendingPgPreset = preset || null;
-  gotoDataset('etf_playground_krw');
 }
 // ⭐추천 > 정적+MA 섹션의 이평선 민감도(과최적화 점검) — 프리셋 드롭다운 + 창 스윕 차트.
 function renderRecoMaSensitivity() {
@@ -3642,11 +3629,6 @@ function enterPlayground(panel) {
   }
   document.getElementById('meta').textContent =
     `${panel.title || ''} · 생성일 ${panel.generated_at || '-'} · 사용자 입력 백테스트`;
-  // 추천 탭 딥링크(gotoEtfPreset): 지정 프리셋 비중을 적용한 채로 연다. 없으면 기본 비중.
-  if (state._pendingPgPreset && panel.presets && panel.presets[state._pendingPgPreset]) {
-    _pgSetWeights(panel.presets[state._pendingPgPreset].weights);
-  }
-  state._pendingPgPreset = null;
   runPlayground();
 }
 

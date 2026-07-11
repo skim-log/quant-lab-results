@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=c99c9dec" />
+  <link rel="stylesheet" href="style.css?v=ae58496a" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -202,8 +202,8 @@
         <p class="period-note">⏱ <strong>전략마다 검증 기간이 다릅니다</strong>(예: 영구 포트폴리오 90년+ vs BAA 19년). 기간이 길수록 대공황·오일쇼크 같은 <strong>혹독한 구간</strong>을 포함해 CAGR가 낮고 MDD가 크게 보일 수 있으니, 카드의 <strong>📅 기간 배지</strong>를 함께 보고 같은 기간끼리 비교하세요.</p>
         <h3 class="reco-presets-title">개별 전략 <span class="muted">(동적·모멘텀)</span></h3>
         <div id="reco-fin-individual" class="reco-cards"></div>
-        <h3 class="reco-presets-title">정적 배분 + 200일선(MA200) 필터 <span class="muted">— 추세 필터로 낙폭 방어</span></h3>
-        <p class="period-note">정적 분산에 “가격이 200일 이동평균선 위일 때만 보유(아래로 내려오면 현금)” 추세 필터를 더한 변형입니다. 수익은 소폭 낮아질 수 있어도 <strong>최대낙폭(MDD)이 크게 줄어</strong> 위험 대비 수익(Sharpe·Calmar)이 개선됩니다. 지표는 원화 기준.</p>
+        <h3 class="reco-presets-title">정적 배분 + 200일선(MA200) 필터 <span class="muted">— 글로벌 자산배분 · 미국 ETF 조합(SCHD·SPY·QQQ+)</span></h3>
+        <p class="period-note">정적 분산에 “가격이 200일 이동평균선 위일 때만 보유(아래로 내려오면 현금)” 추세 필터를 더한 변형입니다. 수익은 소폭 낮아질 수 있어도 <strong>최대낙폭(MDD)이 크게 줄어</strong> 위험 대비 수익(Sharpe·Calmar)이 개선됩니다. 아래엔 유튜브에서 자주 다루는 <strong>미국 ETF 고정배분(SCHD·SPY·QQQ+금)</strong>도 같은 잣대로 포함 — 전체 전략 랭킹에도 등재됩니다. 비중을 직접 바꿔보려면 <strong>정적 자산배분 › 미국 ETF 조합</strong> 플레이그라운드로, 연금·IRP 구현은 그 안 국내 대체 ETF 안내를 참고하세요. 지표는 원화·MA200 기준(‘자세히 보기’에서 필터 OFF·벤치마크 비교).</p>
         <div id="reco-fin-ma" class="reco-cards"></div>
         <h4 class="reco-presets-title" style="font-size:0.95rem">이평선 필터 민감도 (과최적화 점검) <span class="muted">— 200일이 특별한가?</span></h4>
         <p class="period-note">여러 이동평균 창(50~300거래일)에서의 낙폭(MDD)·Sharpe. <strong>넓은 범위에서 낙폭이 줄면 200일 과최적화가 아니라 추세필터 자체가 강건</strong>합니다(점선=필터 없는 원배분 낙폭, 원화 기준).</p>
@@ -219,10 +219,6 @@
         <h3 class="reco-presets-title">큐레이션 조합 (전략 블렌딩)</h3>
         <p class="period-note">여러 전략을 비중 결합한 조합입니다. “블렌딩에서 열기”를 누르면 <strong>전략 블렌딩</strong> 탭에서 비중이 적용된 채로 열려 바로 조정·재실행할 수 있습니다.</p>
         <div id="reco-fin-blends" class="reco-cards"></div>
-
-        <h3 class="reco-presets-title">미국 ETF 직접 조합 <span class="muted">(SCHD·SPY·QQQ+ · 비중 즉석 백테스트)</span></h3>
-        <p class="period-note">유튜브에서 자주 다루는 SCHD·SPY·QQQ 등 미국 ETF를 <strong>원하는 비중으로 섞어</strong> 즉석 백테스트합니다. “플레이그라운드에서 열기”를 누르면 <strong>그 조합이 적용된 채</strong>로 열려 바로 비중·주기를 조정할 수 있고, 상관·최적 조합(정량분석)과 일별 낙폭 렌즈도 함께 볼 수 있습니다. <strong>연금저축·IRP</strong>에선 같은 노출의 국내 ETF(미국배당다우존스 등)로 구현 — 플레이그라운드 안 “연금·IRP 국내 대체 ETF” 안내 참조.</p>
-        <div id="reco-etf" class="reco-cards"></div>
       </section>
 
       <section class="panel">
@@ -1140,11 +1136,11 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="alloc.js?v=c99c9dec" defer></script>
-  <script src="re_apt.js?v=c99c9dec" defer></script>
-  <script src="analytics-live.js?v=c99c9dec" defer></script>
-  <script src="leverage.js?v=c99c9dec" defer></script>
-  <script src="lab.js?v=c99c9dec" defer></script>
-  <script src="app.js?v=c99c9dec" defer></script>
+  <script src="alloc.js?v=ae58496a" defer></script>
+  <script src="re_apt.js?v=ae58496a" defer></script>
+  <script src="analytics-live.js?v=ae58496a" defer></script>
+  <script src="leverage.js?v=ae58496a" defer></script>
+  <script src="lab.js?v=ae58496a" defer></script>
+  <script src="app.js?v=ae58496a" defer></script>
 </body>
 </html>
