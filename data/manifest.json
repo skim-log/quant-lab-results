@@ -600,6 +600,22 @@
     "file": "multi_analytics_usd.json"
   },
   {
+    "id": "multi_analytics_usetf_krw",
+    "category": "analytics",
+    "group": "미국 ETF (SCHD·SPY·QQQ+)",
+    "currency": "krw",
+    "label": "정량분석 · 미국 ETF (SCHD·SPY·QQQ+) (KRW)",
+    "file": "multi_analytics_usetf_krw.json"
+  },
+  {
+    "id": "multi_analytics_usetf_usd",
+    "category": "analytics",
+    "group": "미국 ETF (SCHD·SPY·QQQ+)",
+    "currency": "usd",
+    "label": "정량분석 · 미국 ETF (SCHD·SPY·QQQ+) (USD)",
+    "file": "multi_analytics_usetf_usd.json"
+  },
+  {
     "id": "multi_analytics_re_krw",
     "category": "analytics",
     "group": "부동산 포함",
@@ -1084,6 +1100,24 @@
     "mode": "playground",
     "label": "정적 자산배분 · 사용자 입력 (USD)",
     "file": "panel.json"
+  },
+  {
+    "id": "etf_playground_krw",
+    "category": "static",
+    "group": "미국 ETF 조합 (SCHD·SPY·QQQ)",
+    "currency": "krw",
+    "mode": "playground",
+    "label": "정적 자산배분 · 미국 ETF 조합 (KRW)",
+    "file": "panel_usetf.json"
+  },
+  {
+    "id": "etf_playground_usd",
+    "category": "static",
+    "group": "미국 ETF 조합 (SCHD·SPY·QQQ)",
+    "currency": "usd",
+    "mode": "playground",
+    "label": "정적 자산배분 · 미국 ETF 조합 (USD)",
+    "file": "panel_usetf.json"
   },
   {
     "id": "reco",
