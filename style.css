@@ -449,6 +449,9 @@ table#metrics-table, #bandab-table, .diag-table {
 .charts .freq-note { margin-top: 0.2rem; margin-bottom: 0.2rem; }
 /* 성과표 헤더 툴팁 힌트 — 점선 밑줄 + 도움 커서(hover 시 title 표시) */
 #metrics-table th.has-tip { text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }
+/* 뷰 간 상호 링크(플레이그라운드↔정량분석) */
+a.crosslink { color: var(--accent); font-weight: 600; cursor: pointer; text-decoration: none; }
+a.crosslink:hover { text-decoration: underline; }
 
 /* 🧪 실험실 — 전략 로테이션 판정 배너 + 컨트롤 */
 .lab-verdict { margin: 0.85rem 0; padding: 0.6rem 0.85rem; border-radius: 8px; font-size: 0.95rem;

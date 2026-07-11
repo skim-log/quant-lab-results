@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=3a8fd8e7" />
+  <link rel="stylesheet" href="style.css?v=f3dbf3f5" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -113,6 +113,7 @@
 
     <!-- 정량분석 전용 뷰 (kind=analytics 데이터셋에서만; body.analytics-mode 로 그 외 섹션 숨김) -->
     <div id="analytics-section">
+      <p id="an-crosslink" class="period-note hidden"></p>
       <section class="panel">
         <p class="period-note">상단 <strong>기간</strong> 컨트롤(3년/5년/10년 또는 시작·종료일)을 바꾸면 그 구간의 효율적 전략을 <strong>브라우저에서 즉시 재계산</strong>합니다(사전계산 아님). 8자산 월수익 기준 · 무위험 2%.</p>
         <div class="an-select">
@@ -883,6 +884,7 @@
     <!-- 플레이그라운드: 임의 비중 즉석 백테스트 (panel.json 데이터셋에서만 표시) -->
     <section id="playground" class="panel hidden">
       <h2>사용자 입력 — 임의 비중 백테스트 <span class="muted">(브라우저에서 즉석 실행)</span></h2>
+      <p id="pg-crosslink" class="period-note hidden"></p>
       <div id="pg-presets" class="presets"></div>
       <div id="pg-weights" class="pg-weights"></div>
       <div class="pg-controls">
@@ -1109,11 +1111,11 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="alloc.js?v=3a8fd8e7" defer></script>
-  <script src="re_apt.js?v=3a8fd8e7" defer></script>
-  <script src="analytics-live.js?v=3a8fd8e7" defer></script>
-  <script src="leverage.js?v=3a8fd8e7" defer></script>
-  <script src="lab.js?v=3a8fd8e7" defer></script>
-  <script src="app.js?v=3a8fd8e7" defer></script>
+  <script src="alloc.js?v=f3dbf3f5" defer></script>
+  <script src="re_apt.js?v=f3dbf3f5" defer></script>
+  <script src="analytics-live.js?v=f3dbf3f5" defer></script>
+  <script src="leverage.js?v=f3dbf3f5" defer></script>
+  <script src="lab.js?v=f3dbf3f5" defer></script>
+  <script src="app.js?v=f3dbf3f5" defer></script>
 </body>
 </html>

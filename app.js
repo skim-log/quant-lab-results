@@ -1353,6 +1353,19 @@ function renderRecoMaSensitivity() {
   }).catch(() => {});
 }
 // 딥링크: manifest id → 기존 4단 네비 체인 구동(대분류/카테고리/그룹/통화 UI 동기화 + loadDataset).
+// 뷰 간 상호 링크 — targetBase + 현재 통화로 딥링크(클릭 시점 통화 반영). targetBase 없으면 숨김.
+function _crosslink(elId, targetBase, label) {
+  const el = document.getElementById(elId); if (!el) return;
+  if (!targetBase) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  el.innerHTML = `<a href="#" class="crosslink">${label}</a>`;
+  el.querySelector('a').onclick = (ev) => {
+    ev.preventDefault();
+    const c = state.nav.currency || 'krw';
+    const id = state.manifest.some(m => m.id === targetBase + '_' + c) ? targetBase + '_' + c : targetBase + '_krw';
+    gotoDataset(id);
+  };
+}
 function gotoDataset(id) {
   const e = state.manifest.find(m => m.id === id); if (!e) return;
   // UI(대분류·분류·그룹·통화)는 '무음'으로 한 번에 맞추고, 실제 데이터 로드는 마지막 setCurrency 에서
@@ -3098,6 +3111,7 @@ function renderBacktest() {
 function enterAnalytics(payload) {
   state.playground = false;
   setAnalyticsMode(true);
+  _crosslink('an-crosslink', payload.link_playground, '🧮 이 조합으로 직접 백테스트 (플레이그라운드) →');
   // 폴백: returns 미동봉(구 JSON)이거나 엔진 미로드 → 사전계산 그대로(기간 고정).
   if (!payload.returns || !payload.dates || typeof ANALYTICS === 'undefined') {
     state.analyticsActive = false; state.analyticsPayload = null; state.data = payload;
@@ -3534,6 +3548,7 @@ function enterPlayground(panel) {
   state.playground = true;
   state.panel = panel;
   setHidden('playground', false);
+  _crosslink('pg-crosslink', panel.link_analytics, '📊 이 ETF들의 상관·최적 조합 분석 보기 (정량분석) →');
   // 프리셋 버튼
   document.getElementById('pg-presets').innerHTML = Object.entries(panel.presets || {})
     .map(([k, p]) => `<button type="button" data-preset="${k}">${p.label}</button>`).join('');
