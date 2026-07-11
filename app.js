@@ -1990,20 +1990,32 @@ async function _ensureDailyRisk() {
   }
   return state.dailyRiskCache;
 }
+// 일별 렌즈 + 헤드라인 표 아래 '일별 정밀판 보기' 포인터를 함께 토글(둘의 가시성 일치).
+function _showDailyLens(show) {
+  const sec = document.getElementById('inline-daily-lens'), ptr = document.getElementById('freq-daily-pointer');
+  if (sec) sec.classList.toggle('hidden', !show);
+  if (ptr) {
+    ptr.classList.toggle('hidden', !show);
+    if (show && !ptr.dataset.set) {
+      ptr.innerHTML = '📉 위 MDD·연변동성은 <b>월말 기준</b>이라 장중 급락이 축소됩니다 — 이 배분의 ' +
+        '<a href="#inline-daily-lens" class="crosslink">일별 정밀 낙폭 보기 ↓</a>';
+      ptr.dataset.set = '1';
+    }
+  }
+}
 function maybeInlineDailyLens(file, cur) {
-  const sec = document.getElementById('inline-daily-lens'); if (!sec) return;
   const m = /^multi_(allocation|dynamic)_(.+)_(krw|usd)\.json$/.exec(file || '');
-  if (!m) { sec.classList.add('hidden'); return; }
+  if (!m) { _showDailyLens(false); return; }
   const cat = m[1] === 'allocation' ? 'static' : 'dynamic', key = m[2];
   const token = state._navToken;
   _ensureDailyRisk().then(data => {
     if (token !== state._navToken) return;                 // 그새 다른 뷰로 이동 → 무시
     const p = (data.presets || []).find(x => x.cat === cat && x.key === key);
     const b = p && (p[cur] || p.krw || p.usd);
-    if (!b) { sec.classList.add('hidden'); return; }
-    sec.classList.remove('hidden');
+    if (!b) { _showDailyLens(false); return; }
+    _showDailyLens(true);
     _renderDailyRiskInto(b, { verdict: 'idl-verdict', chart: 'idl-chart', metrics: 'idl-metrics' });
-  }).catch(() => sec.classList.add('hidden'));
+  }).catch(() => _showDailyLens(false));
 }
 
 // ---------------------------------------------------------------------------
@@ -3550,7 +3562,7 @@ function enterPlayground(panel) {
   setHidden('playground', false);
   _crosslink('pg-crosslink', panel.link_analytics, '📊 이 ETF들의 상관·최적 조합 분석 보기 (정량분석) →');
   setHidden('pg-pension', !panel.link_analytics);   // 연금·IRP 국내 대체 ETF 안내(미국 ETF 패널에서만)
-  state.etfDaily = null; setHidden('inline-daily-lens', true);   // 일별 렌즈 초기화(패널 전환)
+  state.etfDaily = null; _showDailyLens(false);   // 일별 렌즈·포인터 초기화(패널 전환)
   if (panel.daily_file) {                            // ETF 패널: 일별 가격 로드(레이지) → 조합 일별 낙폭 렌즈
     fetch('data/' + panel.daily_file, { cache: 'no-cache' }).then(r => r.json())
       .then(d => { state.etfDaily = d; renderPgDailyLens(); }).catch(() => {});
@@ -3686,15 +3698,14 @@ function runPlayground() {
 
 // ETF 조합 일별 리스크 렌즈 — 현재 비중을 일별로 재구성해 #inline-daily-lens 에 렌더(없으면 숨김).
 function renderPgDailyLens() {
-  const sec = document.getElementById('inline-daily-lens'); if (!sec) return;
   const panel = state.panel;
-  if (!panel || !panel.daily_file || !state.etfDaily || typeof ROTATION === 'undefined') { sec.classList.add('hidden'); return; }
+  if (!panel || !panel.daily_file || !state.etfDaily || typeof ROTATION === 'undefined') { _showDailyLens(false); return; }
   const w = {};
   _pgWeightInputs().forEach(i => { const v = (parseFloat(i.value) || 0) / 100; if (v > 0) w[i.dataset.asset] = v; });
   const rebalance = (document.getElementById('pg-rebalance') || {}).value || 'quarterly';
   const b = ROTATION.etfDailyRisk(state.etfDaily, w, { currency: state.nav.currency || 'krw', rebalance });
-  if (!b) { sec.classList.add('hidden'); return; }
-  sec.classList.remove('hidden');
+  if (!b) { _showDailyLens(false); return; }
+  _showDailyLens(true);
   _renderDailyRiskInto(b, { verdict: 'idl-verdict', chart: 'idl-chart', metrics: 'idl-metrics' });
 }
 
@@ -4087,6 +4098,7 @@ function applyRecoPreset(key) {                   // 추천 조합을 블렌드 
 function enterBlend() {
   setAnalyticsMode(false); setToolsMode(false);
   state.playground = false; state.allocCtx = null; _showAllocRebal(false);
+  _showDailyLens(false);   // 블렌드는 일별 렌즈 대상 아님 — 이전 뷰 잔상 숨김
   document.getElementById('meta').textContent = '전략 블렌딩 · 적립식 (클라이언트 합성)';
   setStatus('');
   if (!state._blendWired) {
