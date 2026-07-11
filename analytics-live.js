@@ -12,10 +12,30 @@
   const dot = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * b[i]; return s; };
   const matVec = (M, w) => M.map(row => dot(row, w));
 
-  function portReturns(R, w) {              // R: K×T, w: K → 포트폴리오 월수익 T
+  function portReturns(R, w) {              // R: K×T, w: K → 포트폴리오 월수익 T (매기 목표비중 리밸, 총수익)
     const T = R[0].length, K = R.length, out = new Array(T);
     for (let t = 0; t < T; t++) { let s = 0; for (let k = 0; k < K; k++) s += w[k] * R[k][t]; out[t] = s; }
     return out;
+  }
+  // 비용 반영(net): 매기 목표비중 리밸 시 회전율(Σ|wᵢ−드리프트wᵢ|)×costSide 차감. costSide=수수료+슬리피지(편도).
+  function portReturnsNet(R, w, costSide) {
+    if (!costSide) return portReturns(R, w);
+    const T = R[0].length, K = R.length, out = new Array(T);
+    let wc = w.slice();
+    for (let t = 0; t < T; t++) {
+      let rp = 0; for (let k = 0; k < K; k++) rp += wc[k] * R[k][t];
+      const nw = new Array(K); let tot = 0;
+      for (let k = 0; k < K; k++) { nw[k] = wc[k] * (1 + R[k][t]); tot += nw[k]; }
+      let turn = 0; for (let k = 0; k < K; k++) { const d = tot > 0 ? nw[k] / tot : w[k]; turn += Math.abs(w[k] - d); }
+      out[t] = rp - turn * costSide;         // 기말 목표비중 복귀 비용
+      wc = w.slice();
+    }
+    return out;
+  }
+  function _netStats(R, w, costSide, ppy, rf) {
+    if (!costSide) return null;
+    const s = riskStats(portReturnsNet(R, w, costSide), ppy, rf);
+    return { ret: s.ann_return, vol: s.ann_vol, sharpe: s.sharpe, mdd: s.mdd, total_return: s.total_return };
   }
 
   function covMatrix(R, mu) {                // 모분산(/T) 공분산 K×K
@@ -80,7 +100,7 @@
     return out;
   }
 
-  function monteCarloFrontier(R, keys, labels, colors, ppy, rf, n, seed, presetDefs, storePoints) {
+  function monteCarloFrontier(R, keys, labels, colors, ppy, rf, n, seed, presetDefs, storePoints, costSide) {
     const K = R.length, T = R[0].length;
     if (T < 2 || K === 0) return { n_sims: 0, points: [], curve: [], max_sharpe: null, min_var: null, single_asset: [], presets: [], _bestW: null };
     n = Math.max(100, Math.min(n, 50000)); const rng = mulberry32(seed);
@@ -107,7 +127,7 @@
       if (st.sharpe > best) { best = st.sharpe; bestW = w.slice(); }
       if (st.vol < minV) { minV = st.vol; minW = w.slice(); }
     }
-    const rec = w => { const s = riskStats(portReturns(R, w), ppy, rf); const wt = {}; for (let k = 0; k < K; k++) if (w[k] > 1e-6) wt[keys[k]] = w[k]; return { ret: s.ann_return, vol: s.ann_vol, sharpe: s.sharpe, weights: wt, stats: s }; };
+    const rec = w => { const s = riskStats(portReturns(R, w), ppy, rf); const wt = {}; for (let k = 0; k < K; k++) if (w[k] > 1e-6) wt[keys[k]] = w[k]; return { ret: s.ann_return, vol: s.ann_vol, sharpe: s.sharpe, weights: wt, stats: s, net: _netStats(R, w, costSide, ppy, rf) }; };
     const single = keys.map((k, i) => { const e = new Array(K).fill(0); e[i] = 1; const st = fast(e); return { key: k, label: labels[k], color: colors[k], ret: st.ret, vol: st.vol, sharpe: st.sharpe }; });
     const presets = [];
     for (const name in (presetDefs || {})) {
@@ -186,7 +206,7 @@
     return best;
   }
 
-  function markowitzFrontier(R, keys, labels, colors, ppy, rf, mcPoints, mcBestW) {
+  function markowitzFrontier(R, keys, labels, colors, ppy, rf, mcPoints, mcBestW, costSide) {
     const K = R.length, T = R[0].length; if (T < 3 || K === 0) return null;
     const mu = R.map(meanArr), S = covMatrix(R, mu);
     const tr = S.reduce((a, row, i) => a + row[i], 0), ridge = (tr / K) * 1e-8; for (let i = 0; i < K; i++) S[i][i] += ridge;
@@ -195,7 +215,7 @@
       if (!w) return null; const pr = portReturns(R, w), st = riskStats(pr, ppy, rf), wt = {};
       for (let k = 0; k < K; k++) if (w[k] > 1e-6) wt[keys[k]] = w[k];
       const nav = []; let acc = 1; for (const r of pr) { acc *= 1 + r; nav.push(Math.round(acc * 1e6) / 1e6); }
-      return { ret: st.ann_return, vol: st.ann_vol, sharpe: st.sharpe, weights: wt, stats: st, nav };
+      return { ret: st.ann_return, vol: st.ann_vol, sharpe: st.sharpe, weights: wt, stats: st, nav, net: _netStats(R, w, costSide, ppy, rf) };
     };
     const wGmv = pgdGMV(S), gRec = record(wGmv);
     const rLo = dot(mu, wGmv), rHi = Math.max.apply(null, mu), feas = [];
@@ -242,9 +262,10 @@
     const defW = ((payload.preset_defs && payload.preset_defs[payload.default_preset]) || {}).weights || {};
     const risk_parity = keys.map(k => ({ key: k, label: labels[k], color: colors[k], vol: rp[k].vol, weight: rp[k].weight, target: +(defW[k] || 0) }));
     const correlation = correlationMatrix(R, keys);
-    const mc = monteCarloFrontier(R, keys, labels, colors, ppy, rf, 6000, 12345, payload.preset_defs, 2000);
+    const costSide = payload.cost_side || 0;   // 수수료+슬리피지(편도) — '포트폴리오 결과' net 병기용
+    const mc = monteCarloFrontier(R, keys, labels, colors, ppy, rf, 6000, 12345, payload.preset_defs, 2000, costSide);
     let marko = null;
-    if (n >= 12) { marko = markowitzFrontier(R, keys, labels, colors, ppy, rf, mc.points, mc._bestW); if (marko) marko.dates = dates; }
+    if (n >= 12) { marko = markowitzFrontier(R, keys, labels, colors, ppy, rf, mc.points, mc._bestW, costSide); if (marko) marko.dates = dates; }
     const frontier = { n_sims: mc.n_sims, points: mc.points, curve: mc.curve, max_sharpe: mc.max_sharpe, min_var: mc.min_var, single_asset: mc.single_asset, presets: mc.presets, markowitz: marko };
     return {
       kind: 'analytics', live: true, title: payload.title, generated_at: payload.generated_at,

@@ -3235,9 +3235,10 @@ function renderAnalytics(d) {
   document.getElementById('an-period').textContent = d.period ? `· ${d.period}` : '';
   const note = document.getElementById('an-frontier-note');
   const hasMk = d.frontier && d.frontier.markowitz && (d.frontier.markowitz.curve_mv || []).length;
-  if (note && d.frontier) note.textContent = hasMk
+  const _netTail = ' 프론티어·최적점은 총수익(거래비용 전) 최적화 — 아래 「포트폴리오 결과」 표에 비용 반영(월 리밸) 수치를 병기.';
+  if (note && d.frontier) note.textContent = (hasMk
     ? `마코위츠 경계(정확, scipy) + 몬테카를로 ${(d.frontier.n_sims || 0).toLocaleString()}회 구름(실현가능영역) · ★ 접점(Max Sharpe) · ◆ 최소분산(GMV) · ● 단일자산 · ◇ 프리셋 (무위험 ${_apct(d.rf, 0)}).`
-    : `long-only 랜덤 비중 ${(d.frontier.n_sims || 0).toLocaleString()}회 · ★ Max Sharpe · ◆ Min Variance · ● 단일자산 · ◇ 프리셋 (무위험 ${_apct(d.rf, 0)}).`;
+    : `long-only 랜덤 비중 ${(d.frontier.n_sims || 0).toLocaleString()}회 · ★ Max Sharpe · ◆ Min Variance · ● 단일자산 · ◇ 프리셋 (무위험 ${_apct(d.rf, 0)}).`) + _netTail;
   renderRiskReturn(d);
   renderCorrelation(d);
   renderFrontier(d);
@@ -3416,12 +3417,15 @@ function renderFrontierStats(d) {
       `<div class="wbar-row"><span class="wbar-lab">${labelOf(k)}</span>` +
       `<span class="wbar-track"><span class="wbar-fill" style="width:${(w * 100).toFixed(0)}%;background:${colorOf(k) || color}"></span></span>` +
       `<span class="wbar-val">${(w * 100).toFixed(0)}%</span></div>`).join('');
+    const netLine = p.net
+      ? `<div class="fstat-net">💸 비용 반영(월 리밸): CAGR <b>${_apct(p.net.ret)}</b> · Sharpe <b>${_anum(p.net.sharpe)}</b> · MDD <b>${_apct(p.net.mdd)}</b></div>`
+      : '';
     return `<div class="fstat-card"><div class="fstat-h"><span class="swatch" style="background:${color}"></span>${label}</div>` +
       `<div class="fstat-grid">` +
       `<div><b>${_apct(p.ret)}</b><span>CAGR</span></div><div><b>${_apct(p.vol)}</b><span>변동성</span></div>` +
       `<div><b>${_anum(p.sharpe)}</b><span>Sharpe</span></div><div><b>${_anum(st.sortino)}</b><span>Sortino</span></div>` +
       `<div><b>${_apct(st.mdd)}</b><span>MDD</span></div><div><b>${_apct(st.total_return)}</b><span>총수익</span></div>` +
-      `</div><div class="wbars">${wbars}</div></div>`;
+      `</div>${netLine}<div class="wbars">${wbars}</div></div>`;
   }).join('');
 
   if (mk && mk.dates && mk.dates.length) {

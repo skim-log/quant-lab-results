@@ -607,6 +607,8 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
 .fstat-grid div { display: flex; flex-direction: column; }
 .fstat-grid b { font-size: 1rem; font-variant-numeric: tabular-nums; }
 .fstat-grid span { font-size: 0.68rem; color: var(--muted); }
+.fstat-net { font-size: 0.72rem; color: var(--muted); background: var(--surface); border-radius: 4px; padding: 0.25rem 0.4rem; margin-bottom: 0.4rem; }
+.fstat-net b { color: var(--chart-fg); font-variant-numeric: tabular-nums; }
 .wbars { display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.4rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
 .wbar-row { display: grid; grid-template-columns: 66px 1fr 34px; align-items: center; gap: 0.4rem; font-size: 0.72rem; }
 .wbar-lab { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
