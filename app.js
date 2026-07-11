@@ -918,6 +918,7 @@ async function loadDataset(file) {
     setStatus('');
     render();
     _maybeCryptoMaSensitivity(d);   // 코인 데이터셋이면 이평선 필터 민감도 섹션 표시(아니면 숨김)
+    maybeInlineDailyLens(file, state.nav.currency || 'krw');   // 정적/동적 배분이면 일별 낙폭 렌즈 표시(daily_risk.json)
     // 정적 프리셋: 리밸런싱 주기·밴드 셀렉터 노출(즉석 재계산). target_weights 있는 정적(allocation)만.
     if (d.kind === 'allocation' && d.target_weights && Object.keys(d.target_weights).length) {
       state.allocCtx = { file, weights: d.target_weights, defaultRebal: d.rebalance || 'quarterly',
@@ -1917,23 +1918,20 @@ function enterDailyRisk(d) {
   document.getElementById('meta').textContent = `🧪 실험실 · 일별 vs 월별 위험 렌즈 (정적 배분 ${state.drData.length}종)`;
   const sel = document.getElementById('lab4-preset');
   if (sel && sel.dataset.n !== String(state.drData.length)) {
-    sel.innerHTML = state.drData.map((p, i) => `<option value="${i}">${p.label}</option>`).join('');
+    sel.innerHTML = state.drData.map((p, i) =>
+      `<option value="${i}">${(p.cat === 'dynamic' ? '[동적] ' : '[정적] ') + p.label}</option>`).join('');
     sel.dataset.n = String(state.drData.length);
   }
   if (!state._drWired) { if (sel) sel.addEventListener('change', renderDailyRisk); state._drWired = true; }
   renderDailyRisk();
 }
-function renderDailyRisk() {
-  const presets = state.drData || []; if (!presets.length) return;
-  const sel = document.getElementById('lab4-preset');
-  const p = presets[sel ? (parseInt(sel.value, 10) || 0) : 0]; if (!p) return;
-  const cur = state.nav.currency || 'krw';
-  const b = p[cur] || p.krw || p.usd; if (!b) { setStatus('이 통화 데이터가 없습니다.', true); return; }
-  setStatus('');
+// 공유 렌더러 — 일별 위험 블록 b 를 주어진 DOM ids({verdict,chart,metrics})에 그린다.
+// 실험실 탭(lab4)과 전략 뷰 인라인 렌즈(idl)가 공용.
+function _renderDailyRiskInto(b, ids) {
   const num = v => (v == null || isNaN(v)) ? '—' : v.toFixed(1);
   const cd = b.windows.covid.d, cm = b.windows.covid.m;
   const ratio = (cd && cm && cm !== 0) ? Math.abs(cd / cm) : null;
-  const vb = document.getElementById('lab4-verdict');
+  const vb = document.getElementById(ids.verdict);
   if (vb) {
     vb.className = 'lab-verdict verdict-lose';
     vb.innerHTML = `코로나(2020) 낙폭 — 월별 <b>${num(cm)}%</b> vs 일별 <b>${num(cd)}%</b>` +
@@ -1947,12 +1945,11 @@ function renderDailyRisk() {
     { type: 'scatter', mode: 'lines', name: '월별 해상도 (축소)', x: b.dd_monthly.dates, y: b.dd_monthly.v,
       line: { width: 1.7, color: '#dc2626', shape: 'hv' }, hovertemplate: '%{x}<br>%{y:.1f}%<extra>월별</extra>' },
   ];
-  const layout = baseLayout('', '고점 대비 낙폭 (%)');
-  Plotly.react('lab4-chart', traces, layout, PLOTCFG);
+  Plotly.react(ids.chart, traces, baseLayout('', '고점 대비 낙폭 (%)'), PLOTCFG);
   const W = b.windows;
   const row = (lbl, dd, mm) => `<tr><td class="name">${lbl}</td><td>${num(dd)}%</td><td>${num(mm)}%</td>` +
     `<td>${(dd != null && mm != null) ? '+' + (mm - dd).toFixed(1) + '%p' : '—'}</td></tr>`;
-  document.getElementById('lab4-metrics').innerHTML =
+  document.getElementById(ids.metrics).innerHTML =
     '<thead><tr><th class="name">구간</th><th>일별 MDD</th><th>월별 MDD</th><th>월별 축소</th></tr></thead><tbody>' +
     row('전체기간', b.mdd_daily, b.mdd_monthly) +
     row('코로나 2020', W.covid.d, W.covid.m) +
@@ -1961,6 +1958,39 @@ function renderDailyRisk() {
     `<tr><td class="name">연변동성</td><td>${num(b.vol_daily)}%</td><td>${num(b.vol_monthly)}%</td><td class="muted">—</td></tr>` +
     `<tr><td class="name">Sharpe</td><td>${num(b.sharpe_daily)}</td><td>${num(b.sharpe_monthly)}</td><td class="muted">—</td></tr>` +
     '</tbody>';
+}
+function renderDailyRisk() {
+  const presets = state.drData || []; if (!presets.length) return;
+  const sel = document.getElementById('lab4-preset');
+  const p = presets[sel ? (parseInt(sel.value, 10) || 0) : 0]; if (!p) return;
+  const b = p[state.nav.currency || 'krw'] || p.krw || p.usd;
+  if (!b) { setStatus('이 통화 데이터가 없습니다.', true); return; }
+  setStatus('');
+  _renderDailyRiskInto(b, { verdict: 'lab4-verdict', chart: 'lab4-chart', metrics: 'lab4-metrics' });
+}
+
+// 전략 뷰 인라인 일별 렌즈 — 정적/동적 배분 뷰 하단에 daily_risk.json 블록을 자동 표시(있으면).
+async function _ensureDailyRisk() {
+  if (!state.dailyRiskCache) {
+    try { state.dailyRiskCache = await (await fetch('data/daily_risk.json', { cache: 'no-cache' })).json(); }
+    catch (e) { state.dailyRiskCache = { presets: [] }; }
+  }
+  return state.dailyRiskCache;
+}
+function maybeInlineDailyLens(file, cur) {
+  const sec = document.getElementById('inline-daily-lens'); if (!sec) return;
+  const m = /^multi_(allocation|dynamic)_(.+)_(krw|usd)\.json$/.exec(file || '');
+  if (!m) { sec.classList.add('hidden'); return; }
+  const cat = m[1] === 'allocation' ? 'static' : 'dynamic', key = m[2];
+  const token = state._navToken;
+  _ensureDailyRisk().then(data => {
+    if (token !== state._navToken) return;                 // 그새 다른 뷰로 이동 → 무시
+    const p = (data.presets || []).find(x => x.cat === cat && x.key === key);
+    const b = p && (p[cur] || p.krw || p.usd);
+    if (!b) { sec.classList.add('hidden'); return; }
+    sec.classList.remove('hidden');
+    _renderDailyRiskInto(b, { verdict: 'idl-verdict', chart: 'idl-chart', metrics: 'idl-metrics' });
+  }).catch(() => sec.classList.add('hidden'));
 }
 
 // ---------------------------------------------------------------------------

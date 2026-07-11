@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=16fab603" />
+  <link rel="stylesheet" href="style.css?v=3a8fd8e7" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -814,10 +814,10 @@
     <div id="lab_dailyrisk-section" class="hidden">
       <section class="panel">
         <h2>🧪 월말 데이터는 위험을 얼마나 감출까? <span class="muted">(일별 vs 월별 낙폭)</span></h2>
-        <p class="period-note">정적 배분을 <strong>일별로 정확 재구성</strong>해(일별 환율 반영), 같은 포트폴리오의 낙폭을 <strong>일별(정밀) vs 월말(축소)</strong> 해상도로 대비합니다. 월말 데이터가 코로나 같은 <strong>한 달 안의 급락</strong>을 얼마나 얕게 보이게 하는지 직접 확인하세요. <span class="muted">통화는 상단 토글(원화·달러 각각 정확 산출).</span></p>
-        <p class="period-note" style="border-left:3px solid var(--warn-fg);padding-left:.55rem;color:var(--warn-fg)">⚠️ 일별 위험자산(미국주식·금·은·미국채·인도·한국주식)은 일별로 정밀 재구성. 저변동 슬리브(현금·한국채)·중국은 근사(낙폭엔 무해). 신호는 월 1회(고정비중 분기 리밸).</p>
+        <p class="period-note">정적·동적 배분 전략을 <strong>일별로 재구성</strong>해(일별 환율 반영), 같은 포트폴리오의 낙폭을 <strong>일별(정밀) vs 월말(축소)</strong> 해상도로 대비합니다. 월말 데이터가 코로나 같은 <strong>한 달 안의 급락</strong>을 얼마나 얕게 보이게 하는지 직접 확인하세요. <span class="muted">통화는 상단 토글(원화·달러 각각 산출).</span></p>
+        <p class="period-note" style="border-left:3px solid var(--warn-fg);padding-left:.55rem;color:var(--warn-fg)">⚠️ 정적=일별 위험자산 정밀 재구성(저변동·중국은 근사). 동적=월별 보유 시퀀스 + 계기자산 ETF 일별(딥히스토리 프록시가 아닌 실 ETF라 헤드라인 월별과 소폭 차이 가능). 신호는 월 1회.</p>
         <div class="bt-controls">
-          <label>정적 배분 <select id="lab4-preset"></select></label>
+          <label>배분 전략 <select id="lab4-preset"></select></label>
         </div>
         <div id="lab4-verdict" class="lab-verdict"></div>
         <div id="lab4-chart" class="chart"></div>
@@ -981,6 +981,15 @@
       <div id="chart-monthly-hm" class="chart"></div>
     </section>
 
+    <!-- 인라인 일별 위험 렌즈 — 정적/동적 배분 뷰에서 daily_risk.json 이 커버하면 자동 표시(월별 헤드라인은 위에 그대로) -->
+    <section id="inline-daily-lens" class="panel hidden">
+      <h2>이 배분의 일별 낙폭 <span class="muted">(월말이 감춘 급락 · 정밀 재구성)</span></h2>
+      <p class="period-note">위 낙폭 차트는 <strong>월말 기준</strong>이라 한 달 안의 급락(코로나 등)을 얕게 보여줍니다. 아래는 같은 배분을 <strong>일별로 정확 재구성</strong>(일별 환율 반영)해 실제 장중 스트레스를 드러낸 것입니다. <span class="muted">헤드라인·순위는 비교 공정성을 위해 월별 유지 · 통화는 상단 토글.</span></p>
+      <div id="idl-verdict" class="lab-verdict"></div>
+      <div id="idl-chart" class="chart"></div>
+      <div class="table-wrap"><table id="idl-metrics" class="diag-table"></table></div>
+    </section>
+
     <!-- 글로벌 자산배분 전용 패널 (해당 데이터셋에만 표시) -->
     <section id="target-comp-section" class="panel hidden">
       <h2>목표 자산배분 구성</h2>
@@ -1100,11 +1109,11 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="alloc.js?v=16fab603" defer></script>
-  <script src="re_apt.js?v=16fab603" defer></script>
-  <script src="analytics-live.js?v=16fab603" defer></script>
-  <script src="leverage.js?v=16fab603" defer></script>
-  <script src="lab.js?v=16fab603" defer></script>
-  <script src="app.js?v=16fab603" defer></script>
+  <script src="alloc.js?v=3a8fd8e7" defer></script>
+  <script src="re_apt.js?v=3a8fd8e7" defer></script>
+  <script src="analytics-live.js?v=3a8fd8e7" defer></script>
+  <script src="leverage.js?v=3a8fd8e7" defer></script>
+  <script src="lab.js?v=3a8fd8e7" defer></script>
+  <script src="app.js?v=3a8fd8e7" defer></script>
 </body>
 </html>
