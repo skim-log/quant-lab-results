@@ -3549,6 +3549,7 @@ function enterPlayground(panel) {
   state.panel = panel;
   setHidden('playground', false);
   _crosslink('pg-crosslink', panel.link_analytics, '📊 이 ETF들의 상관·최적 조합 분석 보기 (정량분석) →');
+  setHidden('pg-pension', !panel.link_analytics);   // 연금·IRP 국내 대체 ETF 안내(미국 ETF 패널에서만)
   // 프리셋 버튼
   document.getElementById('pg-presets').innerHTML = Object.entries(panel.presets || {})
     .map(([k, p]) => `<button type="button" data-preset="${k}">${p.label}</button>`).join('');

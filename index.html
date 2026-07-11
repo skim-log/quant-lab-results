@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=f3dbf3f5" />
+  <link rel="stylesheet" href="style.css?v=1b19eeeb" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -885,6 +885,30 @@
     <section id="playground" class="panel hidden">
       <h2>사용자 입력 — 임의 비중 백테스트 <span class="muted">(브라우저에서 즉석 실행)</span></h2>
       <p id="pg-crosslink" class="period-note hidden"></p>
+      <details id="pg-pension" class="theory hidden">
+        <summary>🏦 연금저축·IRP에서 이 전략 구현하기 — 국내 상장 대체 ETF</summary>
+        <div class="theory-body">
+          <p>연금저축·IRP·DC는 <strong>국내 상장 ETF만</strong> 매수 가능(미국 상장 SPY·QQQ·SCHD 직접 매수 불가). 위 미국 ETF는 아래 <strong>같은 지수의 국내 ETF</strong>로 대체합니다. <span class="muted">여기서 분석은 이력이 긴 미국 원본으로, 실제 매수는 연금계좌에서 국내 대체로 — 2단 접근.</span></p>
+          <div class="table-wrap"><table class="diag-table">
+            <thead><tr><th>미국</th><th>국내 대체(대표·티커)</th><th>지수</th><th>환</th></tr></thead>
+            <tbody>
+              <tr><td><b>SCHD</b></td><td>TIGER 미국배당다우존스 <b>458730</b> · ACE 402970 · SOL 446720</td><td>✅ 동일(DJ US Dividend 100)</td><td>환노출</td></tr>
+              <tr><td>SPY/VOO</td><td>TIGER 미국S&amp;P500 360750 · KODEX 379800 · ACE 360200</td><td>✅ 동일 S&amp;P500</td><td>환노출</td></tr>
+              <tr><td>QQQ</td><td>TIGER 미국나스닥100 133690 · KODEX 379810 · ACE 367380</td><td>✅ 동일 나스닥100</td><td>환노출</td></tr>
+              <tr><td>VTI</td><td>(직접 대체 없음) → 미국S&amp;P500로 근사</td><td>△ 대형주만</td><td>환노출</td></tr>
+              <tr><td>XLK</td><td>KODEX 미국S&amp;P500테크놀로지 <b>463680</b></td><td>✅ 동일</td><td>환노출</td></tr>
+              <tr><td>XLV</td><td>KODEX 미국S&amp;P500헬스케어 <b>453640</b></td><td>✅ 동일</td><td>환노출</td></tr>
+              <tr><td>XLE</td><td>KODEX 미국S&amp;P500에너지(합성) 218420</td><td>✅ 동일 계열</td><td>환노출·합성</td></tr>
+              <tr><td>VNQ</td><td>TIGER 미국MSCI리츠(합성H) 182480 · KODEX 미국부동산리츠(H) 352560</td><td>≈ 유사(리츠)</td><td>환헤지</td></tr>
+              <tr><td>JEPI</td><td>KODEX 미국배당커버드콜액티브 441640 · TIGER 미국S&amp;P500타겟데일리커버드콜 482730</td><td>△ 커버드콜 인컴</td><td>환노출</td></tr>
+              <tr><td><b>GLD</b></td><td>ACE KRX<b>금현물</b> <b>411060</b> <span class="muted">(금선물 ETF는 연금 불가)</span></td><td>✅ 금(원화)</td><td>환노출</td></tr>
+              <tr><td>TLT</td><td>ACE 미국30년국채액티브 476760(환노출) · 453850(H) · KODEX 484790(H)</td><td>✅ 동일(20년+ 국채)</td><td>환노출/헤지</td></tr>
+            </tbody>
+          </table></div>
+          <p><strong>연금계좌 3대 주의</strong> — ① 금은 <strong>'현물'(KRX금현물)만</strong> 가능(선물 ETF 불가). ② <strong>IRP는 위험자산 70% 한도</strong>(안전자산 30% 의무 = 채권형 ETF 등) → 채권 포함 조합이 적합. 연금저축펀드는 한도 없음. ③ 미국 원본과 <strong>노출이 같은 건 환노출(UH)형</strong>(환헤지(H)형은 원/달러 효과 제거 → 성과 차이).</p>
+          <p class="muted">※ 티커·보수·상장일은 자주 바뀝니다 — 매수 전 운용사/네이버금융에서 재확인. 국내판은 상장이 최근이라 이력이 짧으니 백테스트는 이 미국 원본으로. 투자 자문 아님.</p>
+        </div>
+      </details>
       <div id="pg-presets" class="presets"></div>
       <div id="pg-weights" class="pg-weights"></div>
       <div class="pg-controls">
@@ -1111,11 +1135,11 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="alloc.js?v=f3dbf3f5" defer></script>
-  <script src="re_apt.js?v=f3dbf3f5" defer></script>
-  <script src="analytics-live.js?v=f3dbf3f5" defer></script>
-  <script src="leverage.js?v=f3dbf3f5" defer></script>
-  <script src="lab.js?v=f3dbf3f5" defer></script>
-  <script src="app.js?v=f3dbf3f5" defer></script>
+  <script src="alloc.js?v=1b19eeeb" defer></script>
+  <script src="re_apt.js?v=1b19eeeb" defer></script>
+  <script src="analytics-live.js?v=1b19eeeb" defer></script>
+  <script src="leverage.js?v=1b19eeeb" defer></script>
+  <script src="lab.js?v=1b19eeeb" defer></script>
+  <script src="app.js?v=1b19eeeb" defer></script>
 </body>
 </html>
