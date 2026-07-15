@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=ae58496a" />
+  <link rel="stylesheet" href="style.css?v=b4231887" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -110,6 +110,10 @@
 
     <div id="status" class="status"></div>
     <p id="strategy-desc" class="strategy-desc hidden"></p>
+    <details id="strategy-explainer" class="theory hidden">
+      <summary>📖 이 전략, 쉽게 풀어보기 (입문자용 자세한 설명)</summary>
+      <div class="theory-body"></div>
+    </details>
 
     <!-- 정량분석 전용 뷰 (kind=analytics 데이터셋에서만; body.analytics-mode 로 그 외 섹션 숨김) -->
     <div id="analytics-section">
@@ -1136,11 +1140,12 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="alloc.js?v=ae58496a" defer></script>
-  <script src="re_apt.js?v=ae58496a" defer></script>
-  <script src="analytics-live.js?v=ae58496a" defer></script>
-  <script src="leverage.js?v=ae58496a" defer></script>
-  <script src="lab.js?v=ae58496a" defer></script>
-  <script src="app.js?v=ae58496a" defer></script>
+  <script src="explain.js?v=b4231887" defer></script>
+  <script src="alloc.js?v=b4231887" defer></script>
+  <script src="re_apt.js?v=b4231887" defer></script>
+  <script src="analytics-live.js?v=b4231887" defer></script>
+  <script src="leverage.js?v=b4231887" defer></script>
+  <script src="lab.js?v=b4231887" defer></script>
+  <script src="app.js?v=b4231887" defer></script>
 </body>
 </html>

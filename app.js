@@ -213,6 +213,85 @@ function renderDescription() {
   el.classList.toggle('hidden', !txt);
 }
 
+// ── 초보자용 상세 설명 (explain.js 의 EXPLAIN 콘텐츠를 유형·개별·기능 3계층으로 조립) ──────
+// 백테스트 전략 뷰에서만 표시. 분석/도구 모드는 render()를 안 거치므로 CSS로도 숨김(style.css).
+const _EXPLAIN_SKIP = new Set(['analytics', 'compare', 'blend', 'paradise', 'sentiment',
+  'trend', 'reliability', 'reco', 'guide', 'lab_rotation', 'lab_rebal', 'lab_blend',
+  'lab_dailyrisk', 'molit_explore', 'molit_apt']);
+function _explainTypeKey(d, cat, sel) {
+  if (cat && cat.indexOf('re') === 0 && cat !== 'reco' && cat !== 'reliability') return 'realestate';
+  if (cat === 'static') return 'static';
+  if (cat === 'dynamic') return 'dynamic';
+  if (cat === 'crypto') return 'crypto';
+  if (cat === 'momentum') {
+    const lev = /HFEA|UPRO|TMF|TQQQ|3[xX]|LRS|레버리지/;
+    if ((d && d.kind === 'allocation') || sel.some(n => lev.test(n)) ||
+        (state.nav.group && lev.test(state.nav.group))) return 'leverage';
+    return 'momentum';
+  }
+  return null;
+}
+function _explainBaseId() {
+  try {
+    const e = resolveEntry(state.nav.category, state.nav.group, state.nav.currency);
+    let id = e && e.id ? e.id.replace(/_(krw|usd)$/, '') : '';
+    if (id.indexOf('re_molit_') === 0) {          // 도시 무관 접미사 키로 정규화
+      const m = id.match(/_(timing|select|explore|apt)$/);
+      id = 're_molit_' + (m ? m[1] : 'sale');
+    }
+    return id;
+  } catch (_) { return ''; }
+}
+function _explainMaWindow(sel) {
+  for (const n of sel) { const m = n.match(/(\d+)\s*일선/); if (m) return m[1]; }
+  return '200';
+}
+function _explainUsesMa(d, sel) {
+  if (d && (d.ma_on || d.ma_ab)) return true;   // 필터 ON 이거나 MA200 A/B 변형이 있는 배분(정적)
+  if (d && Array.isArray(d.series) && d.series.some(s => (s.name || '').endsWith(' · MA200'))) return true;
+  return sel.some(n => /(\d+)\s*일선|· MA200|LRS|추세추종/.test(n));
+}
+function _explainFill(sec, vars) {
+  if (!sec) return sec;
+  let title = sec.title, body = sec.body;
+  for (const k in vars) {
+    const re = new RegExp('\\{\\{' + k + '\\}\\}', 'g');
+    title = title.replace(re, vars[k]); body = body.replace(re, vars[k]);
+  }
+  return { title, body };
+}
+function _explainBlock(sec) { return sec ? `<h4 class="explain-h">${sec.title}</h4>${sec.body}` : ''; }
+function renderStrategyExplainer() {
+  const host = document.getElementById('strategy-explainer');
+  if (!host) return;
+  const EX = window.EXPLAIN;
+  const d = state.data, cat = state.nav.category;
+  if (!EX || !d || _EXPLAIN_SKIP.has(cat) ||
+      document.body.classList.contains('analytics-mode') ||
+      document.body.classList.contains('tools-mode'))
+    return setHidden('strategy-explainer', true);
+  const sel = checkedNames();
+  const parts = [];
+  const tk = _explainTypeKey(d, cat, sel);                 // A. 유형
+  if (tk && EX.type[tk]) parts.push(_explainBlock(EX.type[tk]));
+  let spec = null;                                          // B. 개별 (복수곡선은 선택 곡선 우선)
+  const multi = !d.kind && (cat === 'momentum' || cat === 'crypto');
+  if (multi && sel.length === 1) {
+    spec = EX.specific[sel[0]];
+    if (!spec) { const sd = (typeof stratDesc === 'function') ? stratDesc(sel[0]) : ''; if (sd) spec = { title: sel[0], body: `<p>${sd}</p>` }; }
+  }
+  if (!spec) spec = EX.specific[_explainBaseId()];
+  if (spec) parts.push(_explainBlock(spec));
+  if (_explainUsesMa(d, sel) && EX.feature.ma200)          // C. 기능
+    parts.push(_explainBlock(_explainFill(EX.feature.ma200, { MA_WINDOW: _explainMaWindow(sel) })));
+  if (d.kind === 'allocation' && d.band_ratio > 0 && EX.feature.band)
+    parts.push(_explainBlock(_explainFill(EX.feature.band, { BAND_PCT: Math.round(d.band_ratio * 100) })));
+  if (!parts.length) return setHidden('strategy-explainer', true);
+  host.querySelector('.theory-body').innerHTML = parts.join('');
+  host.open = false;
+  setHidden('strategy-explainer', false);
+}
+
 function render() {
   if (!state.data) return;
   if (!_hasCryptoMa(state.data)) setHidden('crypto-ma-section', true);   // 코인 아닌 뷰(블렌드·플레이그라운드 등)에선 숨김
@@ -251,6 +330,7 @@ function render() {
   document.getElementById('period-note').textContent = note;
   renderFreqNote();
   renderDescription();
+  renderStrategyExplainer();   // 초보자용 상세 설명(유형·개별·MA200/밴드) — 브리프 설명 아래 아코디언
 }
 
 // 데이터 주기(월봉/일봉) 안내 — 데이터셋 freq 필드 기반(수익곡선·낙폭 차트 아래 + 성과표 아래에 자동 표기).

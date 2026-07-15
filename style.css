@@ -514,6 +514,16 @@ body.tools-mode .ctl-period, body.tools-mode #strategies,
 body.tools-mode .ctl-check, body.tools-mode .ctl-cur,
 body.tools-mode #strategy-desc { display: none !important; }
 
+/* ---- 초보자용 상세 설명 아코디언 (#strategy-explainer) ---- */
+/* 분석/도구 뷰는 render() 를 안 거치므로 CSS 로 확실히 숨긴다(<section> 아닌 <details>라 자동숨김 대상 아님). */
+body.analytics-mode #strategy-explainer,
+body.tools-mode #strategy-explainer { display: none !important; }
+#strategy-explainer { margin: 0.2rem 0 0.7rem; }
+#strategy-explainer .explain-h { margin: 0.95rem 0 0.35rem; font-size: 0.98rem; }
+#strategy-explainer .explain-h:first-child { margin-top: 0.15rem; }
+#strategy-explainer .theory-body p { margin: 0.3rem 0; }
+#strategy-explainer .theory-body ul { margin: 0.3rem 0 0.5rem 1.1rem; }
+
 /* ---- 📖 초보자 가이드 (정적 콘텐츠) ---- */
 #guide-section > .panel:first-child { margin-top: 1.1rem; }
 #guide-section p { line-height: 1.6; margin: 0.4rem 0; color: var(--fg); font-size: 0.9rem; }
