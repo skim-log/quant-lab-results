@@ -662,6 +662,32 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
 .bt-controls select { padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--fg); }
 .bt-h { font-size: 0.92rem; font-weight: 600; margin: 0.9rem 0 0.3rem; }
 
+/* ---- 적립식(DCA) 시뮬레이터 ---- */
+.dca-controls input[type="number"] {
+  width: 8.5rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--card); color: var(--fg);
+  font-size: 0.95rem; font-weight: 600; text-align: right;
+}
+.dca-quick { display: inline-flex; gap: 0.3rem; flex-wrap: wrap; }
+.dca-quick button {
+  padding: 0.25rem 0.55rem; font-size: 0.78rem; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--muted);
+}
+.dca-quick button:hover { border-color: var(--accent); color: var(--fg); }
+.dca-picks { display: flex; align-items: flex-start; gap: 0.7rem; margin: 0.7rem 0 0.2rem; flex-wrap: wrap; }
+.dca-chips { display: flex; flex-wrap: wrap; gap: 0.55rem 0.9rem; flex: 1; }
+.dca-chip-group { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+.dca-chip-lab { font-size: 0.74rem; color: var(--muted); margin-right: 0.15rem; white-space: nowrap; }
+.dca-chip-group button {
+  padding: 0.28rem 0.6rem; font-size: 0.8rem; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface-2); color: var(--muted);
+}
+.dca-chip-group button:hover { border-color: var(--accent); color: var(--fg); }
+.dca-chip-group button.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+#dca-equity, #dca-sweep, #dca-sweep-risk, #dca-roll { min-height: 320px; }
+
 /* ---- 모바일 ---- */
 @media (max-width: 640px) {
   .rp-row { grid-template-columns: 92px 1fr 112px; }

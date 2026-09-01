@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=b4231887" />
+  <link rel="stylesheet" href="style.css?v=6549a879" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -721,6 +721,114 @@
       </section>
     </div>
 
+    <!-- 적립식(DCA) 시뮬레이터: 월 적립금·기간·종목을 직접 입력 → web/dca.js 가 브라우저에서 즉석 재계산 -->
+    <div id="dca-section" class="hidden">
+      <section class="panel">
+        <h2>적립식(DCA) 시뮬레이터 <span class="muted">(미국 ETF에 매달 일정액씩 넣었다면?)</span></h2>
+        <p class="period-note" id="dca-intro"></p>
+        <div class="bt-controls dca-controls">
+          <label>매달 적립
+            <input type="text" id="dca-amount" inputmode="numeric" value="1,000,000" />
+            <span id="dca-amount-unit">원</span>
+          </label>
+          <div id="dca-amount-quick" class="dca-quick"></div>
+          <span class="muted">통화</span>
+          <div id="dca-ccy" class="bt-toggle">
+            <button type="button" data-ccy="krw" class="active">원화 적립</button>
+            <button type="button" data-ccy="usd">달러 적립</button>
+          </div>
+          <span class="muted">데이터</span>
+          <div id="dca-source" class="bt-toggle">
+            <button type="button" data-source="mixed" class="active">합성 확장 포함</button>
+            <button type="button" data-source="real">실제 ETF만</button>
+          </div>
+        </div>
+        <div class="bt-controls lev-period-row">
+          <span class="muted">기간</span><div id="dca-period" class="bt-toggle"></div>
+          <label>시작 <input type="date" id="dca-start" /></label>
+          <label>종료 <input type="date" id="dca-end" /></label>
+          <span id="dca-range" class="muted"></span>
+        </div>
+        <div class="dca-picks">
+          <span class="muted">종목</span>
+          <div id="dca-assets" class="dca-chips"></div>
+        </div>
+        <div id="dca-cards" class="ext-cards"></div>
+        <p class="tool-disclaimer">⚠️ 과거 가격 기록일 뿐 미래 수익을 보장하지 않습니다. 매수 수수료·슬리피지만 반영하며 <strong>세금(양도소득세 22%)·환전 스프레드·배당세는 미반영</strong>입니다. 레버리지 ETF(QLD·TQQQ·SSO·UPRO·SOXL)는 −60~−90%대 낙폭을 동반합니다. 정보·교육용.</p>
+      </section>
+
+      <section class="panel">
+        <h2>평가액 vs 납입원금 <span class="muted">(계단선 = 내가 넣은 돈, 곡선 = 그 돈의 현재 가치)</span></h2>
+        <p class="period-note">적립식은 원금이 계속 늘어나므로 <strong>“얼마를 넣었는지”와 “지금 얼마인지”를 같이 봐야</strong> 합니다. 곡선이 계단선 아래에 있는 구간이 <strong>원금 손실 상태</strong>입니다.</p>
+        <div id="dca-equity" class="chart"></div>
+      </section>
+
+      <section class="panel">
+        <h2>종목 비교 <span class="muted">(같은 금액·같은 기간을 각 종목에 넣었다면)</span></h2>
+        <div class="table-wrap"><table id="dca-table" class="diag-table"></table></div>
+        <p class="period-note" id="dca-table-note"></p>
+      </section>
+
+      <section class="panel">
+        <h2>적립식 최적 레버리지 <span class="muted">(QQQ 1배 · QLD 2배 · TQQQ 3배 중 무엇이 맞나)</span></h2>
+        <p class="period-note">선택한 기간에 대해 레버리지를 <strong>0~5배로 연속 스윕</strong>해 적립식 최종 평가액이 최대가 되는 배수를 찾습니다. <strong>같은 기간 일시불(한 번에 넣기)의 최적 배수도 겹쳐</strong> 그립니다 — 적립식은 하락장에서 더 많은 주수를 담기 때문에 최적 배수가 대개 더 높게 나옵니다. 브라우저에서 즉석 재계산됩니다.</p>
+        <div class="bt-controls">
+          <span class="muted">기초</span><div id="dca-sweep-fam" class="bt-toggle"></div>
+          <span class="muted" style="margin-left:.4rem">세로축</span>
+          <div id="dca-sweep-metric" class="bt-toggle">
+            <button type="button" data-metric="final" class="active">최종 평가액</button>
+            <button type="button" data-metric="xirr">XIRR(연수익률)</button>
+          </div>
+        </div>
+        <div id="dca-sweep-cards" class="ext-cards"></div>
+        <div id="dca-sweep" class="chart"></div>
+        <div id="dca-sweep-risk" class="chart"></div>
+        <div id="dca-sweep-verdict" class="lab-verdict"></div>
+        <div class="lev-quick exp-quick">
+          <span class="muted">함께 보기:</span>
+          <button type="button" id="dca-goto-leverage">일시불 기준 최적 레버리지 분석 자세히 보기 →</button>
+        </div>
+        <p class="tool-disclaimer">⚠️ “적립식 최적 배수가 더 높다”는 결과를 <strong>고배수 권유로 읽으면 안 됩니다</strong>. 최적점 부근의 평가액 최대낙폭과 ‘원금 하회 최장 기간’을 위 카드에서 반드시 확인하세요 — 최적 배수가 높게 나오는 이유가 대개 <strong>초기 납입분이 −99%로 소각되고 후반 납입분만 살아남아서</strong>입니다.</p>
+      </section>
+
+      <section class="panel">
+        <h2>언제 시작했느냐 <span class="muted">(적립식이면 아무 때나 시작해도 될까?)</span></h2>
+        <p class="period-note">시작 월을 한 달씩 밀어가며 <strong>같은 기간(N년) 적립</strong>을 반복한 결과 분포입니다. 적립식은 투입 시점을 분산할 뿐 <strong>“어느 10년을 살았는가”라는 위험은 없애지 못합니다</strong>.</p>
+        <div class="bt-controls">
+          <span class="muted">적립 기간</span>
+          <div id="dca-roll-years" class="bt-toggle">
+            <button type="button" data-y="5">5년</button>
+            <button type="button" data-y="10" class="active">10년</button>
+            <button type="button" data-y="20">20년</button>
+          </div>
+          <span class="muted" style="margin-left:.4rem">종목</span>
+          <select id="dca-roll-asset"></select>
+        </div>
+        <div id="dca-roll-cards" class="ext-cards"></div>
+        <div id="dca-roll" class="chart"></div>
+      </section>
+
+      <section class="panel">
+        <h2>데이터 신뢰도 <span class="muted">(합성 확장 구간은 얼마나 믿을 수 있나)</span></h2>
+        <p class="period-note" id="dca-valid-note"></p>
+        <div class="table-wrap"><table id="dca-valid-table" class="diag-table"></table></div>
+        <details class="theory">
+          <summary>💡 적립식 이해하기 — DCA란? · 일시불과 비교 · 왜 XIRR인가 · 레버리지 적립식의 함정</summary>
+          <div class="theory-body">
+            <h4>① 적립식(DCA)이란</h4>
+            <p><strong>정액분할매수(Dollar-Cost Averaging)</strong>는 시점을 예측하지 않고 <strong>매달 같은 금액</strong>을 기계적으로 사는 방법입니다. 가격이 비쌀 땐 적은 주수를, 쌀 땐 많은 주수를 사게 되어 <strong>평균 매수단가가 기간 평균가보다 낮아지는</strong> 효과가 있습니다(위 비교표의 ‘평균단가 이득’ 열). 월급에서 자동이체하는 대부분의 개인 투자자가 실제로 하는 방식입니다.</p>
+            <h4>② 적립식 vs 일시불 — 무엇이 유리한가</h4>
+            <p>목돈이 이미 있다면 <strong>역사적으로는 일시불이 대체로 유리</strong>합니다. 시장이 오르는 날이 내리는 날보다 많아서, 늦게 넣을수록 상승분을 놓치기 때문입니다. 그런데도 적립식이 의미 있는 이유는 두 가지입니다 — <strong>(a)</strong> 대부분의 사람에게는 애초에 목돈이 없고 매달 버는 돈만 있습니다(선택지가 적립식뿐), <strong>(b)</strong> 고점에 전액을 넣는 최악의 경우를 피하게 해 <strong>끝까지 버틸 확률</strong>을 높입니다. 적립식은 수익률을 올리는 기법이 아니라 <strong>행동을 유지시키는 장치</strong>에 가깝습니다.</p>
+            <h4>③ 왜 CAGR이 아니라 XIRR로 봐야 하나</h4>
+            <p>적립식은 돈이 <strong>시점마다 나눠서</strong> 들어갑니다. 20년 전에 넣은 100만원과 지난달에 넣은 100만원은 일한 기간이 전혀 다릅니다. CAGR(연복리수익률)은 “처음에 한 번에 넣었다”를 가정하므로 적립식에 쓰면 <strong>수익률을 크게 부풀립니다</strong>. <strong>XIRR(금액가중수익률)</strong>은 각 납입액이 실제로 일한 기간을 반영해 계산한 <strong>내 돈의 진짜 연수익률</strong>입니다. 예를 들어 총 3.3억을 넣어 48억이 됐다면 “14.7배!”지만, 그 돈이 평균 14년쯤 일한 것이라 XIRR은 연 16%대입니다.</p>
+            <h4>④ 레버리지 적립식의 함정</h4>
+            <p>적립식은 하락장에서 싸게 담기 때문에, 백테스트를 돌리면 <strong>적립식의 최적 레버리지가 일시불보다 높게</strong> 나오는 경우가 많습니다. 하지만 그 숫자를 그대로 믿으면 안 됩니다. 3배 이상에서 최적점이 잡히는 이유는 대개 <strong>초기 몇 년치 납입분이 −99%로 사실상 소각되고, 폭락 이후에 넣은 돈만 살아남아 폭발</strong>했기 때문입니다. 그 경로를 실제로 걸으려면 <strong>평가액이 −90% 넘게 빠진 상태로 몇 년간 매달 새 돈을 계속 넣어야</strong> 합니다. 위 ‘원금 하회 최장 기간’이 6~7년으로 나오는 게 그 뜻입니다. 또한 레버리지 ETF는 <strong>일별 리밸런싱</strong>이라 횡보장에서 변동성 감쇠(volatility decay)로 기초자산×배수보다 못한 성과를 냅니다.</p>
+            <p class="muted">참고: 이 계산의 정본은 <code>src/strategies/us/dca_sim.py</code>이며 <code>web/dca.js</code>가 이를 미러합니다(배포 전 패리티 테스트로 두 결과가 같은지 강제 검증).</p>
+          </div>
+        </details>
+      </section>
+    </div>
+
     <!-- 🧪 실험실 · 전략 로테이션(메타 모멘텀): 클라이언트 즉석 재계산(web/lab.js) -->
     <div id="lab_rotation-section" class="hidden">
       <section class="panel">
@@ -1140,12 +1248,13 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="explain.js?v=b4231887" defer></script>
-  <script src="alloc.js?v=b4231887" defer></script>
-  <script src="re_apt.js?v=b4231887" defer></script>
-  <script src="analytics-live.js?v=b4231887" defer></script>
-  <script src="leverage.js?v=b4231887" defer></script>
-  <script src="lab.js?v=b4231887" defer></script>
-  <script src="app.js?v=b4231887" defer></script>
+  <script src="explain.js?v=6549a879" defer></script>
+  <script src="alloc.js?v=6549a879" defer></script>
+  <script src="re_apt.js?v=6549a879" defer></script>
+  <script src="analytics-live.js?v=6549a879" defer></script>
+  <script src="leverage.js?v=6549a879" defer></script>
+  <script src="dca.js?v=6549a879" defer></script>
+  <script src="lab.js?v=6549a879" defer></script>
+  <script src="app.js?v=6549a879" defer></script>
 </body>
 </html>

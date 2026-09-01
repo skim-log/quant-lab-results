@@ -1255,6 +1255,15 @@
     "file": "leverage.json"
   },
   {
+    "id": "us_dca",
+    "category": "dca",
+    "group": "적립식 시뮬레이터 (미국 ETF 월 적립)",
+    "currency": "",
+    "mode": "dca",
+    "label": "주식 · 적립식 시뮬레이터",
+    "file": "dca.json"
+  },
+  {
     "id": "lab_rotation",
     "category": "lab_rotation",
     "group": "전략 로테이션은 왜 잘 안 되는가",
