@@ -6,6 +6,7 @@
  *
  * 레버리지 일간수익:  r_L = L·u − (L−1)·rf/dpy − expense/dpy − L·spread/dpy   (하한 −0.99 클립)
  * 적립식:            매월 첫 거래일에 monthly(적립통화) 납입 → 그날 환율로 USD 환전 → 수수료 차감 후 매수
+ * 거치식(일시불):     같은 총액(monthly × 매수횟수)을 첫 매수일에 한 번에 → 같은 규약으로 보유(lumpSum)
  *
  * ※ 파이썬과 어긋나기 쉬운 지점(패리티 테스트가 지키는 계약):
  *   - 매수일 = '연*100+월'이 바뀌는 첫 인덱스 (월 1일이 휴장이면 그 달 첫 거래일)
@@ -129,6 +130,30 @@
     return { equity, cost, nav, units, flows, avgCost, buyPrices, offset };
   }
 
+  /**
+   * 거치식(일시불) — 적립식과 **같은 총액을 첫 매수일에 한 번에** 넣고 끝까지 보유.
+   * dca_sim.lump_simulate 미러. simulate 를 그대로 재사용하므로(매수 1회·금액=총액)
+   * 수수료·환전·가격 프록시 규약이 적립식과 완전히 같다 — 차이는 '언제 넣었는가'뿐.
+   * 반환 형태가 simulate 와 같아 dcaMetrics 를 그대로 태울 수 있다.
+   */
+  function lumpSum(ret, fx, buyIdx, monthly, opts) {
+    if (!buyIdx || !buyIdx.length) return simulate(ret, fx, [], 0, opts);
+    return simulate(ret, fx, [buyIdx[0]], monthly * buyIdx.length, opts);
+  }
+
+  /** 적립식 vs 거치식 대조 요약 — dca_sim.compare_dca_lump 미러. */
+  function compareDcaLump(dm, lm) {
+    if (!dm || !lm) return null;
+    return {
+      finalRatio: lm.final ? dm.final / lm.final : NaN,
+      finalGap: dm.final - lm.final,
+      xirrGap: dm.xirr - lm.xirr,
+      mddGap: dm.mdd - lm.mdd,
+      underGap: dm.underDays - lm.underDays,
+      dcaWins: dm.final > lm.final,
+    };
+  }
+
   /** 이분법 XIRR — dca_sim._xirr 미러(200회 고정, 365.25일 연율). */
   function xirr(dates, flows, finalIdx, finalVal) {
     const cfs = flows.map(f => [dates[f[0]], f[1]]);
@@ -207,12 +232,15 @@
     const rfSeg = new Float64Array(famRet.length);
     for (let i = 0; i < famRet.length; i++) rfSeg[i] = rf[lo + i] || 0;
     const buy = monthFirstIndices(dates, lo, hi);
-    const out = { L: [], dca_final: [], dca_xirr: [], dca_mdd: [], dca_multiple: [], dca_under_days: [], lump_cagr: [], lump_mdd: [], lump_final: [] };
+    const out = { L: [], dca_final: [], dca_xirr: [], dca_mdd: [], dca_multiple: [], dca_under_days: [], lump_cagr: [], lump_mdd: [], lump_final: [], lump_final_amt: [], lump_xirr: [], lump_mdd_amt: [], lump_under_days: [] };
     for (const L of lGrid) {
       const r = leverReturns(famRet, rfSeg, L, { dpy: opts.dpy || DPY, expense: opts.expense, spread: opts.spread });
       const sim = simulate(r, fx, buy, monthly, { fee, offset: lo, useFx });
       const m = dcaMetrics(dates, sim);
       const lm = lumpMetrics(r, dates, lo);
+      // 거치식(같은 총액을 첫 매수일에) — 적립식과 같은 축에 놓고 비교하기 위한 금액 기준선
+      const lsim = lumpSum(r, fx, buy, monthly, { fee, offset: lo, useFx });
+      const lmA = dcaMetrics(dates, lsim);
       out.L.push(L);
       out.dca_final.push(m ? m.final : null);
       out.dca_xirr.push(m ? m.xirr : null);
@@ -220,6 +248,10 @@
       out.dca_multiple.push(m ? m.multiple : null);
       out.dca_under_days.push(m ? m.underDays : null);
       out.lump_cagr.push(lm.cagr); out.lump_mdd.push(lm.mdd); out.lump_final.push(lm.navEnd);
+      out.lump_final_amt.push(lmA ? lmA.final : null);
+      out.lump_xirr.push(lmA ? lmA.xirr : null);
+      out.lump_mdd_amt.push(lmA ? lmA.mdd : null);
+      out.lump_under_days.push(lmA ? lmA.underDays : null);
     }
     return out;
   }
@@ -232,7 +264,10 @@
       return bi;
     };
     const pick = (i) => i < 0 ? null : {
-      L: sw.L[i], dca_mdd: sw.dca_mdd[i], dca_under_days: sw.dca_under_days[i], lump_mdd: sw.lump_mdd[i],
+      L: sw.L[i], idx: i, dca_mdd: sw.dca_mdd[i], dca_under_days: sw.dca_under_days[i], lump_mdd: sw.lump_mdd[i],
+      // 같은 L 의 거치식 값 — 화면이 격자를 다시 뒤지지 않고 마커를 찍을 수 있게
+      lump_final_amt: sw.lump_final_amt ? sw.lump_final_amt[i] : null,
+      lump_xirr: sw.lump_xirr ? sw.lump_xirr[i] : null,
     };
     const res = {};
     const f = am(sw.dca_final), x = am(sw.dca_xirr), c = am(sw.lump_cagr);
@@ -251,28 +286,90 @@
     return a;
   }
 
-  /** 롤링 N년 적립 결과 분포 — "언제 시작했느냐"의 민감도. 시작 월을 1개월씩 밀며 반복. */
+  /**
+   * 롤링 N년 적립 결과 분포 — "언제 시작했느냐"의 민감도. 시작 월을 opts.step 개월씩 밀며 반복.
+   * dca_sim.rolling_starts 미러. 각 창마다 **같은 총액을 창 첫달에 한 번에** 넣은 거치식도 같이
+   * 계산해 승패를 붙인다(opts.withLump !== false). 창마다 조건이 완전히 동일하므로
+   * '적립식이 거치식을 이긴 비율'이 시작 시점 운을 배제한 정직한 비교가 된다.
+   *
+   * monthly 는 비·승률을 바꾸지 않는다(둘 다 monthly 에 선형이라 약분) → 화면은 monthly=1 로
+   * 계산해 적립금 변경 시에도 캐시를 재사용한다.
+   */
   function rollingStarts(dates, ret, fx, lo, hi, years, monthly, opts) {
     opts = opts || {};
-    const fee = opts.fee || 0, useFx = opts.useFx !== false;
-    const starts = monthFirstIndices(dates, lo, hi);
+    const fee = opts.fee || 0, useFx = opts.useFx !== false, withLump = opts.withLump !== false;
+    const step = Math.max(1, opts.step || 1);
+    let starts = monthFirstIndices(dates, lo, hi);
+    if (step > 1) starts = starts.filter((_, i) => i % step === 0);
     const winDays = Math.round(years * 365.25);
     const out = [];
     for (const s of starts) {
-      const endMs = Date.parse(dates[s]) + winDays * 86400000;
+      const startMs = Date.parse(dates[s]);
+      const endMs = startMs + winDays * 86400000;
+      // 이력이 창을 다 못 채우면 제외 — 잘린 창(예: 4년짜리)이 '10년 적립' 분포에 섞이면
+      // 승률·분위수가 오염된다. 200거래일 하한도 유지.
+      if (Date.parse(dates[hi]) < endMs) continue;
       let e = s;
       while (e + 1 <= hi && Date.parse(dates[e + 1]) <= endMs) e++;
-      if (e - s < 200) continue;                       // 창이 못 차면 제외(끝부분)
+      if (e - s < 200) continue;
       const seg = ret.subarray(s - lo, e - lo + 1);
       const buy = monthFirstIndices(dates, s, e);
       const sim = simulate(seg, fx, buy, monthly, { fee, offset: s, useFx });
       const m = dcaMetrics(dates, sim);
-      if (m && isFinite(m.multiple)) out.push({ start: dates[s], end: dates[e], multiple: m.multiple, xirr: m.xirr, mdd: m.mdd, underDays: m.underDays });
+      if (!m || !isFinite(m.multiple)) continue;
+      const row = { start: dates[s], end: dates[e], multiple: m.multiple, xirr: m.xirr, mdd: m.mdd, underDays: m.underDays };
+      if (withLump) {
+        const lsim = lumpSum(seg, fx, buy, monthly, { fee, offset: s, useFx });
+        const lm = dcaMetrics(dates, lsim);
+        if (lm && isFinite(lm.multiple)) {
+          // 창 시작 +365일 시점의 거치식 원금 대비 손익 — 승패의 메커니즘(초기 하락)
+          const y1 = startMs + 365 * 86400000;
+          let k = 0;
+          while (s + k + 1 <= e && Date.parse(dates[s + k + 1]) <= y1) k++;
+          const total = lsim.cost[lsim.cost.length - 1];
+          row.lumpMultiple = lm.multiple; row.lumpXirr = lm.xirr; row.lumpMdd = lm.mdd;
+          row.lumpUnderDays = lm.underDays; row.dcaWins = m.final > lm.final;
+          row.finalRatio = lm.final ? m.final / lm.final : NaN;
+          row.firstYear = total ? lsim.equity[k] / total - 1 : NaN;
+        }
+      }
+      out.push(row);
     }
     return out;
   }
 
-  const API = { DPY, CLIP, sliceRange, monthFirstIndices, leverReturns, assetReturns, simulate, xirr, dcaMetrics, lumpMetrics, sweep, optimal, downsampleIdx, rollingStarts };
+  /** rollingStarts 요약 — dca_sim.sensitivity_summary 미러(분위수는 최근접 순위). */
+  function sensitivitySummary(rows, currentRatio) {
+    const rs = rows.filter(r => r.finalRatio != null && isFinite(r.finalRatio));
+    if (!rs.length) return null;
+    const ratios = rs.map(r => r.finalRatio).sort((a, b) => a - b);
+    const wins = rs.filter(r => r.dcaWins);
+    const q = p => ratios[Math.min(ratios.length - 1, Math.max(0, Math.round(p * (ratios.length - 1))))];
+    const fyWins = wins.filter(r => r.firstYear != null && isFinite(r.firstYear));
+    const out = {
+      n: rs.length, wins: wins.length, winRate: wins.length / rs.length,
+      ratioP10: q(0.10), ratioP50: q(0.50), ratioP90: q(0.90),
+      ratioMin: ratios[0], ratioMax: ratios[ratios.length - 1],
+      negFirstYearShare: fyWins.length ? fyWins.filter(r => r.firstYear < 0).length / fyWins.length : NaN,
+    };
+    // 상관은 ln(비)로 — 비 자체는 소각 종목에서 수만 배까지 벌어져 선형상관이 무의미해진다.
+    const pairs = rs.filter(r => r.firstYear != null && isFinite(r.firstYear) && r.finalRatio > 0)
+      .map(r => [r.firstYear, Math.log(r.finalRatio)]);
+    if (pairs.length >= 3) {
+      const mx = pairs.reduce((s, p) => s + p[0], 0) / pairs.length;
+      const my = pairs.reduce((s, p) => s + p[1], 0) / pairs.length;
+      let cov = 0, vx = 0, vy = 0;
+      for (const p of pairs) { const dx = p[0] - mx, dy = p[1] - my; cov += dx * dy; vx += dx * dx; vy += dy * dy; }
+      const sx = Math.sqrt(vx / pairs.length), sy = Math.sqrt(vy / pairs.length);
+      out.corrFirstYear = (sx > 1e-15 && sy > 1e-15) ? (cov / pairs.length) / (sx * sy) : NaN;
+    }
+    if (currentRatio != null && isFinite(currentRatio)) {
+      out.currentPct = ratios.filter(v => v < currentRatio).length / ratios.length;
+    }
+    return out;
+  }
+
+  const API = { DPY, CLIP, sliceRange, monthFirstIndices, leverReturns, assetReturns, simulate, lumpSum, compareDcaLump, xirr, dcaMetrics, lumpMetrics, sweep, optimal, downsampleIdx, rollingStarts, sensitivitySummary };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.DCASIM = API;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=6549a879" />
+  <link rel="stylesheet" href="style.css?v=0357c331" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -759,7 +759,14 @@
 
       <section class="panel">
         <h2>평가액 vs 납입원금 <span class="muted">(계단선 = 내가 넣은 돈, 곡선 = 그 돈의 현재 가치)</span></h2>
-        <p class="period-note">적립식은 원금이 계속 늘어나므로 <strong>“얼마를 넣었는지”와 “지금 얼마인지”를 같이 봐야</strong> 합니다. 곡선이 계단선 아래에 있는 구간이 <strong>원금 손실 상태</strong>입니다.</p>
+        <p class="period-note">적립식은 원금이 계속 늘어나므로 <strong>“얼마를 넣었는지”와 “지금 얼마인지”를 같이 봐야</strong> 합니다. 곡선이 계단선 아래에 있는 구간이 <strong>원금 손실 상태</strong>입니다. <strong>거치식(일시불)</strong>을 켜면 <strong>같은 총액을 첫 달에 한 번에</strong> 넣고 그대로 보유했을 때의 평가액이 점선으로 겹쳐집니다(같은 색 = 같은 종목).</p>
+        <div class="bt-controls">
+          <span class="muted">거치식(일시불) 곡선</span>
+          <div id="dca-lump" class="bt-toggle">
+            <button type="button" data-lump="on" class="active">함께 보기</button>
+            <button type="button" data-lump="off">숨기기</button>
+          </div>
+        </div>
         <div id="dca-equity" class="chart"></div>
       </section>
 
@@ -770,8 +777,22 @@
       </section>
 
       <section class="panel">
+        <h2>적립식 vs 거치식 <span class="muted">(매달 나눠 넣기 vs 처음에 한 번에 넣기)</span></h2>
+        <p class="period-note">같은 기간에 <strong>총액도 똑같이</strong> 넣되 <strong>넣는 시점만</strong> 다르게 한 비교입니다 — 거치식(일시불)은 적립식이 그 기간에 넣게 될 <strong>총 납입원금 전액을 첫 달에 한 번</strong> 넣고 끝까지 보유합니다. 수수료·환전 규약은 적립식과 동일해 차이는 오직 <strong>“언제 넣었는가”</strong>에서만 옵니다. <span class="muted">목돈이 이미 있는 사람의 선택지이며, 매달 버는 돈만 있다면 애초에 적립식뿐입니다.</span></p>
+        <div id="dca-cmp-cards" class="ext-cards"></div>
+        <div id="dca-cmp" class="chart"></div>
+        <div class="table-wrap"><table id="dca-cmp-table" class="diag-table"></table></div>
+        <div id="dca-cmp-verdict" class="lab-verdict"></div>
+        <h3 class="dca-sub">이 결론은 시작 시점 운인가? <span class="muted">(같은 길이 창을 이력 전체에서 굴려본 결과)</span></h3>
+        <p class="period-note">위 숫자는 <strong>시작 월 하나에 달린 추첨 한 번</strong>입니다. 그래서 선택한 기간의 <strong>길이는 그대로 둔 채 시작 월만 한 달씩 밀며</strong> 같은 비교를 이력 전체에서 반복합니다 — 적립식 승률, 성과비 분포, 그리고 <strong>지금 고른 구간이 그 분포의 어디쯤인지</strong>(백분위)를 함께 봅니다. <span class="muted">이력이 창을 다 못 채우는 끝부분 구간은 제외합니다(잘린 창이 섞이면 분포가 오염되므로).</span></p>
+        <div id="dca-sens-cards" class="ext-cards"></div>
+        <div id="dca-sens-verdict" class="lab-verdict"></div>
+        <p class="tool-disclaimer">⚠️ 거치식이 이겼다고 “목돈을 지금 전액 넣으라”는 뜻이 아닙니다 — 거치식은 <strong>시작 시점의 운을 전부 떠안는</strong> 방식이라, 아래 ‘언제 시작했느냐’ 패널의 <strong>시작 시점별 승패</strong>를 함께 보세요. 또한 이 비교는 <strong>목돈이 처음부터 있었다</strong>고 가정합니다(대부분의 월급 투자자에게는 없는 전제).</p>
+      </section>
+
+      <section class="panel">
         <h2>적립식 최적 레버리지 <span class="muted">(QQQ 1배 · QLD 2배 · TQQQ 3배 중 무엇이 맞나)</span></h2>
-        <p class="period-note">선택한 기간에 대해 레버리지를 <strong>0~5배로 연속 스윕</strong>해 적립식 최종 평가액이 최대가 되는 배수를 찾습니다. <strong>같은 기간 일시불(한 번에 넣기)의 최적 배수도 겹쳐</strong> 그립니다 — 적립식은 하락장에서 더 많은 주수를 담기 때문에 최적 배수가 대개 더 높게 나옵니다. 브라우저에서 즉석 재계산됩니다.</p>
+        <p class="period-note">선택한 기간에 대해 레버리지를 <strong>0~5배로 연속 스윕</strong>해 적립식 최종 평가액이 최대가 되는 배수를 찾습니다. <strong>같은 총액을 첫 달에 한 번에 넣은 거치식(일시불) 곡선을 같은 축에 겹쳐</strong> 그리므로, 배수마다 <strong>어느 쪽이 얼마나 앞섰는지</strong>를 금액 그대로 비교할 수 있습니다 — 적립식은 하락장에서 더 많은 주수를 담기 때문에 최적 배수가 대개 더 높게 나옵니다. 브라우저에서 즉석 재계산됩니다.</p>
         <div class="bt-controls">
           <span class="muted">기초</span><div id="dca-sweep-fam" class="bt-toggle"></div>
           <span class="muted" style="margin-left:.4rem">세로축</span>
@@ -793,7 +814,7 @@
 
       <section class="panel">
         <h2>언제 시작했느냐 <span class="muted">(적립식이면 아무 때나 시작해도 될까?)</span></h2>
-        <p class="period-note">시작 월을 한 달씩 밀어가며 <strong>같은 기간(N년) 적립</strong>을 반복한 결과 분포입니다. 적립식은 투입 시점을 분산할 뿐 <strong>“어느 10년을 살았는가”라는 위험은 없애지 못합니다</strong>.</p>
+        <p class="period-note">시작 월을 한 달씩 밀어가며 <strong>같은 기간(N년) 적립</strong>을 반복한 결과 분포입니다. 적립식은 투입 시점을 분산할 뿐 <strong>“어느 10년을 살았는가”라는 위험은 없애지 못합니다</strong>. 각 창마다 <strong>같은 총액을 그 창 첫 달에 한 번에 넣은 거치식</strong>도 같이 돌려 <strong>시작 시점별 승패</strong>를 함께 보여줍니다 — 적립식이 이기는 창은 대개 <strong>시작 직후 크게 빠진 구간</strong>입니다.</p>
         <div class="bt-controls">
           <span class="muted">적립 기간</span>
           <div id="dca-roll-years" class="bt-toggle">
@@ -806,6 +827,12 @@
         </div>
         <div id="dca-roll-cards" class="ext-cards"></div>
         <div id="dca-roll" class="chart"></div>
+        <h3 class="dca-sub">시작 월별 승패 <span class="muted">(적립식 ÷ 거치식 — 1.0 위면 적립식 승)</span></h3>
+        <p class="period-note">같은 창에서 <strong>적립식 최종 평가액이 거치식의 몇 배</strong>였는지입니다. 1.0 기준선 위로 올라간 구간이 적립식이 이긴 시작 월이고, 대체로 <strong>시작 직후 크게 빠진 시기</strong>에 몰려 있습니다.</p>
+        <div id="dca-roll-ratio" class="chart"></div>
+        <h3 class="dca-sub">적립 기간이 길어지면? <span class="muted">(창 길이별 승률 — 짧으면 적립식, 길면 거치식)</span></h3>
+        <div class="table-wrap"><table id="dca-roll-horizon" class="diag-table"></table></div>
+        <p class="period-note" id="dca-roll-horizon-note"></p>
       </section>
 
       <section class="panel">
@@ -817,8 +844,8 @@
           <div class="theory-body">
             <h4>① 적립식(DCA)이란</h4>
             <p><strong>정액분할매수(Dollar-Cost Averaging)</strong>는 시점을 예측하지 않고 <strong>매달 같은 금액</strong>을 기계적으로 사는 방법입니다. 가격이 비쌀 땐 적은 주수를, 쌀 땐 많은 주수를 사게 되어 <strong>평균 매수단가가 기간 평균가보다 낮아지는</strong> 효과가 있습니다(위 비교표의 ‘평균단가 이득’ 열). 월급에서 자동이체하는 대부분의 개인 투자자가 실제로 하는 방식입니다.</p>
-            <h4>② 적립식 vs 일시불 — 무엇이 유리한가</h4>
-            <p>목돈이 이미 있다면 <strong>역사적으로는 일시불이 대체로 유리</strong>합니다. 시장이 오르는 날이 내리는 날보다 많아서, 늦게 넣을수록 상승분을 놓치기 때문입니다. 그런데도 적립식이 의미 있는 이유는 두 가지입니다 — <strong>(a)</strong> 대부분의 사람에게는 애초에 목돈이 없고 매달 버는 돈만 있습니다(선택지가 적립식뿐), <strong>(b)</strong> 고점에 전액을 넣는 최악의 경우를 피하게 해 <strong>끝까지 버틸 확률</strong>을 높입니다. 적립식은 수익률을 올리는 기법이 아니라 <strong>행동을 유지시키는 장치</strong>에 가깝습니다.</p>
+            <h4>② 적립식 vs 거치식(일시불) — 무엇이 유리한가</h4>
+            <p>위 <strong>‘적립식 vs 거치식’ 패널</strong>이 이 질문을 선택한 기간·종목으로 직접 계산해 줍니다(같은 총액, 넣는 시점만 다르게). 목돈이 이미 있다면 <strong>역사적으로는 일시불이 대체로 유리</strong>합니다. 시장이 오르는 날이 내리는 날보다 많아서, 늦게 넣을수록 상승분을 놓치기 때문입니다. 그런데도 적립식이 의미 있는 이유는 두 가지입니다 — <strong>(a)</strong> 대부분의 사람에게는 애초에 목돈이 없고 매달 버는 돈만 있습니다(선택지가 적립식뿐), <strong>(b)</strong> 고점에 전액을 넣는 최악의 경우를 피하게 해 <strong>끝까지 버틸 확률</strong>을 높입니다. 적립식은 수익률을 올리는 기법이 아니라 <strong>행동을 유지시키는 장치</strong>에 가깝습니다.</p>
             <h4>③ 왜 CAGR이 아니라 XIRR로 봐야 하나</h4>
             <p>적립식은 돈이 <strong>시점마다 나눠서</strong> 들어갑니다. 20년 전에 넣은 100만원과 지난달에 넣은 100만원은 일한 기간이 전혀 다릅니다. CAGR(연복리수익률)은 “처음에 한 번에 넣었다”를 가정하므로 적립식에 쓰면 <strong>수익률을 크게 부풀립니다</strong>. <strong>XIRR(금액가중수익률)</strong>은 각 납입액이 실제로 일한 기간을 반영해 계산한 <strong>내 돈의 진짜 연수익률</strong>입니다. 예를 들어 총 3.3억을 넣어 48억이 됐다면 “14.7배!”지만, 그 돈이 평균 14년쯤 일한 것이라 XIRR은 연 16%대입니다.</p>
             <h4>④ 레버리지 적립식의 함정</h4>
@@ -1248,13 +1275,13 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="explain.js?v=6549a879" defer></script>
-  <script src="alloc.js?v=6549a879" defer></script>
-  <script src="re_apt.js?v=6549a879" defer></script>
-  <script src="analytics-live.js?v=6549a879" defer></script>
-  <script src="leverage.js?v=6549a879" defer></script>
-  <script src="dca.js?v=6549a879" defer></script>
-  <script src="lab.js?v=6549a879" defer></script>
-  <script src="app.js?v=6549a879" defer></script>
+  <script src="explain.js?v=0357c331" defer></script>
+  <script src="alloc.js?v=0357c331" defer></script>
+  <script src="re_apt.js?v=0357c331" defer></script>
+  <script src="analytics-live.js?v=0357c331" defer></script>
+  <script src="leverage.js?v=0357c331" defer></script>
+  <script src="dca.js?v=0357c331" defer></script>
+  <script src="lab.js?v=0357c331" defer></script>
+  <script src="app.js?v=0357c331" defer></script>
 </body>
 </html>

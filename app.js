@@ -2453,7 +2453,10 @@ function enterDca(d) {
     monthly: null, preset: df.preset || 'max', start: null, end: null,
     picks: new Set((df.assets || []).filter(k => d.assets.some(a => a.key === k))),
     sweepFam: df.sweep_family || Object.keys(d.families)[0], sweepMetric: 'final',
-    rollYears: 10, rollAsset: (df.assets || ['qqq'])[0],
+    rollYears: 10, rollAsset: (df.assets || ['qqq'])[0], lump: 'on',
+    // 계산 캐시 3종 — 키에 종목·소스·통화·구간이 다 들어가고, monthly 는 결과를 바꾸지 않거나
+    // (XIRR·MDD·성과비) 선형이라(평가액) 적립금을 바꿔도 전부 재사용된다.
+    sensCache: new Map(), rollCache: new Map(), sweepCache: new Map(), sensYears: null,
   };
   if (!state.dca.picks.size && d.assets.length) state.dca.picks.add(d.assets[0].key);
   document.getElementById('meta').textContent = `${d.title || '적립식 시뮬레이터'} · 생성일 ${d.generated_at || '-'}`;
@@ -2520,6 +2523,7 @@ function enterDca(d) {
       el.addEventListener('change', onDate);
       el.addEventListener('blur', () => _dcaSyncPeriodUI());
     });
+    document.getElementById('dca-lump').addEventListener('click', e => _dcaToggle(e, 'lump', _dcaRenderEquity));
     document.getElementById('dca-sweep-fam').addEventListener('click', e => _dcaToggle(e, 'sweepFam', _dcaRenderSweep, 'fam'));
     document.getElementById('dca-sweep-metric').addEventListener('click', e => _dcaToggle(e, 'sweepMetric', _dcaRenderSweep, 'metric'));
     document.getElementById('dca-roll-years').addEventListener('click', e => {
@@ -2577,6 +2581,19 @@ function _dcaMoneyTicks(lo, hi, ccy) {
     vals.push(v); txt.push(_moneyCompact(v, ccy));
   }
   return vals.length > 1 && vals.length <= 12 ? { tickvals: vals, ticktext: txt } : null;
+}
+/**
+ * 로그 금액축의 아래끝 — 거치식 곡선이 −99% 소각되면 평가액이 0.001원까지 내려가 축이 17데케이드로
+ * 벌어진다(만/억 눈금이 사라지고 적립식 곡선이 납작해진다). 사람이 구분 못 하는 금액(1원/1센트)
+ * 아래는 '사실상 0'이므로 축을 거기서 끊는다 — 잘린 값은 표와 위험곡선에 그대로 남는다.
+ */
+function _dcaLogRange(vals, ccy) {
+  let lo = Infinity, hi = -Infinity;
+  vals.forEach(v => { if (v > 0 && isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } });
+  if (!isFinite(lo) || !isFinite(hi) || hi <= 0) return null;
+  lo = Math.max(lo, ccy === 'usd' ? 0.01 : 1);
+  if (lo >= hi) lo = hi / 10;
+  return { lo, hi };
 }
 function _dcaBuildAssets() {
   const d = state.dca.d, groups = [];
@@ -2660,7 +2677,11 @@ function _dcaRange() {
   const d = state.dca.d;
   return DCASIM.sliceRange(d.dates, state.dca.start, state.dca.end);
 }
-/** 종목 하나의 시뮬 결과 {asset, sim, m}. 기간이 그 종목 가용구간과 안 겹치면 null. */
+/**
+ * 종목 하나의 시뮬 결과 {asset, sim, m, lump, lm, cmp}. 기간이 그 종목 가용구간과 안 겹치면 null.
+ * 적립식과 **같은 총액을 첫 매수일에 한 번에** 넣은 거치식(일시불)도 같이 계산한다 —
+ * 매수일·수수료·환전 규약이 완전히 같아 두 결과의 차이는 '언제 넣었는가'뿐이다.
+ */
 function _dcaRun(a, rng, monthly) {
   const d = state.dca.d;
   const lo = Math.max(rng[0], _dcaStartIdx(a)), hi = rng[1];
@@ -2668,9 +2689,13 @@ function _dcaRun(a, rng, monthly) {
   const useFx = state.dca.ccy === 'krw';
   const ar = DCASIM.assetReturns(d, a, lo, hi, state.dca.source);
   const buy = DCASIM.monthFirstIndices(d.dates, lo, hi);
-  const sim = DCASIM.simulate(ar.ret, d.fx, buy, monthly, { fee: d.fee, offset: lo, useFx });
+  const opt = { fee: d.fee, offset: lo, useFx };
+  const sim = DCASIM.simulate(ar.ret, d.fx, buy, monthly, opt);
   const m = DCASIM.dcaMetrics(d.dates, sim);
-  return m ? { asset: a, sim, m, lo, hi } : null;
+  if (!m) return null;
+  const lump = DCASIM.lumpSum(ar.ret, d.fx, buy, monthly, opt);
+  const lm = DCASIM.dcaMetrics(d.dates, lump);
+  return { asset: a, sim, m, lump, lm, cmp: DCASIM.compareDcaLump(m, lm), lo, hi };
 }
 
 function _dcaFull() {
@@ -2683,13 +2708,43 @@ function _dcaFull() {
   _dcaRenderCards();
   _dcaRenderEquity();
   _dcaRenderTable();
+  _dcaRenderValid();
+  // 아래 세 패널(비교·민감도·레버리지 스윕·롤링)은 창을 수백 번 굴리거나 L 격자를 51번 도는
+  // 무거운 계산이다. 첫 페인트 뒤로 미뤄 컨트롤 조작이 즉시 반응하게 하고, 연속 조작 시에는
+  // 마지막 것만 계산한다(적립금 입력처럼 빠르게 바뀌는 값에서 특히 체감된다).
+  clearTimeout(state.dca._heavyT);
+  // 캐시가 비어 있으면(종목·기간·통화·데이터소스를 바꾼 직후) 창을 수백 번 굴리느라 1초 가까이
+  // 걸린다 — 그동안 이전 값이 그대로 남아 있으면 오해를 부르므로 계산 중임을 밝힌다.
+  if (!state.dca.sensCache.size) {
+    document.getElementById('dca-sens-cards').innerHTML =
+      _dcaCard('계산 중…', '—', '같은 길이 창을 이력 전체에서 굴리고 있습니다');
+    document.getElementById('dca-sens-verdict').textContent = '';
+  }
+  state.dca._heavyT = setTimeout(_dcaHeavy, 0);
+}
+
+/** 무거운 패널 묶음 — _dcaFull 이 한 프레임 뒤로 미뤄 호출한다. */
+function _dcaHeavy() {
+  if (!state.dca || !state.dca.runs) return;
+  _dcaRenderSensitivity();      // 창 길이(state.dca.sensYears)를 먼저 정한다 — 비교표가 그걸 쓴다
+  _dcaRenderCompare();
   _dcaRenderSweep();
   _dcaRenderRoll();
-  _dcaRenderValid();
 }
 
 function _dcaCcy() { return state.dca.ccy === 'usd' ? 'usd' : 'krw'; }
 function _dcaMoney(v) { return _moneyCompact(v, _dcaCcy()); }
+/**
+ * 적립식÷거치식 성과비를 읽을 수 있게 표기.
+ * 레버리지 종목은 거치식이 −99% 소각되기도 해 비가 수백~수만이 된다 — 그때 '+2303437%' 는
+ * 숫자가 아니라 소음이라, 5배(±400%)를 넘으면 배수 표기로 바꾼다.
+ */
+function _dcaVs(ratio) {
+  if (!isFinite(ratio)) return '—';
+  if (ratio >= 5) return `${ratio >= 100 ? Math.round(ratio) : ratio.toFixed(1)}배`;
+  if (ratio > 0 && ratio <= 0.2) return `1/${(1 / ratio) >= 100 ? Math.round(1 / ratio) : (1 / ratio).toFixed(1)}배`;
+  return fmtPct(ratio - 1);
+}
 function _dcaCard(l, v, s, cls) {
   return `<div class="ext-card${cls ? ' ' + cls : ''}"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s || ''}</div></div>`;
 }
@@ -2705,7 +2760,9 @@ function _dcaRenderCards() {
     _dcaCard('총 납입원금', _dcaMoney(m.totalCost), `${m.months}개월 × ${_dcaMoney(state.dca.monthly)}`) +
     _dcaCard(`최고 성과 · ${tick}`, _dcaMoney(m.final), `원금의 ${m.multiple.toFixed(1)}배`) +
     _dcaCard(`XIRR · ${tick}`, fmtPct(m.xirr), '금액가중 = 적립식의 진짜 수익률') +
-    _dcaCard('평가액 최대낙폭', fmtPct(m.mdd), `${tick} 기준`) +
+    (best.lm ? _dcaCard(`거치식이었다면 · ${tick}`, _dcaMoney(best.lm.final),
+      `같은 총액을 첫 달에 → 적립식의 ${_dcaVs(1 / best.cmp.finalRatio)}`) : '') +
+    _dcaCard('평가액 최대낙폭', fmtPct(m.mdd), `${tick} 기준` + (best.lm ? ` · 거치식 ${fmtPct(best.lm.mdd)}` : '')) +
     _dcaCard('최대 미실현손실', _dcaMoney(m.maxLoss), '평가액 − 납입원금 최솟값') +
     _dcaCard('원금 하회 최장', `${(m.underDays / 252).toFixed(1)}년`, `${m.underDays}거래일 연속 손실 상태`) +
     _dcaCard('낙폭이 가장 컸던 종목', _dcaTicker(worst.asset), `평가액 MDD ${fmtPct(worst.m.mdd)}`);
@@ -2724,6 +2781,7 @@ function _dcaRenderEquity() {
     x: rIdx.map(i => d.dates[ref.lo + i]), y: rIdx.map(i => ref.sim.cost[i]),
     line: { width: 1.6, color: DCA_COL.cost, dash: 'dot' }, hovertemplate: hov + '<extra>납입 누계</extra>',
   });
+  const showLump = state.dca.lump !== 'off';
   runs.forEach((r, k) => {
     const idx = DCASIM.downsampleIdx(r.sim.equity.length, 1200);
     traces.push({
@@ -2732,15 +2790,27 @@ function _dcaRenderEquity() {
       line: { width: 1.7, color: PALETTE[k % PALETTE.length] },
       hovertemplate: hov + '<extra>' + r.asset.label + '</extra>',
     });
+    // 거치식(같은 총액을 첫 달에 한 번에) — 같은 색 점선. 시작부터 전액이 노출되므로
+    // 초반엔 늘 위에 있고, 폭락 구간에서 적립식보다 훨씬 깊게 파인다.
+    if (showLump && r.lump) traces.push({
+      type: 'scatter', mode: 'lines', name: r.asset.label + ' 거치식',
+      x: idx.map(i => d.dates[r.lo + i]), y: idx.map(i => r.lump.equity[i]),
+      line: { width: 1.2, color: PALETTE[k % PALETTE.length], dash: 'dash' }, opacity: 0.75,
+      hovertemplate: hov + '<extra>' + r.asset.label + ' 거치식</extra>',
+    });
   });
-  const layout = baseLayout(`적립식 평가액 vs 납입원금 — 매달 ${_dcaMoney(state.dca.monthly)}`,
+  const layout = baseLayout(showLump
+    ? `평가액 vs 납입원금 — 매달 ${_dcaMoney(state.dca.monthly)} (실선=적립식 · 점선=거치식)`
+    : `적립식 평가액 vs 납입원금 — 매달 ${_dcaMoney(state.dca.monthly)}`,
     ccy === 'usd' ? '평가액 ($, 로그축)' : '평가액 (원, 로그축)');
   // 1x(수배)와 3x(수백배)를 한 축에 놓으려면 로그가 필수 — 선형이면 1x 곡선이 바닥에 붙어 안 보인다.
   layout.yaxis.type = 'log';
-  let lo = Infinity, hi = -Infinity;
-  traces.forEach(t => t.y.forEach(v => { if (v > 0) { if (v < lo) lo = v; if (v > hi) hi = v; } }));
-  const tk = _dcaMoneyTicks(lo, hi, ccy);
-  if (tk) Object.assign(layout.yaxis, tk);   // Plotly 기본 SI 접두사(1G) → 만/억/조 표기
+  const rg = _dcaLogRange([].concat(...traces.map(t => t.y)), ccy);
+  if (rg) {
+    layout.yaxis.range = [Math.log10(rg.lo), Math.log10(rg.hi * 1.3)];
+    const tk = _dcaMoneyTicks(rg.lo, rg.hi, ccy);
+    if (tk) Object.assign(layout.yaxis, tk);   // Plotly 기본 SI 접두사(1G) → 만/억/조 표기
+  }
   Plotly.react('dca-equity', traces, layout, PLOTCFG);
 }
 
@@ -2749,22 +2819,253 @@ function _dcaRenderTable() {
   const t = document.getElementById('dca-table');
   if (!runs.length) { t.innerHTML = ''; return; }
   const head = ['종목', '기간', '납입원금', '최종 평가액', '배수', 'XIRR', '평가 MDD',
-    '최대 미실현손실', '원금하회 최장', '평균단가 이득', '최근5년 비중'];
+    '최대 미실현손실', '원금하회 최장', '평균단가 이득', '최근5년 비중', '거치식 대비'];
   const sorted = [...runs].sort((a, b) => b.m.final - a.m.final);
   const rows = sorted.map((r, k) => {
     const m = r.m, sw = `<span class="swatch" style="background:${PALETTE[runs.indexOf(r) % PALETTE.length]}"></span>`;
-    return `<tr><td>${sw}${r.asset.label}</td><td class="muted">${m.start}~${m.end}</td>` +
-      `<td>${_dcaMoney(m.totalCost)}</td><td><strong>${_dcaMoney(m.final)}</strong></td>` +
-      `<td>${m.multiple.toFixed(2)}배</td><td>${fmtPct(m.xirr)}</td><td>${fmtPct(m.mdd)}</td>` +
-      `<td>${_dcaMoney(m.maxLoss)}</td><td>${(m.underDays / 252).toFixed(1)}년</td>` +
-      `<td>${fmtPct(m.cheapness)}</td><td>${fmtPct(m.last5yShare)}</td></tr>`;
+    // 거치식 대비 = 적립식 최종 ÷ 거치식 최종 − 1 (양수면 나눠 넣은 쪽이 이겼다)
+    const cells = [
+      `<td data-label="${head[0]}">${sw}${r.asset.label}</td>`,
+      `<td class="muted" data-label="${head[1]}">${m.start}~${m.end}</td>`,
+      `<td data-label="${head[2]}">${_dcaMoney(m.totalCost)}</td>`,
+      `<td data-label="${head[3]}"><strong>${_dcaMoney(m.final)}</strong></td>`,
+      `<td data-label="${head[4]}">${m.multiple.toFixed(2)}배</td>`,
+      `<td data-label="${head[5]}">${fmtPct(m.xirr)}</td>`,
+      `<td data-label="${head[6]}">${fmtPct(m.mdd)}</td>`,
+      `<td data-label="${head[7]}">${_dcaMoney(m.maxLoss)}</td>`,
+      `<td data-label="${head[8]}">${(m.underDays / 252).toFixed(1)}년</td>`,
+      `<td data-label="${head[9]}">${fmtPct(m.cheapness)}</td>`,
+      `<td data-label="${head[10]}">${fmtPct(m.last5yShare)}</td>`,
+      r.cmp ? `<td class="${r.cmp.dcaWins ? 'pos' : 'neg'}" data-label="${head[11]}">${_dcaVs(r.cmp.finalRatio)}</td>`
+        : `<td data-label="${head[11]}">—</td>`,
+    ];
+    return `<tr>${cells.join('')}</tr>`;
   }).join('');
   t.innerHTML = `<thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>`;
   document.getElementById('dca-table-note').innerHTML =
     '<strong>배수</strong>는 총 납입원금 대비 몇 배인지이고, <strong>XIRR</strong>은 각 납입액이 실제로 일한 기간을 반영한 연수익률입니다 — ' +
     '적립식에서 배수가 커 보이는 건 오래 넣었기 때문이지 수익률이 그만큼 높아서가 아닙니다. ' +
     '<strong>평균단가 이득</strong>은 (매수일 단순평균가 ÷ 실제 평균매수단가 − 1)로, 양수면 분할매수 덕에 평균보다 싸게 담았다는 뜻입니다. ' +
-    '<strong>최근5년 비중</strong>은 총 납입원금 중 최근 5년치가 차지하는 비율 — 이게 클수록 결과가 최근 시황에 좌우됩니다.';
+    '<strong>최근5년 비중</strong>은 총 납입원금 중 최근 5년치가 차지하는 비율 — 이게 클수록 결과가 최근 시황에 좌우됩니다. ' +
+    '<strong>거치식 대비</strong>는 같은 총액을 첫 달에 한 번에 넣었을 때와의 최종 평가액 차이(%)로, 음수면 그 기간엔 거치식이 유리했다는 뜻입니다 — 아래 패널에서 자세히 봅니다.';
+}
+
+// ── 시작 시점 민감도 ─────────────────────────────────────────────────────────
+// "적립식이 거치식을 이겼다"는 (시작, 종료) 한 쌍의 결과 = 추첨 한 번이다. 선택 기간의 **길이만**
+// 유지하고 시작 월을 밀며 같은 비교를 이력 전체에서 반복해 승률·분포·현재 구간의 백분위를 낸다.
+/** 선택 기간의 길이(년) = 민감도 창 길이. */
+function _dcaWinYears() {
+  const s = Date.parse(state.dca.start), e = Date.parse(state.dca.end);
+  return (e - s) / 86400000 / 365.25;
+}
+/**
+ * 한 종목의 롤링 창 표본. monthly 는 성과비·승률을 바꾸지 않으므로(둘 다 선형) **1 로 고정** —
+ * 덕분에 적립금을 바꿔도 캐시가 그대로 재사용된다. 창이 200개를 넘으면 시작 월을 건너뛴다
+ * (분포 추정에는 충분하고, 컨트롤을 만질 때마다 수백 ms 를 쓰지 않기 위해).
+ * 범위는 **그 종목의 가용 이력 전체** — 선택 구간 안에서만 굴리면 표본이 몇 개 안 남는다.
+ */
+function _dcaSens(a, years) {
+  if (!(years > 0.5)) return null;
+  const d = state.dca.d;
+  const lo = _dcaStartIdx(a), hi = d.dates.length - 1;
+  const key = `${a.key}|${state.dca.source}|${state.dca.ccy}|${years.toFixed(4)}`;
+  if (state.dca.sensCache.has(key)) return state.dca.sensCache.get(key);
+  const usable = DCASIM.monthFirstIndices(d.dates, lo, hi).length - Math.round(years * 12);
+  let res = null;
+  if (usable >= 8) {                       // 이보다 적으면 '분포'라고 부를 수 없다
+    // 창이 겹치면 표본끼리 강하게 자기상관이라 개수를 늘려도 정보가 거의 안 늘어난다.
+    // 120개면 승률 표준오차가 ±4.5%p 수준이고, 대신 컨트롤 조작이 즉각 반응한다.
+    const step = usable > 120 ? Math.ceil(usable / 120) : 1;
+    const ar = DCASIM.assetReturns(d, a, lo, hi, state.dca.source);
+    const rows = DCASIM.rollingStarts(d.dates, ar.ret, d.fx, lo, hi, years, 1,
+      { fee: d.fee, useFx: state.dca.ccy === 'krw', step });
+    if (rows.length >= 8) res = { rows, step, years, from: d.dates[lo], to: d.dates[hi] };
+  }
+  return _dcaCachePut(state.dca.sensCache, key, res);
+}
+/**
+ * 민감도 창 길이 — 선택 기간의 길이를 우선하되, 이력이 짧아 표본을 못 만들면(예: '최장' 프리셋은
+ * 창 길이 = 이력 길이라 창이 하나뿐) 더 짧은 표준 창으로 내려간다. 내려갔다는 사실은 화면에 밝힌다.
+ */
+const DCA_SENS_LADDER = [30, 25, 20, 15, 10, 7, 5, 3];
+function _dcaSensYears(a) {
+  const want = _dcaWinYears();
+  if (_dcaSens(a, want)) return { years: want, fallback: false };
+  for (const y of DCA_SENS_LADDER) {
+    if (y < want && _dcaSens(a, y)) return { years: y, fallback: true };
+  }
+  return null;
+}
+/** 캐시된 표본 + 현재 구간의 성과비 → 요약(백분위 포함). currentRatio 는 캐시하지 않는다. */
+function _dcaSensSummary(a, years, currentRatio) {
+  const s = _dcaSens(a, years);
+  if (!s) return null;
+  const sum = DCASIM.sensitivitySummary(s.rows, currentRatio);
+  return sum ? Object.assign({}, sum, { step: s.step, years: s.years, from: s.from, to: s.to }) : null;
+}
+function _dcaStepLabel(step) { return step <= 1 ? '매월' : `${step}개월마다`; }
+/**
+ * 캐시 저장 — 날짜를 드래그하면 키(창 길이)가 계속 새로 생겨 무한히 쌓일 수 있어 상한을 둔다.
+ * 넘으면 통째로 비운다(LRU 를 쓸 만큼 재계산이 비싸지 않고, 최근 키는 곧 다시 채워진다).
+ */
+function _dcaCachePut(map, key, val) {
+  if (map.size > 60) map.clear();
+  map.set(key, val);
+  return val;
+}
+
+function _dcaRenderSensitivity() {
+  const runs = (state.dca.runs || []).filter(r => r.cmp);
+  const cards = document.getElementById('dca-sens-cards');
+  const verdict = document.getElementById('dca-sens-verdict');
+  if (!runs.length) { cards.innerHTML = ''; verdict.textContent = ''; return; }
+  const best = runs.reduce((a, b) => (b.m.final > a.m.final ? b : a));
+  const tick = _dcaTicker(best.asset);
+  const pick = _dcaSensYears(best.asset);
+  const s = pick ? _dcaSensSummary(best.asset, pick.years, best.cmp.finalRatio) : null;
+  if (!s) {
+    cards.innerHTML = _dcaCard('표본 부족', '—',
+      `${tick} 이력(${state.dca.d.dates[_dcaStartIdx(best.asset)]}~)으로는 창을 8개 이상 만들 수 없습니다 — 기간을 줄이거나 이력이 긴 종목을 고르세요.`);
+    verdict.textContent = '';
+    state.dca.sensYears = null;
+    return;
+  }
+  const years = pick.years;
+  state.dca.sensYears = years;                  // 비교표의 승률 열이 같은 창 길이를 쓰도록
+  const top = (1 - s.currentPct) * 100;         // 적립식에 유리한 쪽에서 몇 % 안에 드는가
+  const fb = pick.fallback
+    ? ` <span class="muted">(선택 기간 ${_dcaWinYears().toFixed(1)}년은 이력이 짧아 ${years}년 창으로 대체)</span>` : '';
+  cards.innerHTML =
+    _dcaCard(`적립식 승률 · ${tick}`, `${(s.winRate * 100).toFixed(1)}%`,
+      `${years.toFixed(1)}년 창 ${s.n}개 중 ${s.wins}개 · ${_dcaStepLabel(s.step)} 시작 · ${s.from}~${s.to}`) +
+    _dcaCard('거치식 대비 (p10~p90)', `${_dcaVs(s.ratioP10)} ~ ${_dcaVs(s.ratioP90)}`,
+      `중앙값 ${_dcaVs(s.ratioP50)} · 최악 ${_dcaVs(s.ratioMin)} · 최고 ${_dcaVs(s.ratioMax)}`) +
+    _dcaCard('지금 고른 구간의 위치', `상위 ${top.toFixed(0)}%`,
+      `이 구간은 거치식 대비 ${_dcaVs(best.cmp.finalRatio)} — 창 ${s.n}개 중 적립식에 유리한 쪽 기준`) +
+    (isFinite(s.corrFirstYear) ? _dcaCard('초기 하락과의 관계', s.corrFirstYear.toFixed(2),
+      '시작 후 1년 손익과 거치식 대비 성과의 상관 — 음수면 “초기 하락이 클수록 적립식이 유리”'
+      + (isFinite(s.negFirstYearShare) ? ` · 적립식이 이긴 창의 ${(s.negFirstYearShare * 100).toFixed(0)}%는 첫 해가 마이너스` : '')) : '');
+
+  const wonHere = best.cmp.dcaWins;
+  verdict.innerHTML = `📌 위 구간에서는 <strong>${wonHere ? '적립식' : '거치식'}이 이겼지만</strong>, ` +
+    `같은 길이(${years.toFixed(1)}년) 창 <strong>${s.n}개</strong>${fb}로 넓혀 보면 적립식이 이긴 건 ` +
+    `<strong>${(s.winRate * 100).toFixed(1)}%</strong>이고 거치식 대비 중앙값은 <strong>${_dcaVs(s.ratioP50)}</strong>입니다. ` +
+    `지금 고른 구간은 그 분포에서 <strong>적립식에 상위 ${top.toFixed(0)}%</strong>로 ` +
+    (top <= 25 ? `<strong>유리한 편</strong>에 속합니다 — 시작 시점을 조금만 옮기면 결론이 약해질 수 있습니다.`
+      : top >= 75 ? `<strong>불리한 편</strong>에 속합니다 — 시작 시점을 옮기면 적립식이 더 나은 구간이 많습니다.`
+        : `<strong>평범한 위치</strong>입니다 — 이 구간의 결론이 특별히 운에 기댄 건 아닙니다.`) +
+    (isFinite(s.corrFirstYear)
+      ? ` 승패는 운이 아니라 구조입니다 — 시작 후 1년 손익과 거치식 대비 성과의 상관이 <strong>${s.corrFirstYear.toFixed(2)}</strong>입니다` +
+        (isFinite(s.negFirstYearShare)
+          ? `, 적립식이 이긴 창의 <strong>${(s.negFirstYearShare * 100).toFixed(0)}%</strong>는 시작 후 1년이 마이너스였습니다. ` +
+            `<strong>고점에서 시작할 때 적립식이 이깁니다</strong> — 문제는 그걸 미리 알 수 없다는 것입니다.`
+          : ` — 이 표본에서는 적립식이 이긴 창이 없어 그 조건을 확인할 수 없습니다.`)
+      : '');
+}
+
+// ── 적립식 vs 거치식(일시불) ─────────────────────────────────────────────────
+// 같은 기간·같은 총액을 '매달 나눠' 넣었을 때와 '첫 달에 한 번에' 넣었을 때의 대조.
+// 계산은 _dcaRun 이 이미 해 뒀다(DCASIM.lumpSum = simulate 재사용이라 규약 동일).
+function _dcaRenderCompare() {
+  const runs = (state.dca.runs || []).filter(r => r.lm && r.cmp);
+  const cards = document.getElementById('dca-cmp-cards');
+  const table = document.getElementById('dca-cmp-table');
+  const verdict = document.getElementById('dca-cmp-verdict');
+  if (!runs.length) { cards.innerHTML = ''; table.innerHTML = ''; verdict.textContent = ''; Plotly.purge('dca-cmp'); return; }
+
+  const wins = runs.filter(r => r.cmp.dcaWins).length;
+  const best = runs.reduce((a, b) => (b.m.final > a.m.final ? b : a));   // 적립식 최종 1등 = 대표 종목
+  const tick = _dcaTicker(best.asset);
+  // 성과비는 **중앙값**으로 — 거치식이 −99% 소각된 종목(레버리지) 하나가 평균을 수천 배로 끌어올린다.
+  const ratios = runs.map(r => r.cmp.finalRatio).filter(isFinite).sort((a, b) => a - b);
+  const medRatio = ratios.length ? (ratios.length % 2 ? ratios[(ratios.length - 1) / 2]
+    : 0.5 * (ratios[ratios.length / 2 - 1] + ratios[ratios.length / 2])) : NaN;
+  cards.innerHTML =
+    _dcaCard('총 투자원금(양쪽 동일)', _dcaMoney(best.m.totalCost),
+      `적립식 ${best.m.months}개월 × ${_dcaMoney(state.dca.monthly)} = 거치식 1회 납입액`) +
+    _dcaCard(`적립식 · ${tick}`, _dcaMoney(best.m.final), `XIRR ${fmtPct(best.m.xirr)} · MDD ${fmtPct(best.m.mdd)}`) +
+    _dcaCard(`거치식 · ${tick}`, _dcaMoney(best.lm.final), `CAGR ${fmtPct(best.lm.xirr)} · MDD ${fmtPct(best.lm.mdd)}`) +
+    _dcaCard(`차이 · ${tick}`, _dcaMoney(Math.abs(best.cmp.finalGap)),
+      best.cmp.dcaWins ? '적립식이 더 많다' : '거치식이 더 많다') +
+    _dcaCard('적립식이 이긴 종목', `${wins} / ${runs.length}`, '최종 평가액 기준') +
+    // 아래 민감도 절의 '거치식 대비 중앙값'은 **창** 분포의 중앙값이다. 이건 **선택 종목** 간 중앙값 —
+    // 같은 이름을 쓰면 두 숫자가 달라 보여 혼동되므로 모집단을 라벨에 박아 둔다.
+    _dcaCard('종목별 거치식 대비 중앙값', _dcaVs(medRatio), `선택 종목 ${runs.length}개 기준 · 음수면 거치식이 유리했던 기간`);
+
+  // 종목별 최종 평가액을 두 방식 나란히. 로그축이 필수 — 레버리지 종목의 거치식은 −99% 소각되기도
+  // 해서 선형축이면 1x 막대가 보이지 않는다(비율 막대 하나로 그리면 그 이상치가 전부를 뭉갠다).
+  const sorted = [...runs].sort((a, b) => b.m.final - a.m.final);
+  const ys = sorted.map(r => _dcaTicker(r.asset));
+  const ccy = _dcaCcy(), hovB = ccy === 'usd' ? '$%{x:,.0f}' : '%{x:,.0f}원';
+  const bar = [
+    { type: 'bar', orientation: 'h', name: '적립식', x: sorted.map(r => r.m.final), y: ys,
+      marker: { color: DCA_COL.dca }, text: sorted.map(r => _dcaMoney(r.m.final)),
+      textposition: 'auto', hovertemplate: hovB + '<extra>%{y} 적립식</extra>' },
+    { type: 'bar', orientation: 'h', name: '거치식(일시불)', x: sorted.map(r => r.lm.final), y: ys,
+      marker: { color: DCA_COL.lump }, text: sorted.map(r => _dcaMoney(r.lm.final)),
+      textposition: 'auto', hovertemplate: hovB + '<extra>%{y} 거치식</extra>' },
+  ];
+  const bl = baseLayout(`같은 총액(${_dcaMoney(best.m.totalCost)})의 최종 평가액 — 적립식 vs 거치식`, '');
+  const bMuted = cssVar('--chart-muted');
+  bl.barmode = 'group';
+  bl.xaxis = { type: 'log', title: { text: `최종 평가액 (${ccy === 'usd' ? '$' : '원'}, 로그축)`, font: { color: bMuted } },
+    gridcolor: cssVar('--chart-grid'), linecolor: cssVar('--chart-grid'),
+    tickfont: { color: bMuted }, automargin: true };
+  bl.yaxis = { automargin: true, tickfont: { color: bMuted }, gridcolor: 'rgba(0,0,0,0)' };
+  let blo = Infinity, bhi = -Infinity;
+  bar.forEach(t => t.x.forEach(v => { if (v > 0) { if (v < blo) blo = v; if (v > bhi) bhi = v; } }));
+  const btk = _dcaMoneyTicks(blo, bhi, ccy);
+  if (btk) Object.assign(bl.xaxis, btk);
+  bl.hovermode = 'closest';
+  Plotly.react('dca-cmp', bar, bl, PLOTCFG);
+
+  const head = ['종목', '총 투자원금', '적립식 최종', '거치식 최종', '차이', '적립식 XIRR',
+    '거치식 CAGR', '적립식 MDD', '거치식 MDD', '적립식 원금하회', '거치식 원금하회', '승자',
+    '적립식 승률'];
+  // 승률 = 같은 길이 창을 이력 전체에서 굴렸을 때 적립식이 이긴 비율(이 구간 승패는 표본 1개).
+  // 창 길이는 아래 민감도 절이 대표 종목으로 정한 값을 그대로 써 종목 간 비교가 성립하게 한다.
+  const winYears = state.dca.sensYears || _dcaWinYears();
+  const rows = [...runs].sort((a, b) => b.m.final - a.m.final).map(r => {
+    const c = r.cmp, sw = `<span class="swatch" style="background:${PALETTE[state.dca.runs.indexOf(r) % PALETTE.length]}"></span>`;
+    const cells = [
+      `<td data-label="${head[0]}">${sw}${r.asset.label}</td>`,
+      `<td data-label="${head[1]}">${_dcaMoney(r.m.totalCost)}</td>`,
+      `<td data-label="${head[2]}"${c.dcaWins ? ' class="pos"' : ''}><strong>${_dcaMoney(r.m.final)}</strong></td>`,
+      `<td data-label="${head[3]}"${c.dcaWins ? '' : ' class="pos"'}><strong>${_dcaMoney(r.lm.final)}</strong></td>`,
+      `<td data-label="${head[4]}" class="${c.dcaWins ? 'pos' : 'neg'}">${_dcaVs(c.finalRatio)}</td>`,
+      `<td data-label="${head[5]}">${fmtPct(r.m.xirr)}</td>`,
+      `<td data-label="${head[6]}">${fmtPct(r.lm.xirr)}</td>`,
+      `<td data-label="${head[7]}">${fmtPct(r.m.mdd)}</td>`,
+      `<td data-label="${head[8]}">${fmtPct(r.lm.mdd)}</td>`,
+      `<td data-label="${head[9]}">${(r.m.underDays / 252).toFixed(1)}년</td>`,
+      `<td data-label="${head[10]}">${(r.lm.underDays / 252).toFixed(1)}년</td>`,
+      `<td data-label="${head[11]}">${c.dcaWins ? '적립식' : '거치식'}</td>`,
+      (() => {
+        const sw2 = _dcaSensSummary(r.asset, winYears, c.finalRatio);
+        return sw2
+          ? `<td data-label="${head[12]}">${(sw2.winRate * 100).toFixed(0)}% <span class="muted">(${sw2.n}창)</span></td>`
+          : `<td data-label="${head[12]}" class="muted">표본부족</td>`;
+      })(),
+    ];
+    return `<tr>${cells.join('')}</tr>`;
+  }).join('');
+  table.innerHTML = `<thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>`;
+
+  // 판정문 — 승패만 말하지 않고 '왜'와 '무엇을 대가로'까지.
+  const b = best, c = b.cmp;
+  const mddWorse = b.lm.mdd < b.m.mdd;      // 거치식 낙폭이 더 깊었나
+  verdict.innerHTML = `📌 <strong>${state.dca.start} ~ ${state.dca.end}</strong> 구간, ` +
+    `총 <strong>${_dcaMoney(b.m.totalCost)}</strong>을 <strong>${b.asset.label}</strong>에 넣었다면 — ` +
+    `매달 나눠 넣은 적립식은 <strong>${_dcaMoney(b.m.final)}</strong>, 첫 달에 한 번에 넣은 거치식은 <strong>${_dcaMoney(b.lm.final)}</strong>. ` +
+    (c.dcaWins
+      ? `<strong>적립식이 ${_dcaVs(c.finalRatio)} 앞섭니다</strong> — 시작 직후 크게 빠진 구간이라 나중 납입분이 싸게 담겼다는 뜻입니다. ` +
+        `이런 결과는 <strong>시작 시점이 고점이었을 때</strong> 주로 나옵니다.`
+      : `<strong>거치식이 ${_dcaVs(1 / c.finalRatio)} 앞섭니다</strong> — 시장이 오르는 날이 내리는 날보다 많아 ` +
+        `<strong>돈이 시장에 머문 시간</strong>이 길수록 유리했기 때문입니다. 적립식의 마지막 납입금은 한 달밖에 일하지 못합니다.`) +
+    ` 다만 평가액 낙폭은 적립식 <strong>${fmtPct(b.m.mdd)}</strong> vs 거치식 <strong>${fmtPct(b.lm.mdd)}</strong>` +
+    (mddWorse ? ` — <strong>거치식이 더 깊게 파였습니다</strong>(첫날부터 전액이 노출되므로).`
+      : ` — 이 구간에선 적립식 쪽 낙폭이 더 깊었습니다(후반에 커진 평가액이 폭락을 맞은 경우).`) +
+    ` 그리고 이 비교는 <strong>목돈이 처음부터 있었다</strong>는 전제 위에 있습니다 — 매달 버는 돈만 있다면 선택지는 적립식뿐입니다.`;
 }
 
 function _dcaRenderSweep() {
@@ -2776,10 +3077,23 @@ function _dcaRenderSweep() {
     document.getElementById('dca-sweep-verdict').textContent = '선택 기간이 짧아 레버리지 스윕을 계산하지 않습니다(1년 이상 필요).';
     Plotly.purge('dca-sweep'); Plotly.purge('dca-sweep-risk'); return;
   }
-  const famRet = Float64Array.from(fam.ret.slice(lo - fam.start_idx, hi - fam.start_idx + 1));
-  const useFx = state.dca.ccy === 'krw';
-  const sw = DCASIM.sweep(d.dates, famRet, d.rf, d.fx, lo, hi, d.l_grid,
-    { monthly: state.dca.monthly, fee: d.fee, expense: fam.expense, spread: fam.spread, dpy: d.dpy, useFx });
+  // 스윕은 L 격자 51점 × (적립식+거치식) 시뮬이라 이 탭에서 가장 무거운 계산이다.
+  // 평가액은 월 적립금에 **정확히 선형**이므로 monthly=1 로 한 번만 계산해 캐시하고, 금액만
+  // 곱해 쓴다 → 적립금을 바꿀 때 재계산이 사라진다(XIRR·MDD·원금하회는 애초에 금액 무관).
+  const swKey = `${state.dca.sweepFam}|${state.dca.ccy}|${lo}|${hi}`;
+  let raw = state.dca.sweepCache.get(swKey);
+  if (!raw) {
+    const famRet = Float64Array.from(fam.ret.slice(lo - fam.start_idx, hi - fam.start_idx + 1));
+    raw = DCASIM.sweep(d.dates, famRet, d.rf, d.fx, lo, hi, d.l_grid,
+      { monthly: 1, fee: d.fee, expense: fam.expense, spread: fam.spread, dpy: d.dpy,
+        useFx: state.dca.ccy === 'krw' });
+    _dcaCachePut(state.dca.sweepCache, swKey, raw);
+  }
+  const mo = state.dca.monthly;
+  const sw = Object.assign({}, raw, {
+    dca_final: raw.dca_final.map(v => (v == null ? null : v * mo)),
+    lump_final_amt: raw.lump_final_amt.map(v => (v == null ? null : v * mo)),
+  });
   const opt = DCASIM.optimal(sw);
   state.dca.sweepOpt = opt;
 
@@ -2788,15 +3102,19 @@ function _dcaRenderSweep() {
   const yName = isXirr ? '적립식 XIRR' : '적립식 최종 평가액';
   const dOpt = isXirr ? opt.dca_xirr : opt.dca_final;
   const lOpt = opt.lump_cagr;
+  // 거치식은 같은 총액·같은 규약이라 **적립식과 같은 축**에 놓을 수 있다(금액이면 금액, 연율이면 연율).
+  // 이전에는 일시불 CAGR 을 오른쪽 축에 따로 그려 '어느 쪽이 더 컸는지'를 읽을 수 없었다.
+  const yLump = isXirr ? sw.lump_xirr : sw.lump_final_amt;
+  const lumpName = isXirr ? '거치식 CAGR(일시불)' : '거치식 최종 평가액(일시불)';
+  const lumpOptVal = lOpt ? (isXirr ? lOpt.lump_xirr : lOpt.lump_final_amt) : null;
 
-  // 왼쪽축=적립식 지표, 오른쪽축=일시불 CAGR(스케일이 전혀 다르므로 축 분리)
   const traces = [
     { type: 'scatter', mode: 'lines', name: yName, x: sw.L, y: yDca,
       line: { width: 2.2, color: DCA_COL.dca },
       hovertemplate: (isXirr ? '%{y:.2%}' : '%{y:,.0f}') + '<extra>%{x}배 적립식</extra>' },
-    { type: 'scatter', mode: 'lines', name: '일시불 CAGR (오른쪽 축)', x: sw.L, y: sw.lump_cagr, yaxis: 'y2',
-      line: { width: 1.6, color: DCA_COL.lump, dash: 'dash' },
-      hovertemplate: '%{y:.2%}<extra>%{x}배 일시불 CAGR</extra>' },
+    { type: 'scatter', mode: 'lines', name: lumpName, x: sw.L, y: yLump,
+      line: { width: 1.8, color: DCA_COL.lump, dash: 'dash' },
+      hovertemplate: (isXirr ? '%{y:.2%}' : '%{y:,.0f}') + '<extra>%{x}배 거치식</extra>' },
   ];
   if (dOpt) traces.push({
     type: 'scatter', mode: 'markers+text', name: '적립식 최적', x: [dOpt.L], y: [dOpt.value],
@@ -2804,29 +3122,30 @@ function _dcaRenderSweep() {
     text: [`적립식 최적 ${dOpt.L}배`], textposition: 'top center',
     textfont: { color: DCA_COL.dca, size: 11 }, hoverinfo: 'skip', showlegend: false,
   });
-  if (lOpt) traces.push({
-    type: 'scatter', mode: 'markers+text', name: '일시불 최적', x: [lOpt.L], y: [lOpt.value], yaxis: 'y2',
+  if (lOpt && lumpOptVal != null) traces.push({
+    type: 'scatter', mode: 'markers+text', name: '거치식 최적', x: [lOpt.L], y: [lumpOptVal],
     marker: { size: 11, color: DCA_COL.lump, symbol: 'diamond' },
-    text: [`일시불 최적 ${lOpt.L}배`], textposition: 'bottom center',
+    text: [`거치식 최적 ${lOpt.L}배`], textposition: 'bottom center',
     textfont: { color: DCA_COL.lump, size: 11 }, hoverinfo: 'skip', showlegend: false,
   });
   // 실제 상품이 존재하는 배수에 세로 기준선(QQQ 1배 / QLD 2배 / TQQQ 3배 …)
   const famAssets = d.assets.filter(a => a.family === state.dca.sweepFam);
   const muted = cssVar('--chart-muted');
-  const layout = baseLayout(`${fam.label} — 레버리지별 적립식 결과 (${state.dca.start} ~ ${state.dca.end})`,
+  const layout = baseLayout(`${fam.label} — 레버리지별 적립식 vs 거치식 (${state.dca.start} ~ ${state.dca.end})`,
     isXirr ? '적립식 XIRR' : `최종 평가액 (${_dcaCcy() === 'usd' ? '$' : '원'}, 로그축)`);
   layout.xaxis = { title: { text: '레버리지 배수 (L)', font: { color: muted } }, automargin: true,
     gridcolor: cssVar('--chart-grid'), linecolor: cssVar('--chart-grid'), tickfont: { color: muted } };
-  layout.yaxis2 = { title: { text: '일시불 CAGR', font: { color: DCA_COL.lump } }, overlaying: 'y', side: 'right',
-    tickformat: '.0%', tickfont: { color: DCA_COL.lump }, showgrid: false };
   if (isXirr) {
     layout.yaxis.tickformat = '.0%';
+    layout.yaxis.title.text = '연수익률 (적립식 XIRR · 거치식 CAGR)';
   } else {
     layout.yaxis.type = 'log';
-    let lo2 = Infinity, hi2 = -Infinity;
-    yDca.forEach(v => { if (v > 0) { if (v < lo2) lo2 = v; if (v > hi2) hi2 = v; } });
-    const tk2 = _dcaMoneyTicks(lo2, hi2, _dcaCcy());
-    if (tk2) Object.assign(layout.yaxis, tk2);
+    const rg2 = _dcaLogRange(yDca.concat(yLump), _dcaCcy());
+    if (rg2) {
+      layout.yaxis.range = [Math.log10(rg2.lo), Math.log10(rg2.hi * 1.6)];   // 최적 마커 텍스트 여백
+      const tk2 = _dcaMoneyTicks(rg2.lo, rg2.hi, _dcaCcy());
+      if (tk2) Object.assign(layout.yaxis, tk2);
+    }
   }
   layout.hovermode = 'x unified';
   layout.shapes = famAssets.map(a => ({
@@ -2842,76 +3161,194 @@ function _dcaRenderSweep() {
   // 위험 곡선 — 레버리지의 대가
   const risk = [
     { type: 'scatter', mode: 'lines', name: '적립식 평가액 MDD', x: sw.L, y: sw.dca_mdd,
-      line: { width: 2, color: DCA_COL.risk }, hovertemplate: '%{y:.1%}<extra>%{x}배 MDD</extra>' },
-    { type: 'scatter', mode: 'lines', name: '원금 하회 최장(년)', x: sw.L, y: sw.dca_under_days.map(v => v / 252), yaxis: 'y2',
-      line: { width: 1.6, color: '#9333ea' }, hovertemplate: '%{y:.1f}년<extra>%{x}배 원금하회</extra>' },
+      line: { width: 2, color: DCA_COL.risk }, hovertemplate: '%{y:.1%}<extra>%{x}배 적립식 MDD</extra>' },
+    { type: 'scatter', mode: 'lines', name: '거치식 평가액 MDD', x: sw.L, y: sw.lump_mdd_amt,
+      line: { width: 1.5, color: DCA_COL.lump, dash: 'dash' }, hovertemplate: '%{y:.1%}<extra>%{x}배 거치식 MDD</extra>' },
+    { type: 'scatter', mode: 'lines', name: '적립식 원금 하회 최장(년)', x: sw.L, y: sw.dca_under_days.map(v => v / 252), yaxis: 'y2',
+      line: { width: 1.6, color: '#9333ea' }, hovertemplate: '%{y:.1f}년<extra>%{x}배 적립식 원금하회</extra>' },
+    { type: 'scatter', mode: 'lines', name: '거치식 원금 하회 최장(년)', x: sw.L, y: sw.lump_under_days.map(v => v / 252), yaxis: 'y2',
+      line: { width: 1.1, color: '#9333ea', dash: 'dot' }, hovertemplate: '%{y:.1f}년<extra>%{x}배 거치식 원금하회</extra>' },
   ];
-  const rl = baseLayout('레버리지의 대가 — 평가액 낙폭과 “원금 못 넘긴 기간”', '평가액 최대낙폭');
+  const rl = baseLayout('레버리지의 대가 — 평가액 낙폭과 “원금 못 넘긴 기간” (적립식 실선 · 거치식 점선)', '평가액 최대낙폭');
   rl.xaxis = { title: { text: '레버리지 배수 (L)', font: { color: muted } }, automargin: true,
     gridcolor: cssVar('--chart-grid'), linecolor: cssVar('--chart-grid'), tickfont: { color: muted } };
   rl.yaxis.tickformat = '.0%';
   rl.yaxis2 = { title: { text: '원금 하회 최장(년)', font: { color: '#9333ea' } }, overlaying: 'y', side: 'right',
-    tickfont: { color: '#9333ea' }, showgrid: false };
+    tickfont: { color: '#9333ea' }, showgrid: false, automargin: true };
   rl.hovermode = 'x unified';
   Plotly.react('dca-sweep-risk', risk, rl, PLOTCFG);
 
   // 카드 + 판정문
   const cards = document.getElementById('dca-sweep-cards');
+  // 적립식 최적 배수에서 두 방식의 결과를 직접 비교(같은 총액이므로 금액 비교가 성립).
+  const dIdx = dOpt ? dOpt.idx : -1;
+  const atOptLump = dIdx >= 0 ? (isXirr ? sw.lump_xirr[dIdx] : sw.lump_final_amt[dIdx]) : null;
   cards.innerHTML =
     (dOpt ? _dcaCard('적립식 최적 배수', `${dOpt.L}배`, isXirr ? `XIRR ${fmtPct(dOpt.value)}` : _dcaMoney(dOpt.value)) : '') +
-    (lOpt ? _dcaCard('일시불 최적 배수', `${lOpt.L}배`, `CAGR ${fmtPct(lOpt.value)}`) : '') +
+    (lOpt ? _dcaCard('거치식 최적 배수', `${lOpt.L}배`, `CAGR ${fmtPct(lOpt.value)}`) : '') +
+    (atOptLump != null ? _dcaCard(`그 배수의 거치식`, isXirr ? fmtPct(atOptLump) : _dcaMoney(atOptLump),
+      `같은 총액을 첫 달에 → 적립식은 이 대비 ${fmtPct((dOpt.value / atOptLump) - 1)}`) : '') +
     (dOpt ? _dcaCard('그 배수의 평가액 MDD', fmtPct(dOpt.dca_mdd), '적립 중에도 이만큼 빠졌다') : '') +
     (dOpt ? _dcaCard('그 배수의 원금하회 최장', `${(dOpt.dca_under_days / 252).toFixed(1)}년`, '이 기간 내내 손실 상태로 계속 납입') : '');
   const v = document.getElementById('dca-sweep-verdict');
   if (dOpt && lOpt) {
     const higher = dOpt.L > lOpt.L;
     v.innerHTML = `📌 이 기간 <strong>${fam.label}</strong>에서 적립식의 최적 배수는 <strong>${dOpt.L}배</strong>, ` +
-      `일시불의 최적 배수는 <strong>${lOpt.L}배</strong>입니다 — ` +
+      `거치식(일시불)의 최적 배수는 <strong>${lOpt.L}배</strong>입니다 — ` +
       (higher
         ? `적립식이 <strong>${(dOpt.L - lOpt.L).toFixed(1)}배 더 높습니다</strong>. 하락장에서 더 많은 주수를 담기 때문입니다. ` +
           `<strong>그러나</strong> 그 ${dOpt.L}배 경로는 평가액이 <strong>${fmtPct(dOpt.dca_mdd)}</strong>까지 빠지고, ` +
           `납입원금을 밑도는 상태가 최장 <strong>${(dOpt.dca_under_days / 252).toFixed(1)}년</strong> 이어집니다. ` +
           `그 몇 년 동안 매달 새 돈을 계속 넣을 수 있어야 이 숫자가 내 것이 됩니다.`
-        : `이 구간에서는 적립식이라고 최적 배수가 더 높지는 않습니다 — 큰 폭락 없이 꾸준히 오른 구간이면 적립식의 저가매수 이점이 작습니다.`);
+        : `이 구간에서는 적립식이라고 최적 배수가 더 높지는 않습니다 — 큰 폭락 없이 꾸준히 오른 구간이면 적립식의 저가매수 이점이 작습니다.`) +
+      (atOptLump != null
+        ? ` <strong>같은 배수에서 두 방식을 맞대면</strong>: ${dOpt.L}배에서 적립식은 ` +
+          `<strong>${isXirr ? fmtPct(dOpt.value) : _dcaMoney(dOpt.value)}</strong>, 같은 총액을 첫 달에 넣은 거치식은 ` +
+          `<strong>${isXirr ? fmtPct(atOptLump) : _dcaMoney(atOptLump)}</strong> — ` +
+          (dOpt.value > atOptLump ? `적립식이 앞섭니다(시작 직후 하락이 컸던 구간).`
+            : `거치식이 앞섭니다(돈이 시장에 머문 시간이 길어서).`)
+        : '');
   } else v.textContent = '';
+}
+
+/**
+ * 롤링 패널 초기화 — 종목·기간이 바뀌어 표본이 없을 때 이전 결과가 남지 않게 한다.
+ * 기간별 승률표는 **선택 기간·창 길이와 무관**(자산 이력 전체 기준)하므로 opts.keepHorizon 으로
+ * 살려둘 수 있다 — 선택 기간이 짧아 N년 창이 안 들어갈 때도 그 표는 여전히 유효하다.
+ */
+function _dcaClearRoll(opts) {
+  opts = opts || {};
+  if (!opts.keepCards) document.getElementById('dca-roll-cards').innerHTML = '';
+  ['dca-roll', 'dca-roll-ratio'].forEach(id => Plotly.purge(id));
+  if (!opts.keepHorizon) {
+    document.getElementById('dca-roll-horizon').innerHTML = '';
+    document.getElementById('dca-roll-horizon-note').textContent = '';
+  }
 }
 
 function _dcaRenderRoll() {
   const d = state.dca.d, rng = _dcaRange();
   const a = _dcaAsset(state.dca.rollAsset);
-  if (!rng || !a) { Plotly.purge('dca-roll'); return; }
+  if (!rng || !a) { _dcaClearRoll(); return; }
+  // 기간별 승률표는 rollYears·선택 기간과 무관하게 자산 이력 전체로 계산되므로 먼저 그린다
+  // (선택 기간이 짧아 아래 롤링 차트를 못 그리는 경우에도 이 표는 살아 있어야 한다).
+  _dcaRenderHorizons(a);
   const lo = Math.max(rng[0], _dcaStartIdx(a)), hi = rng[1];
   const years = state.dca.rollYears;
   const el = document.getElementById('dca-roll-cards');
   if (hi - lo < years * 252 + 60) {
     el.innerHTML = `<div class="ext-card"><div class="lab">표본 부족</div><div class="val">—</div><div class="sub">${a.label}의 선택 기간이 ${years}년 창을 담기에 짧습니다.</div></div>`;
-    Plotly.purge('dca-roll'); return;
+    _dcaClearRoll({ keepCards: true, keepHorizon: true }); return;
   }
-  const ar = DCASIM.assetReturns(d, a, lo, hi, state.dca.source);
-  const useFx = state.dca.ccy === 'krw';
-  const rows = DCASIM.rollingStarts(d.dates, ar.ret, d.fx, lo, hi, years, state.dca.monthly,
-    { fee: d.fee, useFx });
-  if (!rows.length) { el.innerHTML = ''; Plotly.purge('dca-roll'); return; }
+  // 이 패널이 보여주는 값(XIRR·배수·MDD·성과비·첫해 손익)은 전부 월 적립금과 무관하므로
+  // monthly=1 로 계산해 캐시한다 — 적립금을 바꿀 때 창을 다시 굴리지 않는다.
+  const rollKey = `${a.key}|${state.dca.source}|${state.dca.ccy}|${years}|${lo}|${hi}`;
+  let rows = state.dca.rollCache.get(rollKey);
+  if (!rows) {
+    const ar = DCASIM.assetReturns(d, a, lo, hi, state.dca.source);
+    rows = DCASIM.rollingStarts(d.dates, ar.ret, d.fx, lo, hi, years, 1,
+      { fee: d.fee, useFx: state.dca.ccy === 'krw' });
+    _dcaCachePut(state.dca.rollCache, rollKey, rows);
+  }
+  if (!rows.length) { _dcaClearRoll({ keepHorizon: true }); return; }
   const xs = rows.map(r => r.xirr).filter(isFinite).sort((p, q) => p - q);
   const q = f => xs[Math.min(xs.length - 1, Math.max(0, Math.round(f * (xs.length - 1))))];
   const neg = rows.filter(r => r.multiple < 1).length;
+  // 창마다 같은 총액을 그 창 첫 달에 한 번에 넣은 거치식과의 승패(rollingStarts 가 동반 계산)
+  const cmpRows = rows.filter(r => r.dcaWins != null);
+  const wins = cmpRows.filter(r => r.dcaWins).length;
   el.innerHTML =
     _dcaCard('표본(시작 시점)', `${rows.length}개`, `${years}년 적립을 한 달씩 밀며 반복`) +
     _dcaCard('XIRR 중앙값', fmtPct(q(0.5)), `최악 ${fmtPct(xs[0])} · 최고 ${fmtPct(xs[xs.length - 1])}`) +
     _dcaCard('하위 10% ~ 상위 10%', `${fmtPct(q(0.1))} ~ ${fmtPct(q(0.9))}`, '시작 시점만 달랐을 뿐인데 이만큼 벌어진다') +
-    _dcaCard('원금 손실로 끝난 경우', `${(neg / rows.length * 100).toFixed(1)}%`, `${neg}/${rows.length}개 시작 시점`);
+    _dcaCard('원금 손실로 끝난 경우', `${(neg / rows.length * 100).toFixed(1)}%`, `${neg}/${rows.length}개 시작 시점`) +
+    (cmpRows.length ? _dcaCard('적립식이 거치식을 이긴 비율', `${(wins / cmpRows.length * 100).toFixed(1)}%`,
+      `${wins}/${cmpRows.length}개 시작 시점 · 같은 총액을 창 첫 달에 한 번에 넣은 경우와 비교`) : '');
   const traces = [
     { type: 'scatter', mode: 'lines', name: `${years}년 적립 XIRR`, x: rows.map(r => r.start), y: rows.map(r => r.xirr),
       line: { width: 1.8, color: DCA_COL.dca }, hovertemplate: '%{y:.2%}<extra>%{x} 시작</extra>' },
-    { type: 'scatter', mode: 'lines', name: '기간 중 평가액 MDD', x: rows.map(r => r.start), y: rows.map(r => r.mdd), yaxis: 'y2',
+    { type: 'scatter', mode: 'lines', name: `${years}년 거치식 CAGR`, x: rows.map(r => r.start), y: rows.map(r => (r.lumpXirr == null ? null : r.lumpXirr)),
+      line: { width: 1.4, color: DCA_COL.lump, dash: 'dash' }, hovertemplate: '%{y:.2%}<extra>%{x} 시작 거치식</extra>' },
+    { type: 'scatter', mode: 'lines', name: '기간 중 평가액 MDD(적립식)', x: rows.map(r => r.start), y: rows.map(r => r.mdd), yaxis: 'y2',
       line: { width: 1.2, color: DCA_COL.risk, dash: 'dot' }, hovertemplate: '%{y:.1%}<extra>%{x} 시작 MDD</extra>' },
   ];
-  const layout = baseLayout(`${a.label} — 시작 시점별 ${years}년 적립 결과`, 'XIRR (연수익률)');
+  const layout = baseLayout(`${a.label} — 시작 시점별 ${years}년 적립식 vs 거치식`, '연수익률 (적립식 XIRR · 거치식 CAGR)');
   layout.yaxis.tickformat = '.0%';
   layout.yaxis2 = { title: { text: '평가액 MDD', font: { color: DCA_COL.risk } }, overlaying: 'y', side: 'right',
-    tickformat: '.0%', tickfont: { color: DCA_COL.risk }, showgrid: false };
+    tickformat: '.0%', tickfont: { color: DCA_COL.risk }, showgrid: false, automargin: true };
   layout.shapes = [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: 0, y1: 0, line: { color: cssVar('--chart-muted'), width: 1, dash: 'dash' } }];
   Plotly.react('dca-roll', traces, layout, PLOTCFG);
+  _dcaRenderRollRatio(a, rows, years);
+}
+
+/** 시작 월별 성과비(적립식÷거치식) — 1.0 기준선 위면 적립식 승. 위 rows 를 그대로 재사용. */
+function _dcaRenderRollRatio(a, rows, years) {
+  const rs = rows.filter(r => r.finalRatio != null && isFinite(r.finalRatio) && r.finalRatio > 0);
+  if (rs.length < 3) { Plotly.purge('dca-roll-ratio'); return; }
+  const traces = [{
+    type: 'scatter', mode: 'lines', name: `적립식 ÷ 거치식 (${years}년 창)`,
+    x: rs.map(r => r.start), y: rs.map(r => r.finalRatio),
+    line: { width: 1.8, color: DCA_COL.dca },
+    hovertemplate: '%{y:.3f}배<extra>%{x} 시작</extra>',
+  }, {
+    // 시작 후 1년 손익 — 성과비가 1을 넘는 구간이 왜 생기는지 눈으로 확인시키는 보조축
+    type: 'scatter', mode: 'lines', name: '시작 후 1년 손익(거치식)', yaxis: 'y2',
+    x: rs.map(r => r.start), y: rs.map(r => (r.firstYear == null ? null : r.firstYear)),
+    line: { width: 1.1, color: DCA_COL.lump, dash: 'dot' },
+    hovertemplate: '%{y:.1%}<extra>%{x} 시작 후 1년</extra>',
+  }];
+  const muted = cssVar('--chart-muted');
+  const layout = baseLayout(`${a.label} — 시작 월별 성과비 (1.0 위 = 적립식 승)`, '적립식 ÷ 거치식 (로그축)');
+  layout.yaxis.type = 'log';
+  // 로그축 범위를 명시한다 — 선형 y2 를 겹치면 Plotly 가 로그축을 10^-48 까지 자동확장해
+  // 곡선이 맨 위에 붙어버린다. 1.0(동률) 기준선은 항상 화면 안에 들어오게 잡는다.
+  const rv = rs.map(r => r.finalRatio);
+  const rlo = Math.min(0.92, Math.min(...rv)), rhi = Math.max(1.09, Math.max(...rv));
+  layout.yaxis.range = [Math.log10(rlo / 1.12), Math.log10(rhi * 1.12)];
+  layout.yaxis2 = { title: { text: '시작 후 1년 손익', font: { color: DCA_COL.lump } }, overlaying: 'y',
+    side: 'right', tickformat: '.0%', tickfont: { color: DCA_COL.lump }, showgrid: false,
+    zeroline: false, automargin: true };
+  layout.shapes = [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: Math.log10(1), y1: Math.log10(1),
+    line: { color: muted, width: 1.2, dash: 'dash' } }];
+  // 1.0 기준선에 라벨은 달지 않는다 — 어디에 놓아도 곡선과 겹친다. 제목과 축 눈금(1)으로 충분.
+
+  Plotly.react('dca-roll-ratio', traces, layout, PLOTCFG);
+}
+
+/** 창 길이별 승률 — 적립 기간이 길어지면 거치식 쪽으로 기운다(시장에 머문 시간 차이가 누적). */
+const DCA_HORIZONS = [1, 3, 5, 10, 20, 30];
+function _dcaRenderHorizons(a) {
+  const t = document.getElementById('dca-roll-horizon');
+  const note = document.getElementById('dca-roll-horizon-note');
+  const rowsOut = [];
+  for (const y of DCA_HORIZONS) {
+    const s = _dcaSensSummary(a, y, null);
+    if (!s) continue;
+    rowsOut.push({ y, s });
+  }
+  if (!rowsOut.length) { t.innerHTML = ''; note.textContent = ''; return; }
+  const head = ['적립 기간', '표본(창)', '적립식 승률', '거치식 대비 중앙값', '거치식 대비 p10~p90',
+    '적립식이 이긴 창의 첫 해'];
+  const body = rowsOut.map(({ y, s }) => {
+    const cells = [
+      `<td data-label="${head[0]}">${y}년</td>`,
+      `<td data-label="${head[1]}">${s.n}개 <span class="muted">(${_dcaStepLabel(s.step)})</span></td>`,
+      `<td data-label="${head[2]}" class="${s.winRate >= 0.5 ? 'pos' : 'neg'}">${(s.winRate * 100).toFixed(1)}%</td>`,
+      `<td data-label="${head[3]}">${_dcaVs(s.ratioP50)}</td>`,
+      `<td data-label="${head[4]}">${_dcaVs(s.ratioP10)} ~ ${_dcaVs(s.ratioP90)}</td>`,
+      `<td data-label="${head[5]}">${isFinite(s.negFirstYearShare) ? `${(s.negFirstYearShare * 100).toFixed(0)}% 마이너스` : '—'}</td>`,
+    ];
+    return `<tr>${cells.join('')}</tr>`;
+  }).join('');
+  t.innerHTML = `<thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody>`;
+  const first = rowsOut[0], last = rowsOut[rowsOut.length - 1];
+  note.innerHTML = `<strong>${a.label}</strong>의 가용 이력 전체(${first.s.from}~${first.s.to}) 기준입니다. ` +
+    `${first.y}년 적립에서는 적립식 승률이 <strong>${(first.s.winRate * 100).toFixed(1)}%</strong>, ` +
+    `${last.y}년에서는 <strong>${(last.s.winRate * 100).toFixed(1)}%</strong> — ` +
+    (last.s.winRate < first.s.winRate
+      ? `기간이 길어질수록 <strong>거치식으로 기웁니다</strong>. 오래 굴릴수록 “돈이 시장에 머문 시간”의 차이가 누적되기 때문입니다.`
+      : `이 종목·이력에서는 기간을 늘려도 적립식 승률이 떨어지지 않습니다 — 큰 폭락이 이력 안에 여러 번 있었다는 뜻입니다.`) +
+    ` <span class="muted">표본이 200개를 넘으면 시작 월을 건너뛰어 계산합니다(분포는 그대로, 반응 속도만 확보).</span>`;
 }
 
 function _dcaRenderValid() {

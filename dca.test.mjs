@@ -84,6 +84,30 @@ for (const c of fix.cases) {
   checkNum(`${c.name} last5yShare`, m.last5yShare, E.last5y_share, 1e-8);
   if (m.underDays !== E.under_days) { console.error(`✗ ${c.name} underDays: ${m.underDays} ≠ ${E.under_days}`); fails++; }
   if (m.months !== E.months) { console.error(`✗ ${c.name} months: ${m.months} ≠ ${E.months}`); fails++; }
+
+  // 거치식(같은 총액을 첫 매수일에 한 번에) — 화면의 적립식↔거치식 비교가 쓰는 경로
+  if (c.lump_equity) {
+    const lsim = DCA.lumpSum(ar.ret, useFx ? d.fx : fxOne, buy, c.monthly, { fee: fix.fee, offset: lo, useFx });
+    checkArr(`${c.name} lump equity`, lsim.equity, c.lump_equity);
+    const lm = DCA.dcaMetrics(dates, lsim), LE = c.lump_metrics;
+    if (!lm) { console.error(`✗ ${c.name}: JS 거치식 지표 null`); fails++; continue; }
+    checkNum(`${c.name} lump final`, lm.final, LE.final);
+    checkNum(`${c.name} lump totalCost`, lm.totalCost, LE.total_cost);
+    checkNum(`${c.name} lump multiple`, lm.multiple, LE.multiple);
+    checkNum(`${c.name} lump xirr`, lm.xirr, LE.xirr, 1e-7);
+    checkNum(`${c.name} lump mdd`, lm.mdd, LE.mdd);
+    checkNum(`${c.name} lump maxLoss`, lm.maxLoss, LE.max_loss);
+    if (lm.underDays !== LE.under_days) { console.error(`✗ ${c.name} lump underDays: ${lm.underDays} ≠ ${LE.under_days}`); fails++; }
+    const cp = DCA.compareDcaLump(m, lm), CE = c.compare || {};
+    checkNum(`${c.name} cmp finalRatio`, cp.finalRatio, CE.final_ratio);
+    checkNum(`${c.name} cmp finalGap`, cp.finalGap, CE.final_gap);
+    checkNum(`${c.name} cmp xirrGap`, cp.xirrGap, CE.xirr_gap, 1e-7);
+    if (cp.dcaWins !== CE.dca_wins) { console.error(`✗ ${c.name} cmp dcaWins: ${cp.dcaWins} ≠ ${CE.dca_wins}`); fails++; }
+    if (cp.underGap !== CE.under_gap) { console.error(`✗ ${c.name} cmp underGap: ${cp.underGap} ≠ ${CE.under_gap}`); fails++; }
+    if (!fails) console.log(`✓ ${c.name}  적립식=${m.final.toExponential(6)} XIRR=${(m.xirr * 100).toFixed(4)}% MDD=${(m.mdd * 100).toFixed(2)}%` +
+      ` | 거치식=${lm.final.toExponential(6)} CAGR=${(lm.xirr * 100).toFixed(4)}% → 적립식/거치식=${cp.finalRatio.toFixed(4)}`);
+    continue;
+  }
   if (!fails) console.log(`✓ ${c.name}  최종=${m.final.toExponential(6)} XIRR=${(m.xirr * 100).toFixed(4)}% MDD=${(m.mdd * 100).toFixed(2)}%`);
 }
 
@@ -96,14 +120,19 @@ for (const s of fix.sweeps) {
   const useFx = s.currency === 'krw';
   const sw = DCA.sweep(dates, famRet, d.rf, useFx ? d.fx : fxOne, st, st + n - 1, d.l_grid,
     { monthly: s.monthly, fee: fix.fee, expense: fam.expense, spread: fam.spread, dpy: d.dpy, useFx });
-  for (const k of ['dca_final', 'dca_xirr', 'dca_mdd', 'dca_multiple', 'lump_cagr', 'lump_mdd']) {
+  for (const k of ['dca_final', 'dca_xirr', 'dca_mdd', 'dca_multiple', 'lump_cagr', 'lump_mdd',
+                   'lump_final_amt', 'lump_xirr', 'lump_mdd_amt']) {
+    if (!s.sweep[k]) continue;                       // 구 픽스처 호환
     const got = sw[k], exp = s.sweep[k];
     if (got.length !== exp.length) { console.error(`✗ ${s.name}.${k}: 길이 불일치`); fails++; continue; }
     for (let i = 0; i < exp.length; i++) checkNum(`${s.name}.${k}[L=${exp.length ? sw.L[i] : i}]`, got[i], exp[i], 1e-7);
   }
-  for (let i = 0; i < s.sweep.dca_under_days.length; i++) {
-    if (sw.dca_under_days[i] !== s.sweep.dca_under_days[i]) {
-      console.error(`✗ ${s.name}.dca_under_days[L=${sw.L[i]}]: ${sw.dca_under_days[i]} ≠ ${s.sweep.dca_under_days[i]}`); fails++;
+  for (const k of ['dca_under_days', 'lump_under_days']) {
+    if (!s.sweep[k]) continue;                       // 구 픽스처 호환
+    for (let i = 0; i < s.sweep[k].length; i++) {
+      if (sw[k][i] !== s.sweep[k][i]) {
+        console.error(`✗ ${s.name}.${k}[L=${sw.L[i]}]: ${sw[k][i]} ≠ ${s.sweep[k][i]}`); fails++;
+      }
     }
   }
   const o = DCA.optimal(sw), E = s.optimal;
@@ -112,11 +141,51 @@ for (const s of fix.sweeps) {
     if (!o[k]) { console.error(`✗ ${s.name}.optimal.${k}: JS null`); fails++; continue; }
     if (Math.abs(o[k].L - E[k].L) > 1e-9) { console.error(`✗ ${s.name}.optimal.${k}.L: ${o[k].L} ≠ ${E[k].L}`); fails++; }
   }
-  if (!fails) console.log(`✓ ${s.name}  적립식최적 L=${o.dca_final.L} · 일시불최적 L=${o.lump_cagr.L}`);
+  if (!fails) console.log(`✓ ${s.name}  적립식최적 L=${o.dca_final.L} · 거치식최적 L=${o.lump_cagr.L}`);
+}
+
+// ── 시작 시점 민감도(롤링 창 + 요약) ─────────────────────────────────────────
+for (const rc of (fix.rolls || [])) {
+  const a = byKey[rc.asset];
+  if (!a) { console.error(`✗ ${rc.name}: 자산 ${rc.asset} 없음`); fails++; continue; }
+  const ar = DCA.assetReturns(d, a, lo, hi, 'mixed');
+  const useFx = rc.currency === 'krw';
+  const rows = DCA.rollingStarts(dates, ar.ret, useFx ? d.fx : fxOne, lo, hi, rc.years, 1,
+    { fee: fix.fee, useFx, step: rc.step });
+  const exp = rc.rows;
+  if (rows.length !== exp.length) {
+    console.error(`✗ ${rc.name}: 창 수 ${rows.length} ≠ ${exp.length}`); fails++; continue;
+  }
+  for (let i = 0; i < exp.length; i++) {
+    const g = rows[i], E = exp[i];
+    if (g.start !== E.start || g.end !== E.end) {
+      console.error(`✗ ${rc.name}[${i}]: 창 ${g.start}~${g.end} ≠ ${E.start}~${E.end}`); fails++; continue;
+    }
+    checkNum(`${rc.name}[${i}] multiple`, g.multiple, E.multiple);
+    checkNum(`${rc.name}[${i}] xirr`, g.xirr, E.xirr, 1e-7);
+    checkNum(`${rc.name}[${i}] finalRatio`, g.finalRatio, E.final_ratio);
+    checkNum(`${rc.name}[${i}] lumpXirr`, g.lumpXirr, E.lump_xirr, 1e-7);
+    checkNum(`${rc.name}[${i}] firstYear`, g.firstYear, E.first_year);
+    if (g.dcaWins !== E.dca_wins) { console.error(`✗ ${rc.name}[${i}] dcaWins: ${g.dcaWins} ≠ ${E.dca_wins}`); fails++; }
+    if (g.underDays !== E.under_days) { console.error(`✗ ${rc.name}[${i}] underDays: ${g.underDays} ≠ ${E.under_days}`); fails++; }
+  }
+  const s = DCA.sensitivitySummary(rows, rc.current_ratio), E = rc.summary;
+  if (!s) { console.error(`✗ ${rc.name}: JS 요약 null`); fails++; continue; }
+  if (s.n !== E.n || s.wins !== E.wins) { console.error(`✗ ${rc.name} 표본: n=${s.n}/${E.n} wins=${s.wins}/${E.wins}`); fails++; }
+  checkNum(`${rc.name} winRate`, s.winRate, E.win_rate);
+  for (const [k, ek] of [['ratioP10', 'ratio_p10'], ['ratioP50', 'ratio_p50'], ['ratioP90', 'ratio_p90'],
+                         ['ratioMin', 'ratio_min'], ['ratioMax', 'ratio_max'],
+                         ['currentPct', 'current_pct'], ['negFirstYearShare', 'neg_first_year_share'],
+                         ['corrFirstYear', 'corr_first_year']]) {
+    checkNum(`${rc.name} ${k}`, s[k], E[ek], 1e-8);
+  }
+  if (!fails) console.log(`✓ ${rc.name}  표본=${s.n} 승률=${(s.winRate * 100).toFixed(1)}% ` +
+    `성과비 p50=${s.ratioP50.toFixed(4)} 현재백분위=${(s.currentPct * 100).toFixed(1)}%`);
 }
 
 if (fails) {
   console.error(`\n✗ 패리티 실패 ${fails}건 (최대 상대오차 ${maxRel.toExponential(3)}) — Python dca_sim.py 와 web/dca.js 가 어긋났습니다.`);
   process.exit(1);
 }
-console.log(`\n✓ 적립식 패리티 통과 — ${fix.cases.length}개 케이스 + ${fix.sweeps.length}개 스윕, 최대 상대오차 ${maxRel.toExponential(3)} (허용 ${TOL_REL.toExponential(0)})`);
+console.log(`\n✓ 적립식 패리티 통과 — ${fix.cases.length}개 케이스 + ${fix.sweeps.length}개 스윕 + ` +
+  `${(fix.rolls || []).length}개 롤링(시작 시점 민감도), 최대 상대오차 ${maxRel.toExponential(3)} (허용 ${TOL_REL.toExponential(0)})`);
