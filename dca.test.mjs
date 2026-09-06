@@ -104,6 +104,25 @@ for (const c of fix.cases) {
     checkNum(`${c.name} cmp xirrGap`, cp.xirrGap, CE.xirr_gap, 1e-7);
     if (cp.dcaWins !== CE.dca_wins) { console.error(`✗ ${c.name} cmp dcaWins: ${cp.dcaWins} ≠ ${CE.dca_wins}`); fails++; }
     if (cp.underGap !== CE.under_gap) { console.error(`✗ ${c.name} cmp underGap: ${cp.underGap} ≠ ${CE.under_gap}`); fails++; }
+
+    // 현금 모드(미투입 현금 이자) — 적립통화별 금리. 화면 기본값이라 어긋나면 헤드라인이 갈린다.
+    if (c.cash_equity) {
+      const rfCash = useFx ? d.rf_krw : d.rf;
+      const gs = DCA.cashGlide(ar.ret, useFx ? d.fx : fxOne, buy, c.monthly, rfCash,
+        { fee: fix.fee, offset: lo, useFx, dpy: d.dpy });
+      checkArr(`${c.name} cash equity`, gs.equity, c.cash_equity);
+      const gm = DCA.dcaMetrics(dates, gs), GE = c.cash_metrics;
+      if (!gm) { console.error(`✗ ${c.name}: JS 현금모드 지표 null`); fails++; continue; }
+      checkNum(`${c.name} cash final`, gm.final, GE.final);
+      checkNum(`${c.name} cash totalCost`, gm.totalCost, GE.total_cost);
+      checkNum(`${c.name} cash xirr`, gm.xirr, GE.xirr, 1e-7);
+      checkNum(`${c.name} cash mdd`, gm.mdd, GE.mdd);
+      if (gm.underDays !== GE.under_days) { console.error(`✗ ${c.name} cash underDays: ${gm.underDays} ≠ ${GE.under_days}`); fails++; }
+      if (gm.months !== 1) { console.error(`✗ ${c.name} cash months: ${gm.months} ≠ 1 (현금흐름 1건이어야 한다)`); fails++; }
+      const gcp = DCA.compareDcaLump(gm, lm), GCE = c.cash_compare || {};
+      checkNum(`${c.name} cash cmp finalRatio`, gcp.finalRatio, GCE.final_ratio);
+      if (gcp.dcaWins !== GCE.dca_wins) { console.error(`✗ ${c.name} cash cmp dcaWins: ${gcp.dcaWins} ≠ ${GCE.dca_wins}`); fails++; }
+    }
     if (!fails) console.log(`✓ ${c.name}  적립식=${m.final.toExponential(6)} XIRR=${(m.xirr * 100).toFixed(4)}% MDD=${(m.mdd * 100).toFixed(2)}%` +
       ` | 거치식=${lm.final.toExponential(6)} CAGR=${(lm.xirr * 100).toFixed(4)}% → 적립식/거치식=${cp.finalRatio.toFixed(4)}`);
     continue;
@@ -121,7 +140,7 @@ for (const s of fix.sweeps) {
   const sw = DCA.sweep(dates, famRet, d.rf, useFx ? d.fx : fxOne, st, st + n - 1, d.l_grid,
     { monthly: s.monthly, fee: fix.fee, expense: fam.expense, spread: fam.spread, dpy: d.dpy, useFx });
   for (const k of ['dca_final', 'dca_xirr', 'dca_mdd', 'dca_multiple', 'lump_cagr', 'lump_mdd',
-                   'lump_final_amt', 'lump_xirr', 'lump_mdd_amt']) {
+                   'lump_final_amt', 'lump_xirr', 'lump_mdd_amt', 'dca_calmar']) {
     if (!s.sweep[k]) continue;                       // 구 픽스처 호환
     const got = sw[k], exp = s.sweep[k];
     if (got.length !== exp.length) { console.error(`✗ ${s.name}.${k}: 길이 불일치`); fails++; continue; }
@@ -136,10 +155,36 @@ for (const s of fix.sweeps) {
     }
   }
   const o = DCA.optimal(sw), E = s.optimal;
-  for (const k of ['dca_final', 'dca_xirr', 'lump_cagr']) {
+  for (const k of ['dca_final', 'dca_xirr', 'dca_calmar', 'lump_cagr']) {
     if (!E[k]) continue;
     if (!o[k]) { console.error(`✗ ${s.name}.optimal.${k}: JS null`); fails++; continue; }
     if (Math.abs(o[k].L - E[k].L) > 1e-9) { console.error(`✗ ${s.name}.optimal.${k}.L: ${o[k].L} ≠ ${E[k].L}`); fails++; }
+  }
+  // 제약 최적(견딜 수 있는 낙폭 안에서의 최적 배수)
+  for (const [key, EC] of Object.entries(s.constrained || {})) {
+    const g = DCA.constrainedOptimal(sw, parseFloat(key));
+    if (!!g.feasible !== !!EC.feasible) { console.error(`✗ ${s.name}.constrained[${key}].feasible: ${g.feasible} ≠ ${EC.feasible}`); fails++; continue; }
+    if (!EC.feasible) continue;
+    if (Math.abs(g.L - EC.L) > 1e-9) { console.error(`✗ ${s.name}.constrained[${key}].L: ${g.L} ≠ ${EC.L}`); fails++; }
+    checkNum(`${s.name}.constrained[${key}].value`, g.value, EC.value, 1e-7);
+    checkNum(`${s.name}.constrained[${key}].mdd`, g.dca_mdd, EC.dca_mdd);
+  }
+  // 현금 모드 스윕(적립식이 미투입 현금 이자를 받는 회계)
+  if (s.sweep_cash) {
+    const useFxC = s.currency === 'krw';
+    const swc = DCA.sweep(dates, famRet, d.rf, useFxC ? d.fx : fxOne, st, st + n - 1, d.l_grid,
+      { monthly: s.monthly, fee: fix.fee, expense: fam.expense, spread: fam.spread, dpy: d.dpy,
+        useFx: useFxC, rfCash: useFxC ? d.rf_krw : d.rf });
+    for (const k of ['dca_final', 'dca_xirr', 'dca_mdd', 'dca_calmar']) {
+      const got = swc[k], exp = s.sweep_cash[k];
+      if (!exp) continue;
+      for (let i = 0; i < exp.length; i++) checkNum(`${s.name}.cash.${k}[L=${swc.L[i]}]`, got[i], exp[i], 1e-7);
+    }
+    const oc = DCA.optimal(swc), EOC = s.optimal_cash || {};
+    for (const k of ['dca_final', 'dca_xirr']) {
+      if (!EOC[k] || !oc[k]) continue;
+      if (Math.abs(oc[k].L - EOC[k].L) > 1e-9) { console.error(`✗ ${s.name}.optimal_cash.${k}.L: ${oc[k].L} ≠ ${EOC[k].L}`); fails++; }
+    }
   }
   if (!fails) console.log(`✓ ${s.name}  적립식최적 L=${o.dca_final.L} · 거치식최적 L=${o.lump_cagr.L}`);
 }
@@ -151,7 +196,8 @@ for (const rc of (fix.rolls || [])) {
   const ar = DCA.assetReturns(d, a, lo, hi, 'mixed');
   const useFx = rc.currency === 'krw';
   const rows = DCA.rollingStarts(dates, ar.ret, useFx ? d.fx : fxOne, lo, hi, rc.years, 1,
-    { fee: fix.fee, useFx, step: rc.step });
+    { fee: fix.fee, useFx, step: rc.step, dpy: d.dpy,
+      rfCash: rc.cash ? (useFx ? d.rf_krw : d.rf) : null });
   const exp = rc.rows;
   if (rows.length !== exp.length) {
     console.error(`✗ ${rc.name}: 창 수 ${rows.length} ≠ ${exp.length}`); fails++; continue;

@@ -141,6 +141,43 @@
     return simulate(ret, fx, [buyIdx[0]], monthly * buyIdx.length, opts);
   }
 
+  /**
+   * **미투입 현금에 이자를 주는** 적립식 — 거치식과 t=0 부를 같게 맞춘 공정 비교판.
+   * dca_sim.cash_glide 미러. simulate() 는 안 넣은 돈을 장롱 현금(이자 0)으로 두는데, 거치식은
+   * t=0 에 전액을 넣으므로 그대로 비교하면 적립식만 수십 년의 현금 이자를 잃는 편향이 생긴다.
+   *
+   * 규약: t=0 에 총액을 적립통화 현금으로 보유 → 매수일마다 monthly 를 꺼내 매수 →
+   *       **그날 말** 잔액에 하루치 이자. 현금은 환전이 없다(적립통화로 놀기 때문).
+   * 반환 형태가 simulate 와 같아 dcaMetrics 를 그대로 태울 수 있고, 현금흐름이 t=0 1건이라
+   * 이 모드에서는 적립식도 **거치식과 완전히 같은 축**에 놓인다(XIRR = CAGR).
+   *
+   * rfCash 는 **마스터 축 전체** 배열(적립통화 기준 연율). null 이면 이자 0(회계는 동일).
+   */
+  function cashGlide(ret, fx, buyIdx, monthly, rfCash, opts) {
+    opts = opts || {};
+    const sim = simulate(ret, fx, buyIdx, monthly, opts);
+    const n = sim.equity.length, off = sim.offset || 0;
+    const dpy = opts.dpy || DPY;
+    const buy = Array.from(buyIdx).map(Number).sort((a, b) => a - b);
+    const total = monthly * buy.length;
+    const isBuy = new Uint8Array(n);
+    for (const b of buy) { const j = b - off; if (j >= 0 && j < n) isBuy[j] = 1; }
+    const cashPath = new Float64Array(n), equity = new Float64Array(n), cost = new Float64Array(n);
+    let cash = total;
+    for (let i = 0; i < n; i++) {
+      if (isBuy[i]) cash -= monthly;
+      const rr = rfCash ? (rfCash[off + i] || 0) : 0;
+      cash *= 1 + rr / dpy;
+      cashPath[i] = cash;
+      equity[i] = sim.equity[i] + cash;
+      cost[i] = total;                                  // t=0 에 이미 총액을 갖고 있었다
+    }
+    return Object.assign({}, sim, {
+      equity, cost, cash: cashPath,
+      flows: buy.length ? [[buy[0], -total]] : [],
+    });
+  }
+
   /** 적립식 vs 거치식 대조 요약 — dca_sim.compare_dca_lump 미러. */
   function compareDcaLump(dm, lm) {
     if (!dm || !lm) return null;
@@ -232,10 +269,15 @@
     const rfSeg = new Float64Array(famRet.length);
     for (let i = 0; i < famRet.length; i++) rfSeg[i] = rf[lo + i] || 0;
     const buy = monthFirstIndices(dates, lo, hi);
-    const out = { L: [], dca_final: [], dca_xirr: [], dca_mdd: [], dca_multiple: [], dca_under_days: [], lump_cagr: [], lump_mdd: [], lump_final: [], lump_final_amt: [], lump_xirr: [], lump_mdd_amt: [], lump_under_days: [] };
+    const out = { L: [], dca_final: [], dca_xirr: [], dca_mdd: [], dca_multiple: [], dca_under_days: [], lump_cagr: [], lump_mdd: [], lump_final: [], lump_final_amt: [], lump_xirr: [], lump_mdd_amt: [], lump_under_days: [], dca_calmar: [] };
+    // opts.rfCash 를 주면 적립식이 '미투입 현금에 이자를 받는' 회계로 바뀐다(거치식과 t=0 부 동일).
+    // 그때 dca_* 는 주식 계좌가 아니라 **총 부** 기준이 된다.
+    const rfCash = opts.rfCash || null;
     for (const L of lGrid) {
       const r = leverReturns(famRet, rfSeg, L, { dpy: opts.dpy || DPY, expense: opts.expense, spread: opts.spread });
-      const sim = simulate(r, fx, buy, monthly, { fee, offset: lo, useFx });
+      const simOpt = { fee, offset: lo, useFx, dpy: opts.dpy || DPY };
+      const sim = rfCash ? cashGlide(r, fx, buy, monthly, rfCash, simOpt)
+        : simulate(r, fx, buy, monthly, simOpt);
       const m = dcaMetrics(dates, sim);
       const lm = lumpMetrics(r, dates, lo);
       // 거치식(같은 총액을 첫 매수일에) — 적립식과 같은 축에 놓고 비교하기 위한 금액 기준선
@@ -252,8 +294,35 @@
       out.lump_xirr.push(lmA ? lmA.xirr : null);
       out.lump_mdd_amt.push(lmA ? lmA.mdd : null);
       out.lump_under_days.push(lmA ? lmA.underDays : null);
+      // 위험조정은 낙폭 기준(Calmar) — Sharpe 는 레버리지에 거의 불변이라 이 문제에 못 쓴다
+      // (초과수익·변동성이 같은 배수로 늘어 비용 탓에 단조 감소만 → 최적 L≈0 이라는 무의미한 답).
+      out.dca_calmar.push(m && isFinite(m.xirr) && isFinite(m.mdd) && Math.abs(m.mdd) > 1e-9
+        ? m.xirr / Math.abs(m.mdd) : null);
     }
     return out;
+  }
+
+  /**
+   * **견딜 수 있는 범위**의 최적 레버리지 — |평가액 MDD| ≤ maxMdd 격자점 중 key 최대.
+   * dca_sim.constrained_optimal 미러. maxMdd 는 양수 비율(0.5 = −50%까지 허용).
+   * 무제약 최적은 대개 −95~−99% 낙폭을 동반하므로, 이 함수가 그 경고를 숫자로 만든다.
+   */
+  function constrainedOptimal(sw, maxMdd, key) {
+    key = key || 'dca_final';
+    const vals = sw[key], mdds = sw.dca_mdd;
+    let bi = -1, bv = -Infinity;
+    for (let i = 0; i < vals.length; i++) {
+      const m = mdds[i], v = vals[i];
+      if (m == null || v == null || !isFinite(m) || !isFinite(v)) continue;
+      if (Math.abs(m) <= maxMdd + 1e-12 && v > bv) { bv = v; bi = i; }
+    }
+    if (bi < 0) return { feasible: false, maxMdd };
+    return {
+      feasible: true, maxMdd, L: sw.L[bi], idx: bi, value: bv,
+      dca_mdd: sw.dca_mdd[bi], dca_under_days: sw.dca_under_days[bi],
+      dca_xirr: sw.dca_xirr[bi], dca_calmar: sw.dca_calmar ? sw.dca_calmar[bi] : null,
+      lump_final_amt: sw.lump_final_amt ? sw.lump_final_amt[bi] : null,
+    };
   }
 
   /** 스윕에서 적립식 최종평가액 최대 L / 적립식 XIRR 최대 L / 일시불 CAGR 최대 L. */
@@ -274,6 +343,10 @@
     if (f >= 0) res.dca_final = Object.assign(pick(f), { value: sw.dca_final[f] });
     if (x >= 0) res.dca_xirr = Object.assign(pick(x), { value: sw.dca_xirr[x] });
     if (c >= 0) res.lump_cagr = Object.assign(pick(c), { value: sw.lump_cagr[c] });
+    if (sw.dca_calmar) {
+      const k = am(sw.dca_calmar);
+      if (k >= 0) res.dca_calmar = Object.assign(pick(k), { value: sw.dca_calmar[k] });
+    }
     return res;
   }
 
@@ -299,6 +372,8 @@
     opts = opts || {};
     const fee = opts.fee || 0, useFx = opts.useFx !== false, withLump = opts.withLump !== false;
     const step = Math.max(1, opts.step || 1);
+    // opts.rfCash(마스터 축 전체)를 주면 창마다 적립식이 미투입 현금 이자를 받는 회계로 바뀐다
+    const rfCash = opts.rfCash || null;
     let starts = monthFirstIndices(dates, lo, hi);
     if (step > 1) starts = starts.filter((_, i) => i % step === 0);
     const winDays = Math.round(years * 365.25);
@@ -314,7 +389,9 @@
       if (e - s < 200) continue;
       const seg = ret.subarray(s - lo, e - lo + 1);
       const buy = monthFirstIndices(dates, s, e);
-      const sim = simulate(seg, fx, buy, monthly, { fee, offset: s, useFx });
+      const simOpt = { fee, offset: s, useFx, dpy: opts.dpy || DPY };
+      const sim = rfCash ? cashGlide(seg, fx, buy, monthly, rfCash, simOpt)
+        : simulate(seg, fx, buy, monthly, simOpt);
       const m = dcaMetrics(dates, sim);
       if (!m || !isFinite(m.multiple)) continue;
       const row = { start: dates[s], end: dates[e], multiple: m.multiple, xirr: m.xirr, mdd: m.mdd, underDays: m.underDays };
@@ -369,7 +446,7 @@
     return out;
   }
 
-  const API = { DPY, CLIP, sliceRange, monthFirstIndices, leverReturns, assetReturns, simulate, lumpSum, compareDcaLump, xirr, dcaMetrics, lumpMetrics, sweep, optimal, downsampleIdx, rollingStarts, sensitivitySummary };
+  const API = { DPY, CLIP, sliceRange, monthFirstIndices, leverReturns, assetReturns, simulate, lumpSum, cashGlide, compareDcaLump, xirr, dcaMetrics, lumpMetrics, sweep, optimal, constrainedOptimal, downsampleIdx, rollingStarts, sensitivitySummary };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.DCASIM = API;
 })(typeof window !== 'undefined' ? window : globalThis);
