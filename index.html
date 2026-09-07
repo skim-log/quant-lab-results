@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=3805f67c" />
+  <link rel="stylesheet" href="style.css?v=5dfbc1c8" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -742,13 +742,14 @@
             <button type="button" data-source="mixed" class="active">합성 확장 포함</button>
             <button type="button" data-source="real">실제 ETF만</button>
           </div>
-          <span class="muted">미투입 현금</span>
-          <div id="dca-cash" class="bt-toggle">
-            <button type="button" data-cash="rf" class="active">이자 반영</button>
-            <button type="button" data-cash="none">장롱 (0%)</button>
+          <span class="muted">비교 기준</span>
+          <div id="dca-basis" class="bt-toggle">
+            <button type="button" data-basis="nominal">명목 고정</button>
+            <button type="button" data-basis="real" class="active">실질 고정</button>
+            <button type="button" data-basis="cash">현금 이자</button>
           </div>
         </div>
-        <p class="period-note" id="dca-cash-note"></p>
+        <p class="period-note" id="dca-basis-note"></p>
         <div class="bt-controls lev-period-row">
           <span class="muted">기간</span><div id="dca-period" class="bt-toggle"></div>
           <label>시작 <input type="date" id="dca-start" /></label>
@@ -786,13 +787,15 @@
         <h2>적립식 vs 거치식 <span class="muted">(매달 나눠 넣기 vs 처음에 한 번에 넣기)</span></h2>
         <p class="period-note">같은 기간에 <strong>총액도 똑같이</strong> 넣되 <strong>넣는 시점만</strong> 다르게 한 비교입니다 — 거치식(일시불)은 적립식이 그 기간에 넣게 될 <strong>총 납입원금 전액을 첫 달에 한 번</strong> 넣고 끝까지 보유합니다. 수수료·환전 규약은 적립식과 동일해 차이는 오직 <strong>“언제 넣었는가”</strong>에서만 옵니다. <span class="muted">목돈이 이미 있는 사람의 선택지이며, 매달 버는 돈만 있다면 애초에 적립식뿐입니다.</span></p>
         <details class="theory">
-          <summary>⚖️ 이 비교가 공정한가? — 미투입 현금의 이자와 돈의 시간가치</summary>
+          <summary>⚖️ 이 비교가 공정한가? — 돈의 시간가치와 비교 기준 3택</summary>
           <div class="theory-body">
-            <p><strong>문제</strong>: 거치식은 첫 달에 전액을 넣습니다. 그런데 같은 총액을 처음부터 가진 사람이 적립식을 택했다면, <strong>아직 넣지 않은 돈은 예금·MMF에서 이자를 벌었을</strong> 겁니다. 그걸 0으로 두면 적립식만 수십 년의 이자를 잃는 셈이라 <strong>구조적으로 적립식에 불리</strong>합니다. 1990년의 1억과 2020년의 1억이 다른 돈이라는 직관이 금융에서는 이렇게 표현됩니다.</p>
-            <p><strong>그래서</strong> 위 컨트롤의 <strong>‘미투입 현금 = 이자 반영’</strong>이 기본값입니다. t=0에 총액을 현금으로 갖고 매달 꺼내 사며, 남은 잔액은 <strong>적립통화의 단기금리</strong>로 굴립니다(원화 적립이면 한국 금리 — 1990년대 평균 연 12%대였습니다). 이러면 두 사람의 <strong>출발 부(富)가 같아져</strong> 비교가 “지금 전액 주식” vs “현금에서 주식으로 서서히 이전”이라는 정직한 대비가 됩니다. DCA vs 일시불 문헌(Constantinides 1979 · Rozeff 1994 · Vanguard 2012)의 표준 설계입니다.</p>
-            <p><strong>덤으로 얻는 것</strong>: 이 모드에서는 적립식도 <strong>현금흐름이 1건</strong>(t=0에 총액)이 되어 <strong>XIRR = CAGR</strong>이 됩니다. 그래서 ‘최종액 기준 승패’와 ‘연율 기준 승패’가 <strong>일치</strong>합니다 — 명목 모드(‘장롱’)에서는 이 둘이 갈려서, 총액으로는 거치식이 이기고 연율로는 적립식이 이기는 일이 흔합니다(적립식 돈은 평균적으로 절반의 기간만 일하므로).</p>
-            <p><strong>중요한 단서</strong>: 이자를 반영하면 적립식은 전반부가 상당 부분 <strong>현금인 포트폴리오</strong>가 됩니다. 그래서 낙폭이 얕게 나오는 건 당연하고(위험이 실제로 낮으니까), 최종액 승패는 그 기간 <strong>금리가 주식 수익을 넘었는지</strong>에도 좌우됩니다 — 고금리 시대(한국 1990년대 연 12%대)에는 현금 자체가 강했습니다. 즉 이 비교는 “같은 자산, 넣는 시점만 다름”이 아니라 <strong>“같은 출발 부, 자산배분 경로가 다름”</strong>으로 읽는 게 정확합니다. 순수하게 ‘시점 효과’만 보고 싶으면 ‘장롱’ 모드가 그 역할을 합니다.</p>
-            <p><strong>남은 한계</strong>: 이건 <strong>명목</strong> 비교입니다. 물가로 나눈 <strong>실질</strong> 표시는 아직 없습니다 — 다만 명목 무위험금리 ≈ 실질금리 + 기대인플레(피셔 관계)라 이자를 반영하는 것만으로 인플레 효과의 상당 부분이 들어옵니다. 그리고 <strong>‘목돈이 처음부터 있었다’</strong>는 전제는 그대로입니다.</p>
+            <p><strong>문제</strong>: 거치식은 첫 달에 전액을 넣습니다. 1990년의 1억과 2020년의 1억은 다른 돈인데, 같은 <strong>명목</strong> 총액을 비교하는 게 공정할까요? 이 질문에는 서로 다른 두 답이 있고, 위 컨트롤의 <strong>‘비교 기준’ 3택</strong>이 그 둘을 갈라 놓습니다 — 무엇을 <strong>고정하고</strong> 비교할 것인가의 문제입니다.</p>
+            <p><strong>① 실질 고정 (기본값)</strong> — 적립식이 매달 넣는 것을 같은 <em>금액</em>이 아니라 같은 <strong>구매력</strong>으로 봅니다. 납입액이 물가만큼 증액되고(<code>입력액 × CPI<sub>t</sub> ÷ CPI<sub>시작</sub></code>), 거치식은 그 흐름을 <strong>시작 시점 가치로 환산한 합</strong>(= 입력액 × 매수 횟수)을 첫 달에 넣습니다. 그래서 <strong>두 사람이 같은 구매력을 투입</strong>한 셈이 됩니다. 월급의 일정 비율을 넣는 현실과도 가깝습니다 — 월급은 물가만큼 오르니까요. 결정적으로 <strong>적립식은 계속 100% 주식</strong>이라 “월 적립 투자”라는 이 탭의 질문이 그대로 유지됩니다.</p>
+            <p><strong>② 명목 고정</strong> — 매달 똑같은 금액을 넣습니다. 시간가치를 일부러 무시하고 <strong>순수한 시점 효과</strong>만 보는 기준입니다.</p>
+            <p><strong>③ 현금 이자</strong> — 같은 총액을 처음부터 가진 사람이 적립식을 택했다면 <strong>아직 넣지 않은 돈은 예금·MMF에서 이자를 벌었을</strong> 겁니다. t=0에 총액을 현금으로 갖고 매달 꺼내 사며 잔액을 <strong>적립통화의 단기금리</strong>로 굴립니다(원화면 한국 금리 — 1990년대 평균 연 12%대). 두 사람의 <strong>출발 부(富)가 같아지는</strong> DCA vs 일시불 문헌(Constantinides 1979 · Rozeff 1994 · Vanguard 2012)의 표준 설계입니다. 덤으로 적립식도 <strong>현금흐름이 1건</strong>이 되어 <strong>XIRR = CAGR</strong>이라, ‘최종액 기준 승패’와 ‘연율 기준 승패’가 <strong>일치</strong>합니다(①·②에서는 이 둘이 갈립니다 — 적립식 돈은 평균적으로 절반의 기간만 일하므로).</p>
+            <p><strong>③을 기본에서 내린 이유</strong>: 이자를 반영하면 적립식은 전반부가 상당 부분 <strong>현금인 포트폴리오</strong>가 됩니다. 낙폭이 얕게 나오는 건 당연하고(위험이 실제로 낮으니까), 최종액 승패가 그 기간 <strong>금리가 주식 수익을 넘었는지</strong>에도 좌우됩니다. 즉 “같은 자산, 넣는 시점만 다름”이 아니라 <strong>“같은 출발 부, 자산배분 경로가 다름”</strong>의 비교입니다 — 그것대로 유효한 질문이지만, 이 탭이 답하려는 “월 적립 투자를 하면 어떻게 되나”는 아닙니다. ①은 적립식을 100% 주식으로 유지한 채 시간가치를 반영하므로 이 탭의 질문에 맞습니다.</p>
+            <p><strong>읽을 때 주의</strong>: 실질 고정에서 적립식의 <strong>명목</strong> 납입 합계는 거치식 투입액보다 큽니다(물가만큼 증액했으니까). 같은 것은 ‘시작 시점 가치’입니다 — 그래서 카드·표에 <strong>명목 합계와 시작시점 가치를 나란히</strong> 적어 둡니다. 금액 표기는 모두 <strong>구간 시작 시점 기준</strong>이며, 기준을 옮겨도 배수·XIRR·승패는 달라지지 않습니다.</p>
+            <p><strong>남은 한계</strong>: 실질 고정은 “<strong>얼마를 넣었나</strong>”의 시간가치를 교정할 뿐, 최종 평가액을 오늘 돈으로 환산해 보여주지는 않습니다(XIRR도 <strong>명목</strong>입니다 — 실질은 대략 ‘명목 − 인플레’). 그리고 <strong>‘목돈이 처음부터 있었다’</strong>는 전제는 세 기준 모두에 그대로 남습니다.</p>
           </div>
         </details>
         <div id="dca-cmp-cards" class="ext-cards"></div>
@@ -1303,13 +1306,13 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="explain.js?v=3805f67c" defer></script>
-  <script src="alloc.js?v=3805f67c" defer></script>
-  <script src="re_apt.js?v=3805f67c" defer></script>
-  <script src="analytics-live.js?v=3805f67c" defer></script>
-  <script src="leverage.js?v=3805f67c" defer></script>
-  <script src="dca.js?v=3805f67c" defer></script>
-  <script src="lab.js?v=3805f67c" defer></script>
-  <script src="app.js?v=3805f67c" defer></script>
+  <script src="explain.js?v=5dfbc1c8" defer></script>
+  <script src="alloc.js?v=5dfbc1c8" defer></script>
+  <script src="re_apt.js?v=5dfbc1c8" defer></script>
+  <script src="analytics-live.js?v=5dfbc1c8" defer></script>
+  <script src="leverage.js?v=5dfbc1c8" defer></script>
+  <script src="dca.js?v=5dfbc1c8" defer></script>
+  <script src="lab.js?v=5dfbc1c8" defer></script>
+  <script src="app.js?v=5dfbc1c8" defer></script>
 </body>
 </html>

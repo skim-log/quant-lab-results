@@ -123,6 +123,40 @@ for (const c of fix.cases) {
       checkNum(`${c.name} cash cmp finalRatio`, gcp.finalRatio, GCE.final_ratio);
       if (gcp.dcaWins !== GCE.dca_wins) { console.error(`✗ ${c.name} cash cmp dcaWins: ${gcp.dcaWins} ≠ ${GCE.dca_wins}`); fails++; }
     }
+
+    // 실질 고정 모드(화면 **기본값**) — 납입액이 물가에 연동된다. 여기가 어긋나면 첫 화면 숫자가 갈린다.
+    if (c.real_equity) {
+      const cpi = useFx ? d.cpi_krw : d.cpi_usd;
+      if (!cpi || !cpi.length) { console.error(`✗ ${c.name}: 픽스처에 CPI 배열 없음`); fails++; }
+      else {
+        const rs = DCA.simulate(ar.ret, useFx ? d.fx : fxOne, buy, c.monthly,
+          { fee: fix.fee, offset: lo, useFx, scale: cpi });
+        checkArr(`${c.name} real equity`, rs.equity, c.real_equity);
+        checkArr(`${c.name} real cost`, rs.cost, c.real_cost);
+        const rm = DCA.dcaMetrics(dates, rs), RE = c.real_metrics;
+        if (!rm) { console.error(`✗ ${c.name}: JS 실질모드 지표 null`); fails++; continue; }
+        checkNum(`${c.name} real final`, rm.final, RE.final);
+        checkNum(`${c.name} real totalCost`, rm.totalCost, RE.total_cost);
+        checkNum(`${c.name} real realCost`, rm.realCost, RE.real_cost);
+        checkNum(`${c.name} real firstAmt`, rm.firstAmt, RE.first_amt);
+        checkNum(`${c.name} real lastAmt`, rm.lastAmt, RE.last_amt);
+        checkNum(`${c.name} real multiple`, rm.multiple, RE.multiple);
+        checkNum(`${c.name} real xirr`, rm.xirr, RE.xirr, 1e-7);
+        checkNum(`${c.name} real mdd`, rm.mdd, RE.mdd);
+        checkNum(`${c.name} real maxLoss`, rm.maxLoss, RE.max_loss);
+        if (rm.underDays !== RE.under_days) { console.error(`✗ ${c.name} real underDays: ${rm.underDays} ≠ ${RE.under_days}`); fails++; }
+        // 계약: 첫 달 납입액 = 입력액(첫 매수일 재기준화), 시작시점 실질 합계 = 거치식 투입액
+        checkNum(`${c.name} real firstAmt==monthly`, rm.firstAmt, c.monthly, 1e-12);
+        checkNum(`${c.name} real realCost==lump totalCost`, rm.realCost, lm.totalCost, 1e-12);
+        const rcp = DCA.compareDcaLump(rm, lm), RCE = c.real_compare || {};
+        checkNum(`${c.name} real cmp finalRatio`, rcp.finalRatio, RCE.final_ratio);
+        if (rcp.dcaWins !== RCE.dca_wins) { console.error(`✗ ${c.name} real cmp dcaWins: ${rcp.dcaWins} ≠ ${RCE.dca_wins}`); fails++; }
+        // 거치식이 실질 모드에 오염되지 않았는지(lumpSum 이 scale 을 벗기는지) 직접 확인
+        const lchk = DCA.lumpSum(ar.ret, useFx ? d.fx : fxOne, buy, c.monthly,
+          { fee: fix.fee, offset: lo, useFx, scale: cpi });
+        checkNum(`${c.name} lump ignores scale`, lchk.equity[lchk.equity.length - 1], lm.final, 1e-12);
+      }
+    }
     if (!fails) console.log(`✓ ${c.name}  적립식=${m.final.toExponential(6)} XIRR=${(m.xirr * 100).toFixed(4)}% MDD=${(m.mdd * 100).toFixed(2)}%` +
       ` | 거치식=${lm.final.toExponential(6)} CAGR=${(lm.xirr * 100).toFixed(4)}% → 적립식/거치식=${cp.finalRatio.toFixed(4)}`);
     continue;
@@ -186,6 +220,28 @@ for (const s of fix.sweeps) {
       if (Math.abs(oc[k].L - EOC[k].L) > 1e-9) { console.error(`✗ ${s.name}.optimal_cash.${k}.L: ${oc[k].L} ≠ ${EOC[k].L}`); fails++; }
     }
   }
+  // 실질 고정 스윕 — 화면 기본 기준이라 최적 L 이 어긋나면 헤드라인 배수가 갈린다.
+  if (s.sweep_real) {
+    const useFxR = s.currency === 'krw';
+    const cpi = useFxR ? d.cpi_krw : d.cpi_usd;
+    const swr = DCA.sweep(dates, famRet, d.rf, useFxR ? d.fx : fxOne, st, st + n - 1, d.l_grid,
+      { monthly: s.monthly, fee: fix.fee, expense: fam.expense, spread: fam.spread, dpy: d.dpy,
+        useFx: useFxR, scale: cpi });
+    for (const k of ['dca_final', 'dca_xirr', 'dca_mdd', 'dca_calmar', 'lump_final_amt']) {
+      const got = swr[k], exp = s.sweep_real[k];
+      if (!exp) continue;
+      for (let i = 0; i < exp.length; i++) checkNum(`${s.name}.real.${k}[L=${swr.L[i]}]`, got[i], exp[i], 1e-7);
+    }
+    const oR = DCA.optimal(swr), EOR = s.optimal_real || {};
+    for (const k of ['dca_final', 'dca_xirr', 'dca_calmar']) {
+      if (!EOR[k] || !oR[k]) continue;
+      if (Math.abs(oR[k].L - EOR[k].L) > 1e-9) { console.error(`✗ ${s.name}.optimal_real.${k}.L: ${oR[k].L} ≠ ${EOR[k].L}`); fails++; }
+    }
+    // 거치식은 비교 기준과 무관하게 동일해야 한다(lumpSum 이 scale 을 벗긴다)
+    for (let i = 0; i < sw.lump_final_amt.length; i++) {
+      checkNum(`${s.name}.real lump unchanged[L=${sw.L[i]}]`, swr.lump_final_amt[i], sw.lump_final_amt[i], 1e-12);
+    }
+  }
   if (!fails) console.log(`✓ ${s.name}  적립식최적 L=${o.dca_final.L} · 거치식최적 L=${o.lump_cagr.L}`);
 }
 
@@ -195,9 +251,11 @@ for (const rc of (fix.rolls || [])) {
   if (!a) { console.error(`✗ ${rc.name}: 자산 ${rc.asset} 없음`); fails++; continue; }
   const ar = DCA.assetReturns(d, a, lo, hi, 'mixed');
   const useFx = rc.currency === 'krw';
+  const basis = rc.basis || (rc.cash ? 'cash' : 'nominal');    // 구 픽스처 호환
   const rows = DCA.rollingStarts(dates, ar.ret, useFx ? d.fx : fxOne, lo, hi, rc.years, 1,
     { fee: fix.fee, useFx, step: rc.step, dpy: d.dpy,
-      rfCash: rc.cash ? (useFx ? d.rf_krw : d.rf) : null });
+      rfCash: basis === 'cash' ? (useFx ? d.rf_krw : d.rf) : null,
+      scale: basis === 'real' ? (useFx ? d.cpi_krw : d.cpi_usd) : null });
   const exp = rc.rows;
   if (rows.length !== exp.length) {
     console.error(`✗ ${rc.name}: 창 수 ${rows.length} ≠ ${exp.length}`); fails++; continue;
@@ -228,6 +286,12 @@ for (const rc of (fix.rolls || [])) {
   if (!fails) console.log(`✓ ${rc.name}  표본=${s.n} 승률=${(s.winRate * 100).toFixed(1)}% ` +
     `성과비 p50=${s.ratioP50.toFixed(4)} 현재백분위=${(s.currentPct * 100).toFixed(1)}%`);
 }
+
+const nReal = (fix.cases || []).filter(c => c.real_equity).length
+  + (fix.sweeps || []).filter(s => s.sweep_real).length
+  + (fix.rolls || []).filter(r => (r.basis || '') === 'real').length;
+if (!fails) console.log(`
+  · 실질 고정(물가 연동) 검증 ${nReal}건 — 케이스·스윕·롤링 전 경로`);
 
 if (fails) {
   console.error(`\n✗ 패리티 실패 ${fails}건 (최대 상대오차 ${maxRel.toExponential(3)}) — Python dca_sim.py 와 web/dca.js 가 어긋났습니다.`);

@@ -8,6 +8,13 @@
  * 적립식:            매월 첫 거래일에 monthly(적립통화) 납입 → 그날 환율로 USD 환전 → 수수료 차감 후 매수
  * 거치식(일시불):     같은 총액(monthly × 매수횟수)을 첫 매수일에 한 번에 → 같은 규약으로 보유(lumpSum)
  *
+ * 비교 기준 3택(화면 토글과 1:1, dca_sim.py 헤더와 같은 규약):
+ *   ① 명목 고정  simulate()                 매달 같은 명목 금액 — 순수 '시점 효과'
+ *   ② 실질 고정  simulate({scale: CPI}) 기본  매달 같은 구매력(A_t = monthly × CPI_t / CPI_첫매수일).
+ *                                           거치식 투입액은 monthly × 매수횟수 로 불변 → 같은 구매력 비교.
+ *   ③ 현금 이자  cashGlide()                미투입분을 단기금리로 굴린다(적립식이 주식+예금 배분이 된다)
+ *   ②와 ③은 상호배타 — lumpSum·cashGlide 는 scale 을 명시적으로 벗긴다.
+ *
  * ※ 파이썬과 어긋나기 쉬운 지점(패리티 테스트가 지키는 계약):
  *   - 매수일 = '연*100+월'이 바뀌는 첫 인덱스 (월 1일이 휴장이면 그 달 첫 거래일)
  *   - 수수료는 매수금액에서 차감(주수 = 금액×(1−fee)/가격), 매도 없음
@@ -98,36 +105,59 @@
   /**
    * ret(일간수익), fx(마스터 축 전체), buyIdx(마스터 인덱스 배열) → 평가액·납입원금 경로.
    * offset = ret[0] 에 대응하는 마스터 인덱스(=lo). currency='usd' 면 fx 를 1 로 취급.
+   *
+   * opts.scale — **물가지수 배열(마스터 축 전체**, fx·rfCash 와 같은 규약). 주면 납입액이 명목
+   * 고정이 아니라 **실질 고정**이 된다: A_t = monthly × scale[t] / scale[첫 매수일].
+   * 재기준화(÷ 첫 매수일 값)를 **이 함수 안에서** 하는 것이 dca_sim.simulate 와의 계약이다 —
+   * rollingStarts 는 창마다 시작이 다른데, 호출부가 각자 재기준화하면 파이썬과 어긋난다.
+   * null 이면 기존 명목 고정 동작과 완전히 동일하다.
    */
   function simulate(ret, fx, buyIdx, monthly, opts) {
     opts = opts || {};
     const fee = opts.fee || 0, offset = opts.offset || 0, useFx = opts.useFx !== false;
+    const scale = opts.scale || null;
     const n = ret.length;
     const nav = new Float64Array(n);
     let v = 1.0;
     for (let i = 0; i < n; i++) { v *= (1 + ret[i]); nav[i] = v; }
     const buy = new Uint8Array(n);
-    for (const b of buyIdx) { const j = b - offset; if (j >= 0 && j < n) buy[j] = 1; }
+    // 축 밖 매수일은 버린다 — 파이썬 simulate 도 같은 규약(0 <= i < n)으로 거른다.
+    let firstBuy = -1;
+    for (const b of buyIdx) {
+      const j = b - offset;
+      if (j >= 0 && j < n) { buy[j] = 1; if (firstBuy < 0 || j < firstBuy) firstBuy = j; }
+    }
+    // 재기준화 기준값 = **첫 매수일**의 물가지수. 0/결측이면 명목 고정으로 안전 퇴각.
+    let base = 1;
+    if (scale && firstBuy >= 0) {
+      const v0 = scale[offset + firstBuy];
+      base = (v0 > 0) ? v0 : 1;
+    }
 
-    const equity = new Float64Array(n), cost = new Float64Array(n);
-    let units = 0, paid = 0, spentUsd = 0;
+    const equity = new Float64Array(n), cost = new Float64Array(n), costReal = new Float64Array(n);
+    let units = 0, paid = 0, spentUsd = 0, nBuys = 0;
     const flows = [];            // [마스터인덱스, 금액(음수)]
     const buyPrices = [];
     for (let i = 0; i < n; i++) {
       const f = useFx ? (fx[offset + i] || 0) : 1;
       if (buy[i]) {
-        const amtUsd = f ? monthly / f : 0;
+        // 적립통화 기준 납입액 — 실질 고정이면 물가만큼 증액된 **명목** 금액
+        const amt = scale ? monthly * (scale[offset + i] / base) : monthly;
+        const amtUsd = f ? amt / f : 0;
         units += amtUsd * (1 - fee) / nav[i];
         spentUsd += amtUsd;
-        paid += monthly;
-        flows.push([offset + i, -monthly]);
+        paid += amt;
+        nBuys++;
+        flows.push([offset + i, -amt]);
         buyPrices.push(nav[i]);
       }
       equity[i] = units * nav[i] * f;
       cost[i] = paid;
+      // 각 납입의 시작시점 가치는 정의상 정확히 monthly → 부동소수 오차 없이 monthly × 횟수.
+      costReal[i] = monthly * nBuys;
     }
     const avgCost = units > 1e-15 ? spentUsd / units : NaN;
-    return { equity, cost, nav, units, flows, avgCost, buyPrices, offset };
+    return { equity, cost, costReal, nav, units, flows, avgCost, buyPrices, offset };
   }
 
   /**
@@ -137,8 +167,12 @@
    * 반환 형태가 simulate 와 같아 dcaMetrics 를 그대로 태울 수 있다.
    */
   function lumpSum(ret, fx, buyIdx, monthly, opts) {
-    if (!buyIdx || !buyIdx.length) return simulate(ret, fx, [], 0, opts);
-    return simulate(ret, fx, [buyIdx[0]], monthly * buyIdx.length, opts);
+    // 실질 모드에서도 거치식 투입액은 monthly × 매수횟수 로 **불변**이다(= 적립 흐름을 첫 매수일
+    // 가치로 환산한 합, simulate 의 costReal 마지막 값). scale 을 명시적으로 벗겨 규약을 못박는다
+    // — 넘겨도 첫 매수일 배수는 1.0 이라 결과는 같지만, 미러 드리프트를 원천 차단한다.
+    const o = Object.assign({}, opts || {}, { scale: null });
+    if (!buyIdx || !buyIdx.length) return simulate(ret, fx, [], 0, o);
+    return simulate(ret, fx, [buyIdx[0]], monthly * buyIdx.length, o);
   }
 
   /**
@@ -154,7 +188,8 @@
    * rfCash 는 **마스터 축 전체** 배열(적립통화 기준 연율). null 이면 이자 0(회계는 동일).
    */
   function cashGlide(ret, fx, buyIdx, monthly, rfCash, opts) {
-    opts = opts || {};
+    // 실질 고정(scale)과 상호배타 — 둘 다 t=0 기준을 건드려 섞으면 '총 투자원금'의 정의가 모호해진다.
+    opts = Object.assign({}, opts || {}, { scale: null });
     const sim = simulate(ret, fx, buyIdx, monthly, opts);
     const n = sim.equity.length, off = sim.offset || 0;
     const dpy = opts.dpy || DPY;
@@ -163,6 +198,7 @@
     const isBuy = new Uint8Array(n);
     for (const b of buy) { const j = b - off; if (j >= 0 && j < n) isBuy[j] = 1; }
     const cashPath = new Float64Array(n), equity = new Float64Array(n), cost = new Float64Array(n);
+    const costReal = new Float64Array(n);
     let cash = total;
     for (let i = 0; i < n; i++) {
       if (isBuy[i]) cash -= monthly;
@@ -171,9 +207,10 @@
       cashPath[i] = cash;
       equity[i] = sim.equity[i] + cash;
       cost[i] = total;                                  // t=0 에 이미 총액을 갖고 있었다
+      costReal[i] = total;                              // 명목=실질(물가 연동을 쓰지 않는 모드)
     }
     return Object.assign({}, sim, {
-      equity, cost, cash: cashPath,
+      equity, cost, costReal, cash: cashPath,
       flows: buy.length ? [[buy[0], -total]] : [],
     });
   }
@@ -244,6 +281,10 @@
       mdd, maxLoss, underDays: best, underTotal: total, months: sim.flows.length,
       avgCost: sim.avgCost, meanPrice, cheapness: meanPrice / sim.avgCost - 1,
       last5yShare: last5 / cost[n - 1],
+      // 실질 고정 모드용 — 시작시점 가치로 환산한 납입 합계(= 거치식 투입액)와 첫/마지막 달 납입액.
+      realCost: sim.costReal ? sim.costReal[n - 1] : cost[n - 1],
+      firstAmt: sim.flows.length ? -sim.flows[0][1] : NaN,
+      lastAmt: sim.flows.length ? -sim.flows[sim.flows.length - 1][1] : NaN,
       start: dates[off], end: dates[off + n - 1],
     };
   }
@@ -273,9 +314,11 @@
     // opts.rfCash 를 주면 적립식이 '미투입 현금에 이자를 받는' 회계로 바뀐다(거치식과 t=0 부 동일).
     // 그때 dca_* 는 주식 계좌가 아니라 **총 부** 기준이 된다.
     const rfCash = opts.rfCash || null;
+    // opts.scale(물가지수, 마스터 축)을 주면 적립식이 '실질 고정'이 된다. rfCash 와 상호배타.
+    const scale = opts.scale || null;
     for (const L of lGrid) {
       const r = leverReturns(famRet, rfSeg, L, { dpy: opts.dpy || DPY, expense: opts.expense, spread: opts.spread });
-      const simOpt = { fee, offset: lo, useFx, dpy: opts.dpy || DPY };
+      const simOpt = { fee, offset: lo, useFx, dpy: opts.dpy || DPY, scale };
       const sim = rfCash ? cashGlide(r, fx, buy, monthly, rfCash, simOpt)
         : simulate(r, fx, buy, monthly, simOpt);
       const m = dcaMetrics(dates, sim);
@@ -374,6 +417,9 @@
     const step = Math.max(1, opts.step || 1);
     // opts.rfCash(마스터 축 전체)를 주면 창마다 적립식이 미투입 현금 이자를 받는 회계로 바뀐다
     const rfCash = opts.rfCash || null;
+    // opts.scale(마스터 축 전체)을 주면 창마다 '실질 고정' 적립이 된다. simulate 가 창의 첫 매수일로
+    // 자동 재기준화하므로 어느 창에서든 첫 달 납입액은 정확히 monthly 다 — 창끼리 비교가 성립한다.
+    const scale = opts.scale || null;
     let starts = monthFirstIndices(dates, lo, hi);
     if (step > 1) starts = starts.filter((_, i) => i % step === 0);
     const winDays = Math.round(years * 365.25);
@@ -389,7 +435,7 @@
       if (e - s < 200) continue;
       const seg = ret.subarray(s - lo, e - lo + 1);
       const buy = monthFirstIndices(dates, s, e);
-      const simOpt = { fee, offset: s, useFx, dpy: opts.dpy || DPY };
+      const simOpt = { fee, offset: s, useFx, dpy: opts.dpy || DPY, scale };
       const sim = rfCash ? cashGlide(seg, fx, buy, monthly, rfCash, simOpt)
         : simulate(seg, fx, buy, monthly, simOpt);
       const m = dcaMetrics(dates, sim);

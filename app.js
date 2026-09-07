@@ -2454,9 +2454,11 @@ function enterDca(d) {
     picks: new Set((df.assets || []).filter(k => d.assets.some(a => a.key === k))),
     sweepFam: df.sweep_family || Object.keys(d.families)[0], sweepMetric: 'final',
     rollYears: 10, rollAsset: (df.assets || ['qqq'])[0], lump: 'on',
-    // 미투입 현금 이자 반영 여부 — 기본 'rf'(거치식과 t=0 부를 같게 맞춘 공정 비교).
-    // 'none' 은 안 넣은 돈을 장롱 현금으로 두는 명목 비교(내가 넣은 원금만 보는 관점).
-    cash: (df.cash === 'none' ? 'none' : 'rf'), mddCap: 0,
+    // 비교 기준 3택 — 적립식↔거치식을 **무엇을 고정하고** 비교할 것인가.
+    //   'nominal' 매달 같은 명목 금액(순수 시점 효과)
+    //   'real'    매달 같은 구매력(물가 연동) — **기본값**. 적립식이 계속 100% 주식이라 '월 적립'의 뜻이 보존된다
+    //   'cash'    미투입분을 단기금리로 굴린다 — t=0 부는 같아지지만 적립식이 '주식+예금 배분'이 된다
+    basis: (['nominal', 'real', 'cash'].includes(df.basis) ? df.basis : 'real'), mddCap: 0,
     // 계산 캐시 3종 — 키에 종목·소스·통화·구간이 다 들어가고, monthly 는 결과를 바꾸지 않거나
     // (XIRR·MDD·성과비) 선형이라(평가액) 적립금을 바꿔도 전부 재사용된다.
     sensCache: new Map(), rollCache: new Map(), sweepCache: new Map(), sensYears: null,
@@ -2468,10 +2470,11 @@ function enterDca(d) {
     `적립금·기간·종목을 바꾸면 브라우저에서 즉석 재계산됩니다. 총 ${d.assets.length}종목 · ` +
     `데이터 ${d.dates[0]} ~ ${d.dates[d.dates.length - 1]}. ` +
     `<span class="muted">‘합성 확장 포함’은 ETF 상장 이전 구간을 지수+레버리지 공식으로 되살린 구간이며, ` +
-    `상장 이후는 언제나 실제 펀드 수익률입니다.</span>`;
+    `상장 이후는 언제나 실제 펀드 수익률입니다. 기본 <strong>비교 기준은 ‘실질 고정’</strong>으로, ` +
+    `매달 같은 금액이 아니라 <strong>같은 구매력</strong>을 넣습니다(금액 표기는 구간 시작 시점 기준).</span>`;
 
   _dcaBuildAssets();
-  _dcaSyncCashNote();
+  _dcaSyncBasis();
   _dcaBuildSweepFams();
   _dcaBuildRollAssets();
   _dcaSyncAmountUnit();
@@ -2480,7 +2483,8 @@ function enterDca(d) {
 
   if (!state._dcaWired) {
     document.getElementById('dca-ccy').addEventListener('click', e => _dcaToggle(e, 'ccy', () => {
-      _dcaSyncAmountUnit(); _dcaFull();
+      // 물가 데이터 가용성이 통화마다 다르다(달러 CPI 번들이 없으면 실질 모드 비활성) → 기준 UI 재동기화
+      _dcaSyncAmountUnit(); _dcaSyncBasis(); _dcaFull();
     }));
     document.getElementById('dca-source').addEventListener('click', e => _dcaToggle(e, 'source', () => {
       // 프리셋 중이면 새 가용구간 기준으로 다시 적용('최장'의 뜻이 바뀐다).
@@ -2528,9 +2532,9 @@ function enterDca(d) {
       el.addEventListener('blur', () => _dcaSyncPeriodUI());
     });
     document.getElementById('dca-lump').addEventListener('click', e => _dcaToggle(e, 'lump', _dcaRenderEquity));
-    document.getElementById('dca-cash').addEventListener('click', e => _dcaToggle(e, 'cash', () => {
-      _dcaSyncCashNote(); _dcaFull();      // 현금 회계가 바뀌면 모든 패널이 다시 계산된다
-    }));
+    document.getElementById('dca-basis').addEventListener('click', e => _dcaToggle(e, 'basis', () => {
+      _dcaSyncBasis(); _dcaFull();         // 비교 기준이 바뀌면 모든 패널이 다시 계산된다
+    }, 'basis'));
     document.getElementById('dca-mdd-cap').addEventListener('click', e => {
       const b2 = e.target.closest('button[data-cap]'); if (!b2) return;
       state.dca.mddCap = parseFloat(b2.dataset.cap) || 0;
@@ -2566,33 +2570,77 @@ function _dcaToggle(e, field, after, attr) {
   after && after();
 }
 /**
- * 적립통화의 현금 이자율 배열(마스터 축) — 현금 토글이 꺼져 있으면 null.
+ * 적립통화의 현금 이자율 배열(마스터 축) — '현금 이자' 기준일 때만 값, 아니면 null.
  * 원화 적립이면 한국 단기금리(rf_krw), 달러면 미국 단기금리(rf). 현금은 환전 없이 적립통화로
  * 놀기 때문에 통화를 맞춰야 한다 — 원화 현금에 미국 금리를 씌우면 적립식을 과소평가한다
  * (한국이 대체로 더 높았다: 1990년대 평균 연 12%대).
  */
 function _dcaRfCash() {
-  if (state.dca.cash !== 'rf') return null;
+  if (state.dca.basis !== 'cash') return null;
   const d = state.dca.d;
   return state.dca.ccy === 'krw' ? (d.rf_krw || d.rf) : d.rf;
 }
 function _dcaCashOn() { return _dcaRfCash() != null; }
-/** 현금 모드 안내문 — 어떤 금리를 쓰는지, 무엇이 달라지는지 화면에 밝힌다. */
-function _dcaSyncCashNote() {
-  const el = document.getElementById('dca-cash-note');
-  if (!el) return;
+/** 적립통화의 물가지수 배열(마스터 축). 번들이 없으면 null → 그 통화는 실질 모드를 못 쓴다. */
+function _dcaCpi() {
+  const d = state.dca.d;
+  const a = state.dca.ccy === 'krw' ? d.cpi_krw : d.cpi_usd;
+  return (a && a.length === d.dates.length) ? a : null;
+}
+/** 실질 고정 모드가 **실제로 켜져 있는가**(기준이 real 이고 그 통화 CPI 가 있는가). */
+function _dcaRealOn() { return state.dca.basis === 'real' && !!_dcaCpi(); }
+/** DCASIM 에 넘길 물가지수 — 실질 모드가 아니면 null(= 명목 고정). */
+function _dcaScale() { return _dcaRealOn() ? _dcaCpi() : null; }
+/**
+ * 비교 기준 UI 동기화 — 버튼 활성/비활성 + 안내문.
+ * 그 통화의 CPI 번들이 없으면 '실질 고정' 버튼을 잠그고, 이미 골라 둔 상태였다면 이유를 밝힌다
+ * (조용히 명목으로 계산해 버리면 화면 숫자의 뜻이 달라진 걸 아무도 모른다).
+ */
+function _dcaSyncBasis() {
+  const wrap = document.getElementById('dca-basis');
+  const el = document.getElementById('dca-basis-note');
+  if (!wrap || !el) return;
   const d = state.dca.d, krw = state.dca.ccy === 'krw';
-  if (!_dcaCashOn()) {
-    el.innerHTML = '<strong>장롱 모드</strong> — 아직 넣지 않은 돈에 이자를 주지 않습니다(내가 넣은 원금만 보는 관점). ' +
-      '거치식은 첫 달에 전액을 넣으므로 이 모드는 <strong>적립식에 불리한 쪽으로 기울어</strong> 있습니다.';
+  const cpiOk = !!_dcaCpi();
+  const meta = (d.cpi_meta || {})[krw ? 'krw' : 'usd'] || {};
+  wrap.querySelectorAll('button[data-basis]').forEach(b => {
+    b.classList.toggle('active', b.dataset.basis === state.dca.basis);
+    if (b.dataset.basis === 'real') {
+      b.disabled = !cpiOk;
+      b.title = cpiOk ? (meta.source || '') : '이 통화의 물가지수 데이터가 없습니다';
+    }
+  });
+  if (state.dca.basis === 'real') {
+    if (!cpiOk) {
+      el.innerHTML = `⚠️ <strong>실질 고정을 쓸 수 없습니다</strong> — ${krw ? '원화' : '달러'} 물가지수 데이터가 ` +
+        '이 배포본에 없어 <strong>명목 고정으로 계산</strong>했습니다. ' +
+        '<span class="muted">달러 물가는 <code>scripts/fetch_macro_bundle.py</code>가 만드는 ' +
+        '<code>data/fred/CPIAUCSL.csv</code>에서 옵니다.</span>';
+      return;
+    }
+    el.innerHTML = '<strong>실질 고정</strong> — 매달 <strong>같은 금액</strong>이 아니라 <strong>같은 구매력</strong>을 넣습니다. ' +
+      '납입액이 물가만큼 증액되고(<code>입력액 × CPI<sub>t</sub> ÷ CPI<sub>시작</sub></code>), ' +
+      '거치식은 그 흐름을 <strong>시작 시점 가치로 환산한 합</strong>(= 입력액 × 매수 횟수)을 첫 달에 넣습니다 — ' +
+      '두 사람이 <strong>같은 구매력</strong>을 투입한 셈이라 공정한 비교가 됩니다. ' +
+      '적립식은 계속 <strong>100% 주식</strong>이라 “월 적립”의 뜻이 그대로 유지됩니다. ' +
+      `<span class="muted">물가: ${meta.label || 'CPI'} (${meta.base || ''}, ${meta.source || ''}) · ` +
+      `최종관측 ${meta.last_obs || '-'} — 금액 표기는 <strong>구간 시작 시점 기준</strong>입니다.</span>`;
     return;
   }
-  const has = krw ? !!d.rf_krw : true;
-  el.innerHTML = '<strong>이자 반영</strong> — t=0에 총액을 현금으로 갖고 매달 꺼내 사며, 남은 잔액은 ' +
-    `<strong>${krw ? '한국' : '미국'} 단기금리</strong>로 굴립니다` +
-    (krw && !has ? ' <span class="muted">(한국 금리 데이터가 없어 미국 금리로 대체)</span>' : '') +
-    '. 두 사람의 <strong>출발 부가 같아져</strong> 공정한 비교가 되고, 적립식도 현금흐름이 1건이 되어 ' +
-    '<strong>XIRR = CAGR</strong>이라 최종액 기준 승패와 연율 기준 승패가 일치합니다.';
+  if (state.dca.basis === 'cash') {
+    const has = krw ? !!d.rf_krw : true;
+    el.innerHTML = '<strong>현금 이자</strong> — t=0에 총액을 현금으로 갖고 매달 꺼내 사며, 남은 잔액은 ' +
+      `<strong>${krw ? '한국' : '미국'} 단기금리</strong>로 굴립니다` +
+      (krw && !has ? ' <span class="muted">(한국 금리 데이터가 없어 미국 금리로 대체)</span>' : '') +
+      '. 두 사람의 <strong>출발 부가 같아지고</strong> 적립식도 현금흐름이 1건이 되어 <strong>XIRR = CAGR</strong>입니다. ' +
+      '⚠️ <strong>단서</strong>: 이 모드의 적립식은 전반부가 상당 부분 <strong>현금인 포트폴리오</strong>입니다 — ' +
+      '“같은 자산, 넣는 시점만 다름”이 아니라 <strong>“같은 출발 부, 자산배분 경로가 다름”</strong>의 비교이고, ' +
+      '승패가 그 기간 <strong>금리가 주식 수익을 넘었는지</strong>에도 좌우됩니다.';
+    return;
+  }
+  el.innerHTML = '<strong>명목 고정</strong> — 매달 <strong>똑같은 금액</strong>을 넣습니다(물가 미반영). ' +
+    '시간가치를 일부러 무시하고 <strong>순수한 시점 효과</strong>만 보는 기준입니다 — ' +
+    '30년 적립이라면 마지막 달의 100만원이 첫 달보다 훨씬 가벼운 돈인데도 같은 금액으로 셉니다.';
 }
 function _dcaAsset(k) { return state.dca.d.assets.find(a => a.key === k); }
 function _dcaTicker(a) { return a.label.split(' · ')[0]; }   // "TQQQ · 나스닥100 3x" → "TQQQ"
@@ -2733,9 +2781,11 @@ function _dcaRun(a, rng, monthly) {
   const buy = DCASIM.monthFirstIndices(d.dates, lo, hi);
   const opt = { fee: d.fee, offset: lo, useFx, dpy: d.dpy };
   const rfCash = _dcaRfCash();
-  // 현금 모드면 '미투입 현금에 이자를 주는' 회계(cashGlide) — 거치식과 t=0 부가 같아진다.
+  // 비교 기준에 따라 적립식 회계가 갈린다:
+  //   현금 이자 → cashGlide(t=0 에 총액 현금 보유), 실질 고정 → simulate(scale=CPI), 그 외 명목.
+  //   거치식(lumpSum)은 어느 기준에서도 '같은 총액을 첫 달에' 그대로다(scale 을 내부에서 벗긴다).
   const sim = rfCash ? DCASIM.cashGlide(ar.ret, d.fx, buy, monthly, rfCash, opt)
-    : DCASIM.simulate(ar.ret, d.fx, buy, monthly, opt);
+    : DCASIM.simulate(ar.ret, d.fx, buy, monthly, Object.assign({}, opt, { scale: _dcaScale() }));
   const m = DCASIM.dcaMetrics(d.dates, sim);
   if (!m) return null;
   const lump = DCASIM.lumpSum(ar.ret, d.fx, buy, monthly, opt);
@@ -2794,6 +2844,21 @@ function _dcaCard(l, v, s, cls) {
   return `<div class="ext-card${cls ? ' ' + cls : ''}"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s || ''}</div></div>`;
 }
 
+/**
+ * '총 납입원금' 카드의 보조문구 — 비교 기준마다 이 숫자의 뜻이 달라서 반드시 구분해 적는다.
+ *   실질 고정: 지갑에서 나간 건 **명목** 합계지만, 거치식과 맞대는 건 **시작시점 실질 합계**다.
+ *              두 숫자를 같이 보여주지 않으면 "적립식이 돈을 더 넣고 이겼다"는 오해가 생긴다.
+ *   현금 이자: t=0 에 총액을 이미 갖고 있었다는 회계라 '납입'이 아니라 '보유'다.
+ */
+function _dcaPaidSub(m) {
+  if (_dcaRealOn()) {
+    return `명목 합계 · 시작시점 가치로는 ${_dcaMoney(m.realCost)}` +
+      ` <span class="muted">(${m.months}개월 × ${_dcaMoney(state.dca.monthly)})</span>`;
+  }
+  if (_dcaCashOn()) return `t=0에 보유한 총액 · ${m.months}개월에 걸쳐 투입`;
+  return `${m.months}개월 × ${_dcaMoney(state.dca.monthly)}`;
+}
+
 function _dcaRenderCards() {
   const runs = state.dca.runs || [];
   const el = document.getElementById('dca-cards');
@@ -2802,7 +2867,10 @@ function _dcaRenderCards() {
   const worst = runs.reduce((a, b) => (b.m.mdd < a.m.mdd ? b : a));
   const m = best.m, tick = _dcaTicker(best.asset);
   el.innerHTML =
-    _dcaCard('총 납입원금', _dcaMoney(m.totalCost), `${m.months}개월 × ${_dcaMoney(state.dca.monthly)}`) +
+    _dcaCard('총 납입원금', _dcaMoney(m.totalCost), _dcaPaidSub(m)) +
+    (_dcaRealOn() ? _dcaCard('월 납입액 (물가 연동)',
+      `${_dcaMoney(m.firstAmt)} → ${_dcaMoney(m.lastAmt)}`,
+      `첫 달 → 마지막 달 · 같은 구매력 기준 ${(m.lastAmt / m.firstAmt).toFixed(2)}배`) : '') +
     _dcaCard(`최고 성과 · ${tick}`, _dcaMoney(m.final), `원금의 ${m.multiple.toFixed(1)}배`) +
     _dcaCard(`XIRR · ${tick}`, fmtPct(m.xirr), '금액가중 = 적립식의 진짜 수익률') +
     (best.lm ? _dcaCard(`거치식이었다면 · ${tick}`, _dcaMoney(best.lm.final),
@@ -2818,11 +2886,15 @@ function _dcaRenderEquity() {
   if (!runs.length) { Plotly.purge('dca-equity'); return; }
   const ccy = _dcaCcy(), hov = ccy === 'usd' ? '$%{y:,.0f}' : '%{y:,.0f}원';
   const traces = [];
-  // 납입원금 계단선은 모든 종목이 동일(같은 금액·같은 매수일) → 가장 긴 것 하나만 그린다.
+  // 납입원금 계단선은 **시작이 같은** 종목끼리 동일(같은 금액·같은 매수일) → 가장 긴 것 하나만 그린다.
+  // 종목마다 상장일이 달라 시작이 갈릴 수 있고, 실질 모드에서는 재기준화 시점까지 달라진다 —
+  // 그때 이 선은 '가장 긴 종목의 납입선'이므로 이름에 그 종목을 밝혀 오독을 막는다.
   const ref = runs.reduce((a, b) => (b.sim.cost.length > a.sim.cost.length ? b : a));
+  const mixedStart = runs.some(r => r.lo !== ref.lo);
   const rIdx = DCASIM.downsampleIdx(ref.sim.cost.length, 1200);
   traces.push({
-    type: 'scatter', mode: 'lines', name: '납입 누계(원금)',
+    type: 'scatter', mode: 'lines',
+    name: '납입 누계(원금)' + (mixedStart ? ` · ${_dcaTicker(ref.asset)} 기준` : ''),
     x: rIdx.map(i => d.dates[ref.lo + i]), y: rIdx.map(i => ref.sim.cost[i]),
     line: { width: 1.6, color: DCA_COL.cost, dash: 'dot' }, hovertemplate: hov + '<extra>납입 누계</extra>',
   });
@@ -2844,9 +2916,13 @@ function _dcaRenderEquity() {
       hovertemplate: hov + '<extra>' + r.asset.label + ' 거치식</extra>',
     });
   });
+  // 실질 모드에서는 '매달 X' 가 사실이 아니다(물가만큼 증액) → 첫 달 기준임을 제목에 밝힌다.
+  const amtTxt = _dcaRealOn()
+    ? `첫 달 ${_dcaMoney(state.dca.monthly)}~ (물가 연동)`
+    : `매달 ${_dcaMoney(state.dca.monthly)}`;
   const layout = baseLayout(showLump
-    ? `평가액 vs 납입원금 — 매달 ${_dcaMoney(state.dca.monthly)} (실선=적립식 · 점선=거치식)`
-    : `적립식 평가액 vs 납입원금 — 매달 ${_dcaMoney(state.dca.monthly)}`,
+    ? `평가액 vs 납입원금 — ${amtTxt} (실선=적립식 · 점선=거치식)`
+    : `적립식 평가액 vs 납입원금 — ${amtTxt}`,
     ccy === 'usd' ? '평가액 ($, 로그축)' : '평가액 (원, 로그축)');
   // 1x(수배)와 3x(수백배)를 한 축에 놓으려면 로그가 필수 — 선형이면 1x 곡선이 바닥에 붙어 안 보인다.
   layout.yaxis.type = 'log';
@@ -2892,7 +2968,11 @@ function _dcaRenderTable() {
     '적립식에서 배수가 커 보이는 건 오래 넣었기 때문이지 수익률이 그만큼 높아서가 아닙니다. ' +
     '<strong>평균단가 이득</strong>은 (매수일 단순평균가 ÷ 실제 평균매수단가 − 1)로, 양수면 분할매수 덕에 평균보다 싸게 담았다는 뜻입니다. ' +
     '<strong>최근5년 비중</strong>은 총 납입원금 중 최근 5년치가 차지하는 비율 — 이게 클수록 결과가 최근 시황에 좌우됩니다. ' +
-    '<strong>거치식 대비</strong>는 같은 총액을 첫 달에 한 번에 넣었을 때와의 최종 평가액 차이(%)로, 음수면 그 기간엔 거치식이 유리했다는 뜻입니다 — 아래 패널에서 자세히 봅니다.';
+    '<strong>거치식 대비</strong>는 같은 총액을 첫 달에 한 번에 넣었을 때와의 최종 평가액 차이(%)로, 음수면 그 기간엔 거치식이 유리했다는 뜻입니다 — 아래 패널에서 자세히 봅니다.' +
+    (_dcaRealOn()
+      ? ' <strong>지금은 실질 고정 기준</strong>이라 <strong>납입원금은 명목 합계</strong>입니다 — 매달 같은 구매력을 넣느라 후반 납입액이 물가만큼 커졌기 때문입니다. ' +
+        '거치식과 맞대는 값은 이 금액이 아니라 <strong>시작 시점 가치로 환산한 합계</strong>이고, 아래 비교 패널에 두 숫자를 같이 적어 두었습니다.'
+      : '');
 }
 
 // ── 시작 시점 민감도 ─────────────────────────────────────────────────────────
@@ -2913,7 +2993,7 @@ function _dcaSens(a, years) {
   if (!(years > 0.5)) return null;
   const d = state.dca.d;
   const lo = _dcaStartIdx(a), hi = d.dates.length - 1;
-  const key = `${a.key}|${state.dca.source}|${state.dca.ccy}|${state.dca.cash}|${years.toFixed(4)}`;
+  const key = `${a.key}|${state.dca.source}|${state.dca.ccy}|${state.dca.basis}|${years.toFixed(4)}`;
   if (state.dca.sensCache.has(key)) return state.dca.sensCache.get(key);
   const usable = DCASIM.monthFirstIndices(d.dates, lo, hi).length - Math.round(years * 12);
   let res = null;
@@ -2923,7 +3003,8 @@ function _dcaSens(a, years) {
     const step = usable > 120 ? Math.ceil(usable / 120) : 1;
     const ar = DCASIM.assetReturns(d, a, lo, hi, state.dca.source);
     const rows = DCASIM.rollingStarts(d.dates, ar.ret, d.fx, lo, hi, years, 1,
-      { fee: d.fee, useFx: state.dca.ccy === 'krw', step, dpy: d.dpy, rfCash: _dcaRfCash() });
+      { fee: d.fee, useFx: state.dca.ccy === 'krw', step, dpy: d.dpy,
+        rfCash: _dcaRfCash(), scale: _dcaScale() });
     if (rows.length >= 8) res = { rows, step, years, from: d.dates[lo], to: d.dates[hi] };
   }
   return _dcaCachePut(state.dca.sensCache, key, res);
@@ -3027,11 +3108,17 @@ function _dcaRenderCompare() {
   const ratios = runs.map(r => r.cmp.finalRatio).filter(isFinite).sort((a, b) => a - b);
   const medRatio = ratios.length ? (ratios.length % 2 ? ratios[(ratios.length - 1) / 2]
     : 0.5 * (ratios[ratios.length / 2 - 1] + ratios[ratios.length / 2])) : NaN;
+  // 실질 고정에서는 적립식의 **명목** 납입이 거치식 투입액보다 크다(물가만큼 증액되므로).
+  // 같은 것은 '시작 시점 가치'다 — 라벨을 '양쪽 동일'로 두면 명백히 틀린 말이 되므로 갈라 적는다.
+  const realOn = _dcaRealOn();
   cards.innerHTML =
-    _dcaCard('총 투자원금(양쪽 동일)', _dcaMoney(best.m.totalCost),
-      _dcaCashOn()
-        ? `t=0 에 이 금액을 보유 — 적립식은 매달 ${_dcaMoney(state.dca.monthly)}씩 꺼내 사고 잔액은 이자`
-        : `적립식 ${best.m.months}개월 × ${_dcaMoney(state.dca.monthly)} = 거치식 1회 납입액`) +
+    (realOn
+      ? _dcaCard('총 투자원금(시작시점 가치 동일)', _dcaMoney(best.m.realCost),
+        `적립식 명목 납입 ${_dcaMoney(best.m.totalCost)} = 시작시점 ${_dcaMoney(best.m.realCost)} = 거치식 1회 납입액`)
+      : _dcaCard('총 투자원금(양쪽 동일)', _dcaMoney(best.m.totalCost),
+        _dcaCashOn()
+          ? `t=0 에 이 금액을 보유 — 적립식은 매달 ${_dcaMoney(state.dca.monthly)}씩 꺼내 사고 잔액은 이자`
+          : `적립식 ${best.m.months}개월 × ${_dcaMoney(state.dca.monthly)} = 거치식 1회 납입액`)) +
     _dcaCard(`적립식${_dcaCashOn() ? '(총 부)' : ''} · ${tick}`, _dcaMoney(best.m.final),
       `${_dcaCashOn() ? 'CAGR' : 'XIRR'} ${fmtPct(best.m.xirr)} · MDD ${fmtPct(best.m.mdd)}`) +
     _dcaCard(`거치식 · ${tick}`, _dcaMoney(best.lm.final), `CAGR ${fmtPct(best.lm.xirr)} · MDD ${fmtPct(best.lm.mdd)}`) +
@@ -3055,7 +3142,9 @@ function _dcaRenderCompare() {
       marker: { color: DCA_COL.lump }, text: sorted.map(r => _dcaMoney(r.lm.final)),
       textposition: 'auto', hovertemplate: hovB + '<extra>%{y} 거치식</extra>' },
   ];
-  const bl = baseLayout(`같은 총액(${_dcaMoney(best.m.totalCost)})의 최종 평가액 — 적립식 vs 거치식`, '');
+  const bl = baseLayout(realOn
+    ? `같은 구매력(시작시점 ${_dcaMoney(best.m.realCost)})의 최종 평가액 — 적립식 vs 거치식`
+    : `같은 총액(${_dcaMoney(best.m.totalCost)})의 최종 평가액 — 적립식 vs 거치식`, '');
   const bMuted = cssVar('--chart-muted');
   bl.barmode = 'group';
   bl.xaxis = { type: 'log', title: { text: `최종 평가액 (${ccy === 'usd' ? '$' : '원'}, 로그축)`, font: { color: bMuted } },
@@ -3069,7 +3158,7 @@ function _dcaRenderCompare() {
   bl.hovermode = 'closest';
   Plotly.react('dca-cmp', bar, bl, PLOTCFG);
 
-  const head = ['종목', '총 투자원금', '적립식 최종', '거치식 최종', '차이', '적립식 XIRR',
+  const head = ['종목', realOn ? '투자원금(명목/시작시점)' : '총 투자원금', '적립식 최종', '거치식 최종', '차이', '적립식 XIRR',
     '거치식 CAGR', '적립식 MDD', '거치식 MDD', '적립식 원금하회', '거치식 원금하회',
     '승자(총액)', '승자(연율)', '적립식 승률'];
   // 승패를 두 기준으로 나눠 적는다 — 명목 모드에서는 총액으로 거치식이 이기고 연율(XIRR)로는
@@ -3083,7 +3172,8 @@ function _dcaRenderCompare() {
     const c = r.cmp, sw = `<span class="swatch" style="background:${PALETTE[state.dca.runs.indexOf(r) % PALETTE.length]}"></span>`;
     const cells = [
       `<td data-label="${head[0]}">${sw}${r.asset.label}</td>`,
-      `<td data-label="${head[1]}">${_dcaMoney(r.m.totalCost)}</td>`,
+      `<td data-label="${head[1]}">${_dcaMoney(r.m.totalCost)}` +
+        (realOn ? ` <span class="muted">/ ${_dcaMoney(r.m.realCost)}</span>` : '') + '</td>',
       `<td data-label="${head[2]}"${c.dcaWins ? ' class="pos"' : ''}><strong>${_dcaMoney(r.m.final)}</strong></td>`,
       `<td data-label="${head[3]}"${c.dcaWins ? '' : ' class="pos"'}><strong>${_dcaMoney(r.lm.final)}</strong></td>`,
       `<td data-label="${head[4]}" class="${c.dcaWins ? 'pos' : 'neg'}">${_dcaVs(c.finalRatio)}</td>`,
@@ -3130,11 +3220,18 @@ function _dcaRenderCompare() {
       ? ` <strong>미투입 현금 이자가 반영된 결과</strong>입니다 — t=0에 총액을 갖고 매달 꺼내 사며 잔액은 ` +
         `${state.dca.ccy === 'krw' ? '한국' : '미국'} 단기금리로 굴렸습니다(두 사람의 출발 부가 같아진 공정 비교). ` +
         `이 모드에서는 적립식도 현금흐름이 1건이라 총액 기준과 연율 기준 승패가 일치합니다. ` +
-        `<strong>단서</strong>: 이때 적립식은 전반부가 상당 부분 <strong>현금인 포트폴리오</strong>입니다 — ` +
+        `⚠️ <strong>단서</strong>: 이때 적립식은 전반부가 상당 부분 <strong>현금인 포트폴리오</strong>입니다 — ` +
         `낙폭이 얕은 건 당연하고, 최종액 승패는 그 기간의 <strong>금리가 주식 수익을 넘었는지</strong>에도 좌우됩니다. ` +
-        `“같은 자산, 넣는 시점만 다름”이 아니라 “같은 출발 부, 자산배분 경로가 다름”의 비교로 읽어야 합니다.`
-      : ` ⚠️ 지금은 <strong>‘장롱’ 모드</strong>라 적립식의 미투입 현금이 이자를 벌지 않습니다 — 거치식은 첫 달에 전액을 넣으므로 ` +
-        `이 비교는 <strong>적립식에 불리한 쪽으로 기울어</strong> 있습니다. 위 컨트롤에서 ‘이자 반영’으로 바꿔 보세요.`) +
+        `“같은 자산, 넣는 시점만 다름”이 아니라 <strong>“같은 출발 부, 자산배분 경로가 다름”</strong>의 비교로 읽어야 합니다.`
+      : realOn
+        ? ` <strong>물가(실질) 기준 결과</strong>입니다 — 적립식은 매달 같은 구매력을 넣어 납입액이 ` +
+          `<strong>${_dcaMoney(b.m.firstAmt)} → ${_dcaMoney(b.m.lastAmt)}</strong>로 물가만큼 늘었고(명목 합계 ` +
+          `${_dcaMoney(b.m.totalCost)}), 거치식은 그 흐름을 시작 시점 가치로 환산한 ` +
+          `<strong>${_dcaMoney(b.m.realCost)}</strong>을 첫 달에 넣었습니다. 즉 <strong>두 사람이 같은 구매력을 투입</strong>했습니다. ` +
+          `금액 표기는 모두 <strong>${state.dca.start} 시점 기준</strong>이며, 기준 시점을 바꿔도 배수·XIRR·승패는 달라지지 않습니다. ` +
+          `적립식은 이 모드에서도 <strong>계속 100% 주식</strong>이라 “월 적립”의 뜻이 그대로입니다.`
+        : ` ⚠️ 지금은 <strong>‘명목 고정’</strong>이라 30년 뒤의 100만원도 첫 달의 100만원과 같은 금액으로 셉니다 — ` +
+          `<strong>돈의 시간가치를 무시</strong>한 순수 시점 효과 비교입니다. 위 컨트롤의 ‘실질 고정’이 물가를 반영합니다.`) +
     (b.m.xirr > b.lm.xirr !== c.dcaWins
       ? ` <strong>두 기준이 엇갈립니다</strong> — 총액으로는 ${c.dcaWins ? '적립식' : '거치식'}이 이기는데 ` +
         `연율(적립식 XIRR ${fmtPct(b.m.xirr)} vs 거치식 CAGR ${fmtPct(b.lm.xirr)})로는 반대입니다. ` +
@@ -3155,13 +3252,13 @@ function _dcaRenderSweep() {
   // 스윕은 L 격자 51점 × (적립식+거치식) 시뮬이라 이 탭에서 가장 무거운 계산이다.
   // 평가액은 월 적립금에 **정확히 선형**이므로 monthly=1 로 한 번만 계산해 캐시하고, 금액만
   // 곱해 쓴다 → 적립금을 바꿀 때 재계산이 사라진다(XIRR·MDD·원금하회는 애초에 금액 무관).
-  const swKey = `${state.dca.sweepFam}|${state.dca.ccy}|${state.dca.cash}|${lo}|${hi}`;
+  const swKey = `${state.dca.sweepFam}|${state.dca.ccy}|${state.dca.basis}|${lo}|${hi}`;
   let raw = state.dca.sweepCache.get(swKey);
   if (!raw) {
     const famRet = Float64Array.from(fam.ret.slice(lo - fam.start_idx, hi - fam.start_idx + 1));
     raw = DCASIM.sweep(d.dates, famRet, d.rf, d.fx, lo, hi, d.l_grid,
       { monthly: 1, fee: d.fee, expense: fam.expense, spread: fam.spread, dpy: d.dpy,
-        useFx: state.dca.ccy === 'krw', rfCash: _dcaRfCash() });
+        useFx: state.dca.ccy === 'krw', rfCash: _dcaRfCash(), scale: _dcaScale() });
     _dcaCachePut(state.dca.sweepCache, swKey, raw);
   }
   const mo = state.dca.monthly;
@@ -3354,12 +3451,13 @@ function _dcaRenderRoll() {
   }
   // 이 패널이 보여주는 값(XIRR·배수·MDD·성과비·첫해 손익)은 전부 월 적립금과 무관하므로
   // monthly=1 로 계산해 캐시한다 — 적립금을 바꿀 때 창을 다시 굴리지 않는다.
-  const rollKey = `${a.key}|${state.dca.source}|${state.dca.ccy}|${state.dca.cash}|${years}|${lo}|${hi}`;
+  const rollKey = `${a.key}|${state.dca.source}|${state.dca.ccy}|${state.dca.basis}|${years}|${lo}|${hi}`;
   let rows = state.dca.rollCache.get(rollKey);
   if (!rows) {
     const ar = DCASIM.assetReturns(d, a, lo, hi, state.dca.source);
     rows = DCASIM.rollingStarts(d.dates, ar.ret, d.fx, lo, hi, years, 1,
-      { fee: d.fee, useFx: state.dca.ccy === 'krw', dpy: d.dpy, rfCash: _dcaRfCash() });
+      { fee: d.fee, useFx: state.dca.ccy === 'krw', dpy: d.dpy,
+        rfCash: _dcaRfCash(), scale: _dcaScale() });
     _dcaCachePut(state.dca.rollCache, rollKey, rows);
   }
   if (!rows.length) { _dcaClearRoll({ keepHorizon: true }); return; }
