@@ -1264,6 +1264,15 @@
     "file": "dca.json"
   },
   {
+    "id": "lab_vixdca",
+    "category": "lab_vixdca",
+    "group": "🧪 실험실 · VIX 연동 적립",
+    "currency": "",
+    "mode": "lab_vixdca",
+    "label": "🧪 실험실 · 공포에 더 사면 유리할까",
+    "file": "dca.json"
+  },
+  {
     "id": "lab_rotation",
     "category": "lab_rotation",
     "group": "전략 로테이션은 왜 잘 안 되는가",

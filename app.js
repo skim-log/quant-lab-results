@@ -163,6 +163,7 @@ const CAT_BLURB = {
   static: '고정 비중 정적 자산배분(주기 리밸런싱 + 표류 밴드).',
   momentum: '개별 시장 모멘텀·레버리지 전략 비교(위험=TWR, 수익=XIRR).',
   dca: '미국 ETF(QQQ·QLD·TQQQ·SPY·SCHD 등)에 매달 일정액을 넣었다면? 적립금·기간·종목을 직접 바꿔 즉석 재계산 + 적립식 기준 최적 레버리지.',
+  lab_vixdca: 'VIX(공포지수)에 따라 매달 넣는 금액을 바꾸면 단순 적립식·거치식을 이길까? 현금풀 설계라 세 방식의 총 납입액이 같다.',
   crypto: '암호화폐 전략: 매수후보유·DCA·이동평균선 추세(20/60/120/200일 × 달러·원화 신호). 곡선=TWR(위험비교), 적립 수익=XIRR.',
   analytics: '8자산 월수익 기반 정량분석 — 상관·효율적 프론티어·리스크패리티·위험수익(무위험 2%).',
   compare: '여러 전략을 한 곡선에 오버레이 비교(통화 토글 + 지표 열 클릭 정렬 리더보드).',
@@ -218,7 +219,7 @@ function renderDescription() {
 // 백테스트 전략 뷰에서만 표시. 분석/도구 모드는 render()를 안 거치므로 CSS로도 숨김(style.css).
 const _EXPLAIN_SKIP = new Set(['analytics', 'compare', 'blend', 'paradise', 'sentiment',
   'trend', 'reliability', 'reco', 'guide', 'lab_rotation', 'lab_rebal', 'lab_blend',
-  'lab_dailyrisk', 'molit_explore', 'molit_apt']);
+  'lab_dailyrisk', 'lab_vixdca', 'molit_explore', 'molit_apt']);
 function _explainTypeKey(d, cat, sel) {
   if (cat && cat.indexOf('re') === 0 && cat !== 'reco' && cat !== 'reliability') return 'realestate';
   if (cat === 'static') return 'static';
@@ -1063,6 +1064,7 @@ function applyTheme(theme, persist) {
     else if (t.kind === 'molit_explore') renderMolitExplore(t.data);   // 테마 토글 시 차트 재채색
     else if (t.kind === 'molit_apt') { renderAptAll(); _renderAptSelect(_aptBundle()); }
     else if (t.kind === 'dca' && state.dca) _dcaFull();               // 적립식 차트 4종 재채색
+    else if (t.kind === 'lab_vixdca' && state.vx) _vxFull();           // VIX 연동 적립 차트 재채색
   } else if (state.data) {
     if (state.data.kind === 'analytics') renderAnalytics(state.data);
     else { render(); if (state.sweep) renderSweep(); if (state.blendFrontier) _drawBlendFrontier(); }   // 스윕·블렌드 프론티어도 새 테마로 재색
@@ -1135,18 +1137,19 @@ function clearPresetActive() {
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
 const CAT_ORDER = { reco: -2, guide: -1, dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, dca: 2.5, crypto: 3,
-  realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10, lab_rotation: 12, lab_rebal: 13, lab_blend: 14, lab_dailyrisk: 15 };
+  realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10, lab_rotation: 12, lab_rebal: 13, lab_blend: 14, lab_dailyrisk: 15, lab_vixdca: 16 };
 const CAT_LABEL_NAV = { reco: '추천 전략', guide: '초보자 가이드', dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
   dca: '적립식 시뮬레이터',
   crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩', realestate: '부동산',
   paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도',
-  lab_rotation: '전략 로테이션', lab_rebal: '리밸 주기 민감도', lab_blend: '고정 블렌드 최적화', lab_dailyrisk: '일별 vs 월별 위험' };
+  lab_rotation: '전략 로테이션', lab_rebal: '리밸 주기 민감도', lab_blend: '고정 블렌드 최적화', lab_dailyrisk: '일별 vs 월별 위험',
+  lab_vixdca: 'VIX 연동 적립' };
 // 4대분류: 자산배분(8자산) / 주식(한국 모멘텀·미국 TQQQ·지수 모멘텀) / 코인(BTC/ETH/XRP) /
 //          도구·지표(계산기·심리·경보·데이터정확도). 코인은 전통자산과 위험특성이 달라 독립 영역.
 const SUPER_OF = { reco: 'reco', guide: 'guide', dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
   momentum: 'strat', dca: 'strat', crypto: 'coin', realestate: 're',
   paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools',
-  lab_rotation: 'lab', lab_rebal: 'lab', lab_blend: 'lab', lab_dailyrisk: 'lab' };
+  lab_rotation: 'lab', lab_rebal: 'lab', lab_blend: 'lab', lab_dailyrisk: 'lab', lab_vixdca: 'lab' };
 const SUPER_ORDER = { reco: -2, guide: -1, alloc: 0, strat: 1, coin: 2, re: 3, tools: 4, lab: 5 };
 const SUPER_LABEL = { reco: '⭐ 추천', guide: '📖 가이드', alloc: '자산배분', strat: '주식', coin: '코인', re: '부동산', tools: '도구·지표', lab: '🧪 실험실' };
 // 부동산 분류 칩 = 지역(전국·지수 먼저, 그다음 도시). 카테고리 re_index/re_<도시>를 네비 맵에 등록.
@@ -1254,6 +1257,7 @@ function setCurrency(cur) {
   if (entry.mode === 'lab_rebal') return loadTool(entry, 'lab_rebal');          // 🧪 실험실: 리밸 주기 민감도
   if (entry.mode === 'lab_blend') return loadTool(entry, 'lab_blend');          // 🧪 실험실: 고정 블렌드 최적화
   if (entry.mode === 'lab_dailyrisk') return loadTool(entry, 'lab_dailyrisk');  // 🧪 실험실: 일별 vs 월별 위험 렌즈
+  if (entry.mode === 'lab_vixdca') return loadTool(entry, 'lab_vixdca');        // 🧪 실험실: VIX 연동 적립(현금풀)
   // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
   if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
   else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
@@ -1272,7 +1276,7 @@ function setAnalyticsMode(on) {
 function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
   document.body.classList.toggle('tools-mode', !!on);
   if (on) document.body.classList.remove('analytics-mode');
-  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage', 'dca', 'lab_rotation', 'lab_rebal', 'lab_blend', 'lab_dailyrisk'].forEach(t => {
+  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage', 'dca', 'lab_rotation', 'lab_rebal', 'lab_blend', 'lab_dailyrisk', 'lab_vixdca'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.classList.toggle('hidden', !(on && t === tool));
   });
@@ -1852,6 +1856,7 @@ async function loadTool(entry, kind) {
     else if (kind === 'lab_rebal') enterRebal(d);
     else if (kind === 'lab_blend') enterBlendOpt(d);
     else if (kind === 'lab_dailyrisk') enterDailyRisk(d);
+    else if (kind === 'lab_vixdca') enterVixDca(d);
     else renderTrend(d);
   } catch (e) { setStatus(entry.group + ' 로딩 실패: ' + e.message, true); }
 }
@@ -5507,6 +5512,468 @@ function applyBlendWeights(which) {              // 추천 비중을 블렌드 �
     row.querySelector('.blend-w').value = (name && w[name]) ? Math.round(w[name] * 100) : 0;
   });
   _updateBlendSum(); runBlend();
+}
+
+// ---------------------------------------------------------------------------
+// 🧪 실험실 · VIX 연동 적립(현금풀) — dca.json 을 그대로 재사용한다(마스터 날짜축 공유).
+//
+// **왜 적립식 시뮬레이터 화면과 분리했나** — 그쪽 엔진의 전제는 "적립식엔 신호가 없다 →
+// 룩어헤드가 원천적으로 없다"(dca_sim.py 모듈 독스트링)이다. VIX 규칙은 신호 기반이라 그 전제를
+// 깬다. 같은 화면에 섞으면 기존 7개 패널(종목비교·최적레버리지·롤링·민감도)이 전부 '월 고정액'
+// 전제 위에 서 있는 것과도 충돌한다. 데이터·엔진은 공유하되 화면만 나눈다.
+//
+// 계산 정본은 src/strategies/us/dca_sim.py (poolSimulate·vixMultiplier·compareFundingModes·
+// vixEpisodes·leaveOneEpisodeOut) 이고 web/dca.js 가 미러한다 — 패리티 테스트가 강제한다.
+// ---------------------------------------------------------------------------
+const VX_COL = { pool: '#2563eb', fixed: '#9ca3af', lump: '#ea580c', cash: '#16a34a' };
+
+function enterVixDca(d) {
+  setToolsMode(true, 'lab_vixdca');
+  state.playground = false; state.analyticsActive = false; state.data = null; state.allocCtx = null;
+  const df = d.vix_defaults || {};
+  state.vx = {
+    d,
+    picks: new Set((df.assets || ['qqq', 'qld', 'spy']).filter(k => d.assets.some(a => a.key === k))),
+    ccy: (d.defaults && d.defaults.currency) || 'krw',
+    source: df.source || 'real',
+    seed: String(df.seed_months == null ? 0 : df.seed_months),
+    preset: df.preset || 'pct_standard',
+    start: null, end: null, period: 'max', _mult: {},
+  };
+  if (!state.vx.picks.size && d.assets.length) state.vx.picks.add(d.assets[0].key);
+  document.getElementById('meta').textContent =
+    `🧪 실험실 · VIX 연동 적립 · 생성일 ${d.generated_at || '-'}`;
+
+  // VIX 가 없으면(번들·라이브·야후 전부 실패) 이 화면은 계산할 게 없다 — 조용히 고정 적립으로
+  // 퇴각해 "결과가 나왔다"고 보이게 하는 쪽이 훨씬 나쁘다. 이유를 적고 멈춘다.
+  if (!_vxHasVix()) {
+    document.getElementById('vx-verdict').className = 'lab-verdict verdict-tie';
+    document.getElementById('vx-verdict').innerHTML =
+      'VIX 데이터가 이 빌드에 없습니다 — 이 실험은 계산할 수 없습니다.' +
+      '<div class="lab-verdict-sub">FRED:VIXCLS 번들(data/fred/VIXCLS.csv)을 만들거나 ' +
+      '빌드 환경에서 FRED·야후 접속이 되어야 합니다. ' +
+      '<code>python scripts/fetch_macro_bundle.py --ids VIXCLS</code></div>';
+    ['vx-cards', 'vx-table', 'vx-episodes', 'vx-grid'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.innerHTML = '';
+    });
+    return;
+  }
+
+  _vxBuildPresets();
+  _vxBuildAssets();
+  _vxSyncAmountUnit();
+  _vxBuildPeriods();
+  _vxApplyPreset(state.vx.period);
+
+  if (!state.vx._wired) {
+    document.getElementById('vx-ccy').addEventListener('click', e => _vxToggle(e, 'ccy', () => {
+      _vxSyncAmountUnit(); _vxFull();
+    }));
+    document.getElementById('vx-source').addEventListener('click', e => _vxToggle(e, 'source', () => {
+      _vxBuildPeriods();
+      if (state.vx.period) _vxApplyPreset(state.vx.period); else _vxClampRange();
+      _vxFull();
+    }));
+    document.getElementById('vx-seed').addEventListener('click', e => _vxToggle(e, 'seed', _vxFull));
+    document.getElementById('vx-preset').addEventListener('click', e => _vxToggle(e, 'preset', () => {
+      _vxSyncPresetNote(); _vxFull();
+    }));
+    document.getElementById('vx-assets').addEventListener('click', e => {
+      const b = e.target.closest('button[data-asset]'); if (!b) return;
+      const k = b.dataset.asset, p = state.vx.picks;
+      if (p.has(k)) { if (p.size > 1) p.delete(k); } else p.add(k);
+      _vxBuildAssets();
+      _vxBuildPeriods();
+      if (state.vx.period) _vxApplyPreset(state.vx.period); else _vxClampRange();
+      _vxFull();
+    });
+    let t;
+    _attachComma('vx-amount', () => { clearTimeout(t); t = setTimeout(() => _vxFull(), 260); });
+    document.getElementById('vx-period').addEventListener('click', e => {
+      const b = e.target.closest('button[data-period]'); if (!b) return;
+      _vxApplyPreset(b.dataset.period); _vxFull();
+    });
+    ['vx-start', 'vx-end'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => {
+        const sp = _vxSpan(); if (!sp) return;
+        const sv = document.getElementById('vx-start').value, ev = document.getElementById('vx-end').value;
+        state.vx.start = (sv && sv >= sp[0] && sv <= sp[1]) ? sv : sp[0];
+        state.vx.end = (ev && ev >= sp[0] && ev <= sp[1]) ? ev : sp[1];
+        if (state.vx.start >= state.vx.end) { state.vx.start = sp[0]; state.vx.end = sp[1]; }
+        state.vx.period = null;
+        _vxSyncPeriodUI(); _vxFull();
+      });
+    });
+    state.vx._wired = true;
+  }
+  _vxSyncPresetNote();
+  _vxFull();
+}
+
+function _vxHasVix() {
+  const d = state.vx.d;
+  return !!(d.vix && d.vix.length === d.dates.length && (d.vix_meta || {}).n_obs);
+}
+function _vxToggle(e, field, after) {
+  const b = e.target.closest('button[data-' + field + ']'); if (!b) return;
+  state.vx[field] = b.dataset[field];
+  b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+  after && after();
+}
+function _vxPicked() { return state.vx.d.assets.filter(a => state.vx.picks.has(a.key)); }
+function _vxCcy() { return state.vx.ccy === 'usd' ? 'usd' : 'krw'; }
+function _vxMoney(v) { return _moneyCompact(v, _vxCcy()); }
+function _vxMonthly() {
+  const v = parseFloat(String(document.getElementById('vx-amount').value).replace(/,/g, ''));
+  if (isNaN(v) || v <= 0) return state.vx.ccy === 'usd' ? 1000 : 1000000;
+  return v;
+}
+function _vxSyncAmountUnit() {
+  const usd = state.vx.ccy === 'usd';
+  document.getElementById('vx-amount-unit').textContent = usd ? '달러' : '원';
+  const el = document.getElementById('vx-amount');
+  const df = state.vx.d.defaults || {};
+  el.value = (usd ? (df.monthly_usd || 1000) : (df.monthly_krw || 1000000)).toLocaleString('en-US');
+}
+/** 적립통화의 현금 이자율(마스터 축) — 현금풀은 **항상** 이자를 받는다(장롱에 두지 않는다). */
+function _vxRfCash() {
+  const d = state.vx.d;
+  return state.vx.ccy === 'krw' ? (d.rf_krw || d.rf) : d.rf;
+}
+function _vxPreset() {
+  const list = state.vx.d.vix_presets || [];
+  return list.find(p => p.key === state.vx.preset) || list[0];
+}
+/**
+ * 배수 배열(마스터 축 전체). 프리셋별로 캐시한다 — 확장창 백분위는 O(n log n) 이라
+ * 슬라이더/토글마다 다시 계산할 이유가 없다(입력이 VIX 뿐이라 사용자 입력과 무관하다).
+ *
+ * **반드시 마스터 축 전체로 계산한다.** 기간을 2010~ 로 좁혀도 2010년의 투자자는 1990년대
+ * VIX 를 알고 있었으므로, 확장창 백분위의 분모는 잘린 창이 아니라 전체 이력이어야 한다.
+ */
+function _vxMult(key) {
+  key = key || state.vx.preset;
+  if (state.vx._mult[key]) return state.vx._mult[key];
+  const d = state.vx.d;
+  const p = (d.vix_presets || []).find(x => x.key === key);
+  const m = DCASIM.vixMultiplier(d.vix, p ? {
+    mode: p.mode, edges: p.edges, mults: p.mults,
+    lag: (d.vix_defaults || {}).lag, minObs: (d.vix_defaults || {}).min_obs,
+  } : { mode: 'off' });
+  state.vx._mult[key] = m;
+  return m;
+}
+function _vxBuildPresets() {
+  const d = state.vx.d;
+  document.getElementById('vx-preset').innerHTML = (d.vix_presets || []).map(p =>
+    `<button type="button" data-preset="${p.key}"${p.key === state.vx.preset ? ' class="active"' : ''} ` +
+    `title="${p.desc}">${p.label}</button>`).join('');
+}
+function _vxSyncPresetNote() {
+  const p = _vxPreset(), el = document.getElementById('vx-preset-note');
+  if (!p) { el.textContent = ''; return; }
+  const kind = p.mode === 'pct'
+    ? '<strong>확장창 백분위</strong> — 그 시점까지 관측된 VIX 분포에서의 순위로 판단합니다(룩어헤드 없음).'
+    : (p.mode === 'level'
+      ? '<strong>고정 임계</strong> — 20·30·40 같은 숫자는 VIX의 장기 분포를 이미 아는 사람만 고를 수 있습니다. 대조군으로만 보세요.'
+      : '배수 없이 매달 같은 금액을 넣는 <strong>대조군</strong>입니다.');
+  el.innerHTML = `${p.desc} ${kind} 판단은 언제나 <strong>전일 종가 VIX</strong>로 합니다.`;
+}
+function _vxBuildAssets() {
+  const d = state.vx.d, groups = [];
+  d.assets.forEach(a => { if (!groups.includes(a.group)) groups.push(a.group); });
+  document.getElementById('vx-assets').innerHTML = groups.map(g => {
+    const items = d.assets.filter(a => a.group === g).map(a =>
+      `<button type="button" data-asset="${a.key}"${state.vx.picks.has(a.key) ? ' class="active"' : ''} ` +
+      `title="${a.desc}">${a.label}</button>`).join('');
+    return `<div class="dca-chip-group"><span class="dca-chip-lab">${g}</span>${items}</div>`;
+  }).join('');
+}
+function _vxStartIdx(a) { return state.vx.source === 'real' ? a.real_start_idx : a.hist_start_idx; }
+/**
+ * 가능한 [시작ISO, 종료ISO]. 선택 종목 중 가장 늦게 시작하는 쪽 **그리고 VIX 시작**에 맞춘다.
+ * VIX 이전 구간을 포함하면 그 기간의 배수가 1.0 이라 "VIX 전략인데 실은 고정 적립"인 구간이
+ * 섞인다 — 결과를 조용히 희석시키므로 애초에 못 고르게 막는다.
+ */
+function _vxSpan() {
+  const d = state.vx.d, picked = _vxPicked();
+  if (!picked.length) return null;
+  const vixLo = ((d.vix_meta || {}).start_idx || 0) + ((d.vix_defaults || {}).lag || 1);
+  const lo = Math.max(vixLo, ...picked.map(_vxStartIdx));
+  if (lo >= d.dates.length - 260) return null;
+  return [d.dates[lo], d.dates[d.dates.length - 1]];
+}
+function _vxBuildPeriods() {
+  const d = state.vx.d, sp = _vxSpan();
+  const el = document.getElementById('vx-period');
+  if (!sp) { el.innerHTML = ''; return; }
+  el.innerHTML = (d.presets || []).map(p => {
+    const s = _vxPresetStart(p, sp);
+    if (!s || s >= sp[1]) return '';
+    return `<button type="button" data-period="${p.key}"${p.key === state.vx.period ? ' class="active"' : ''}>${p.label}</button>`;
+  }).join('');
+}
+function _vxPresetStart(p, sp) {
+  if (!p.start) return sp[0];
+  if (/^-\d+y$/.test(p.start)) {
+    const y = parseInt(p.start.slice(1), 10);
+    const iso = new Date(Date.parse(sp[1]) - y * 365.25 * 86400000).toISOString().slice(0, 10);
+    return iso < sp[0] ? null : iso;
+  }
+  return p.start < sp[0] ? null : p.start;
+}
+function _vxApplyPreset(key) {
+  const d = state.vx.d, sp = _vxSpan(); if (!sp) return;
+  const p = (d.presets || []).find(x => x.key === key);
+  const s = p ? _vxPresetStart(p, sp) : null;
+  state.vx.period = (p && s) ? key : 'max';
+  state.vx.start = s || sp[0];
+  state.vx.end = sp[1];
+  _vxSyncPeriodUI();
+}
+function _vxClampRange() {
+  const sp = _vxSpan(); if (!sp) return;
+  if (!state.vx.start || state.vx.start < sp[0]) state.vx.start = sp[0];
+  if (!state.vx.end || state.vx.end > sp[1]) state.vx.end = sp[1];
+  _vxSyncPeriodUI();
+}
+function _vxSyncPeriodUI() {
+  document.querySelectorAll('#vx-period button').forEach(b =>
+    b.classList.toggle('active', b.dataset.period === state.vx.period));
+  document.getElementById('vx-start').value = state.vx.start || '';
+  document.getElementById('vx-end').value = state.vx.end || '';
+  const sp = _vxSpan();
+  document.getElementById('vx-range').textContent = sp
+    ? `가용: ${sp[0]} ~ ${sp[1]} (VIX 시작 ${(state.vx.d.vix_meta || {}).start || '?'} 이후로 제한)` : '';
+}
+function _vxRange() {
+  const d = state.vx.d;
+  return DCASIM.sliceRange(d.dates, state.vx.start, state.vx.end);
+}
+/** 종목 하나의 3파전 결과. 기간이 그 종목 가용구간과 안 겹치면 null. */
+function _vxRun(a, rng, monthly, multKey) {
+  const d = state.vx.d;
+  const lo = Math.max(rng[0], _vxStartIdx(a)), hi = rng[1];
+  if (hi - lo < 40) return null;
+  const useFx = state.vx.ccy === 'krw';
+  const ar = DCASIM.assetReturns(d, a, lo, hi, state.vx.source);
+  const buy = DCASIM.monthFirstIndices(d.dates, lo, hi);
+  const opt = { fee: d.fee, offset: lo, useFx, dpy: d.dpy,
+    seedMonths: parseFloat(state.vx.seed) || 0 };
+  const cmp = DCASIM.compareFundingModes(d.dates, ar.ret, d.fx, buy, monthly,
+    _vxMult(multKey), _vxRfCash(), opt);
+  return Object.assign({ asset: a, lo, hi, ar, buy, opt }, cmp);
+}
+
+function _vxFull() {
+  if (!state.vx || !_vxHasVix()) return;
+  const d = state.vx.d, rng = _vxRange();
+  if (!rng) { setStatus('선택한 기간에 데이터가 없습니다.', true); return; }
+  setStatus('');
+  const monthly = _vxMonthly();
+  const picked = _vxPicked();
+  const runs = picked.map(a => _vxRun(a, rng, monthly)).filter(Boolean);
+  if (!runs.length) { setStatus('선택한 종목·기간 조합에 데이터가 부족합니다.', true); return; }
+  const head = runs[0];
+  _vxRenderCards(head, monthly);
+  _vxRenderEquity(head);
+  _vxRenderFlow(head);
+  _vxRenderTable(runs);
+  _vxRenderEpisodes(head, monthly);
+  _vxRenderGrid(picked, rng, monthly);
+}
+
+function _vxRenderCards(r, monthly) {
+  const card = (l, v, s) => `<div class="ext-card"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s || ''}</div></div>`;
+  const p = r.pool, vs = r.vsFixed, vl = r.vsLump;
+  const seed = parseFloat(state.vx.seed) || 0;
+  document.getElementById('vx-cards').innerHTML =
+    card('VIX 연동', _vxMoney(r.vix.final), `현금풀 · MDD ${fmtPct(r.vix.mdd)}`) +
+    card('단순 적립', _vxMoney(r.fixed.final), `매달 정액 · MDD ${fmtPct(r.fixed.mdd)}`) +
+    card('거치식', _vxMoney(r.lump.final), `첫날 일괄 · MDD ${fmtPct(r.lump.mdd)}`) +
+    card('총 납입액', _vxMoney(r.vix.totalCost),
+      `${_vxMoney(monthly)} × ${r.vix.months}회${seed ? ` + 시드 ${seed}개월` : ''} · 세 방식 동일`) +
+    card('÷ 단순 적립', _vxVs(vs.finalRatio), vs.dcaWins ? 'VIX 연동 승' : '단순 적립 승') +
+    card('÷ 거치식', _vxVs(vl.finalRatio), vl.dcaWins ? 'VIX 연동 승' : '거치식 승') +
+    card('평균 배수', isFinite(p.multMean) ? p.multMean.toFixed(2) + '배' : '—',
+      `투입률 ${fmtPct(p.investRate)} · 고갈 ${p.starved}회`) +
+    card('평균단가', _vxCheap(r.vix, r.fixed), '단순 적립 대비 (−면 싸게 담음)');
+
+  const vb = document.getElementById('vx-verdict');
+  const gainF = vs.finalRatio - 1, gainL = vl.finalRatio - 1;
+  const tie = Math.abs(gainF) < 0.02;
+  vb.className = 'lab-verdict ' + (tie ? 'verdict-tie' : (gainF > 0 ? 'verdict-win' : 'verdict-lose'));
+  vb.innerHTML =
+    `<b>${r.asset.label}</b> · ${r.vix.start}~${r.vix.end} — 같은 총액으로 ` +
+    `VIX 연동이 단순 적립 대비 <b>${(gainF * 100 >= 0 ? '+' : '') + (gainF * 100).toFixed(1)}%</b>, ` +
+    `거치식 대비 <b>${(gainL * 100 >= 0 ? '+' : '') + (gainL * 100).toFixed(1)}%</b>` +
+    `<div class="lab-verdict-sub">` +
+    (tie ? '차이가 2% 미만 — 사실상 무승부입니다. ' : '') +
+    `평가액 MDD는 ${fmtPct(r.vix.mdd)}(VIX 연동) vs ${fmtPct(r.fixed.mdd)}(단순 적립). ` +
+    `아래 <b>사건 분해</b>에서 이 차이가 사건 몇 개에서 왔는지 반드시 확인하세요.</div>`;
+
+  const leftover = p.leftoverCash / p.totalInflow;
+  document.getElementById('vx-pool-note').innerHTML =
+    `현금풀 회계: 매달 ${_vxMoney(monthly)}씩 풀로 들어오고, 거기서 <b>${_vxMoney(monthly)} × 배수</b>만큼 꺼내 삽니다. ` +
+    `풀 잔고보다 많이 사려 한 달(<b>고갈 ${p.starved}회</b>)은 잔고까지만 삽니다 — 신용이 아닙니다. ` +
+    `남은 현금은 적립통화 단기금리로 굴러가고 <b>최종 평가액에 포함</b>됩니다(기말 잔여 ${_vxMoney(p.leftoverCash)}, 총 유입의 ${fmtPct(leftover)}). ` +
+    `평소 배수가 1 미만이어야 공포 구간에 더 살 재원이 생깁니다 — 그게 이 전략이 치르는 비용입니다.`;
+}
+function _vxVs(ratio) {
+  if (!isFinite(ratio)) return '—';
+  if (ratio >= 5) return `${ratio >= 100 ? Math.round(ratio) : ratio.toFixed(1)}배`;
+  return (ratio >= 1 ? '+' : '') + ((ratio - 1) * 100).toFixed(1) + '%';
+}
+function _vxCheap(a, b) {
+  if (!a || !b || !isFinite(a.avgCost) || !isFinite(b.avgCost) || !b.avgCost) return '—';
+  const g = a.avgCost / b.avgCost - 1;
+  return (g >= 0 ? '+' : '') + (g * 100).toFixed(2) + '%';
+}
+
+function _vxRenderEquity(r) {
+  const d = state.vx.d;
+  const x = d.dates.slice(r.lo, r.hi + 1);
+  const hov = '%{x|%Y-%m-%d}<br>%{y:,.0f}';
+  const traces = [
+    { type: 'scatter', mode: 'lines', name: 'VIX 연동(현금풀)', x, y: Array.from(r.sims.vix.equity),
+      line: { width: 2, color: VX_COL.pool }, hovertemplate: hov + '<extra>VIX 연동</extra>' },
+    { type: 'scatter', mode: 'lines', name: '단순 적립식', x, y: Array.from(r.sims.fixed.equity),
+      line: { width: 1.6, color: VX_COL.fixed }, hovertemplate: hov + '<extra>단순 적립</extra>' },
+    { type: 'scatter', mode: 'lines', name: '거치식(첫날 일괄)', x, y: Array.from(r.sims.lump.equity),
+      line: { width: 1.6, color: VX_COL.lump }, hovertemplate: hov + '<extra>거치식</extra>' },
+    { type: 'scatter', mode: 'lines', name: '누적 납입액', x, y: Array.from(r.sims.vix.cost),
+      line: { width: 1.2, color: VX_COL.fixed, dash: 'dot' }, hovertemplate: hov + '<extra>납입</extra>' },
+  ];
+  const layout = baseLayout('', `평가액 (${_vxCcy() === 'usd' ? '달러' : '원'})`);
+  Plotly.react('vx-equity', traces, layout, PLOTCFG);
+  document.getElementById('vx-equity-note').innerHTML =
+    `세 곡선의 <b>누적 납입액이 완전히 같습니다</b>(점선). 다만 거치식은 그 돈을 <b>첫날 이미 갖고 있어야</b> 하므로 ` +
+    `t=0 시점의 부(富)가 다릅니다 — 적립식 두 방식과 같은 축에서 보려면 이 점을 감안하세요. ` +
+    `적립식↔거치식의 공정 비교 자체는 <b>적립식 시뮬레이터</b> 화면의 '비교 기준' 토글이 더 자세히 다룹니다.`;
+}
+
+function _vxRenderFlow(r) {
+  const d = state.vx.d;
+  const sim = r.sims.vix;
+  const bx = sim.flows.map(f => d.dates[f[0]]);
+  const by = Array.from(sim.buyAmts);
+  const x = d.dates.slice(r.lo, r.hi + 1);
+  const traces = [
+    { type: 'bar', name: '그달 투입액', x: bx, y: by, marker: { color: VX_COL.pool },
+      hovertemplate: '%{x|%Y-%m}<br>%{y:,.0f}<extra>투입</extra>' },
+    { type: 'scatter', mode: 'lines', name: '현금풀 잔고', x, y: Array.from(sim.cash),
+      line: { width: 1.6, color: VX_COL.cash }, yaxis: 'y2',
+      hovertemplate: '%{x|%Y-%m-%d}<br>%{y:,.0f}<extra>풀 잔고</extra>' },
+  ];
+  const layout = baseLayout('', `투입액 (${_vxCcy() === 'usd' ? '달러' : '원'})`);
+  layout.yaxis2 = { title: { text: '현금풀 잔고' }, overlaying: 'y', side: 'right',
+    gridcolor: 'rgba(0,0,0,0)', color: cssVar('--chart-muted') };
+  layout.legend = Object.assign({}, layout.legend, { orientation: 'h' });
+  Plotly.react('vx-flow', traces, layout, PLOTCFG);
+}
+
+function _vxRenderTable(runs) {
+  const num = v => (v == null || !isFinite(v)) ? '—' : v.toFixed(2);
+  const row = r => {
+    const win = r.vsFixed.finalRatio > 1;
+    return `<tr><td class="name">${r.asset.label}</td>` +
+      `<td>${_vxMoney(r.vix.final)}</td><td>${_vxMoney(r.fixed.final)}</td><td>${_vxMoney(r.lump.final)}</td>` +
+      `<td class="${win ? 'pos' : 'neg'}">${_vxVs(r.vsFixed.finalRatio)}</td>` +
+      `<td>${_vxVs(r.vsLump.finalRatio)}</td>` +
+      `<td>${fmtPct(r.vix.xirr)}</td><td>${fmtPct(r.fixed.xirr)}</td>` +
+      `<td>${fmtPct(r.vix.mdd)}</td><td>${fmtPct(r.fixed.mdd)}</td>` +
+      `<td>${num(r.pool.multMean)}배</td><td>${fmtPct(r.pool.investRate)}</td></tr>`;
+  };
+  document.getElementById('vx-table').innerHTML =
+    '<thead><tr><th class="name">종목</th><th>VIX 연동</th><th>단순 적립</th><th>거치식</th>' +
+    '<th>÷단순</th><th>÷거치</th><th>XIRR(VIX)</th><th>XIRR(단순)</th>' +
+    '<th>MDD(VIX)</th><th>MDD(단순)</th><th>평균배수</th><th>투입률</th></tr></thead><tbody>' +
+    runs.map(row).join('') + '</tbody>';
+  const wins = runs.filter(r => r.vsFixed.finalRatio > 1).length;
+  document.getElementById('vx-table-note').innerHTML =
+    `선택 종목 ${runs.length}개 중 <b>${wins}개</b>에서 VIX 연동이 단순 적립을 이겼습니다. ` +
+    `종목마다 시작일이 다르면(실제 ETF 상장일) 각 행의 기간이 다를 수 있습니다 — ` +
+    `종목 간 직접 비교보다 <b>같은 행 안의 세 방식 비교</b>가 이 화면의 질문입니다. ` +
+    `MDD 열도 함께 보세요: 현금풀은 하락장에 현금을 들고 있어 낙폭이 얕아지는 경향이 있습니다.`;
+}
+
+function _vxRenderEpisodes(r, monthly) {
+  const d = state.vx.d;
+  const mult = _vxMult();
+  const all = DCASIM.vixEpisodes(d.vix, mult);
+  // 현재 창과 겹치는 사건만 — 창 밖 사건을 빼 봐야 이 결과는 안 변한다.
+  const eps = all.filter(e => e.hi >= r.lo && e.lo <= r.hi);
+  const el = document.getElementById('vx-episodes'), vb = document.getElementById('vx-loo-verdict');
+  if (!eps.length) {
+    el.innerHTML = '';
+    vb.className = 'lab-verdict verdict-tie';
+    vb.innerHTML = '이 기간·규칙에서는 최고 배수 구간(공포 사건)이 없습니다 — 배수가 거의 작동하지 않았습니다.';
+    return;
+  }
+  const loo = DCASIM.leaveOneEpisodeOut(d.dates, r.ar.ret, d.fx, r.buy, monthly, mult,
+    _vxRfCash(), eps, r.opt);
+  const base = r.vsFixed.finalRatio;
+  // base < 1 이면 이 전략은 지고 있다 — 그때 'share' 는 초과분이 아니라 **부족분**의 기여다.
+  // 같은 수식이지만 뜻이 뒤집히므로 라벨을 바꾼다(이기지도 않았는데 '초과분'이라 적으면 오독한다).
+  const winning = base > 1;
+  const shareLab = winning ? '초과분 기여' : '부족분 기여';
+  el.innerHTML =
+    '<thead><tr><th class="name">공포 사건</th><th>거래일</th><th>VIX 최고</th>' +
+    `<th>이 사건을 빼면</th><th>${shareLab}</th></tr></thead><tbody>` +
+    loo.map(x => `<tr><td class="name">${x.start} ~ ${x.end}</td><td>${x.days}</td>` +
+      `<td>${isFinite(x.peakVix) ? x.peakVix.toFixed(1) : '—'}</td>` +
+      `<td>${_vxVs(x.ratioWithout)}</td>` +
+      `<td class="${x.share > 0.5 ? 'neg' : ''}">${isFinite(x.share) ? (x.share * 100).toFixed(0) + '%' : '—'}</td></tr>`).join('') +
+    `<tr class="lab-row-best"><td class="name">전부 포함(기준)</td><td>—</td><td>—</td>` +
+    `<td>${_vxVs(base)}</td><td>100%</td></tr></tbody>`;
+  // 이기는 경우엔 '초과분을 가장 많이 만든' 사건(=share 최대)이 맞다. 하지만 지는 경우엔
+  // share 가 대개 0 이하라 최댓값을 고르면 **아무 영향도 없던 사건**(0%)이 대표로 뽑힌다 —
+  // 그때는 성과비를 가장 크게 움직인 사건(|share| 최대)을 지목해야 표와 문장이 어긋나지 않는다.
+  const _rank = winning ? (x => x.share) : (x => Math.abs(x.share));
+  const top = loo.reduce((a, b) => (isFinite(b.share) && (!a || _rank(b) > _rank(a))) ? b : a, null);
+  const fragile = top && isFinite(top.share) && top.share > 0.5;
+  // 이기지도 못했으면 '취약하다/견고하다'를 따질 대상 자체가 없다 — 그 경우는 중립으로 적는다.
+  vb.className = 'lab-verdict ' + (!winning ? 'verdict-lose' : (fragile ? 'verdict-lose' : 'verdict-win'));
+  vb.innerHTML = top
+    ? `공포 사건 <b>${eps.length}개</b> 중 <b>${top.start}~${top.end}</b>` +
+      `(VIX 최고 ${isFinite(top.peakVix) ? top.peakVix.toFixed(0) : '?'}) ` +
+      (winning
+        ? `하나가 초과분의 <b>${(top.share * 100).toFixed(0)}%</b>를 만들었습니다 — `
+        : `이 성과비를 가장 크게 움직였습니다 — `) +
+      `이 사건을 빼면 ${_vxVs(base)} → <b>${_vxVs(top.ratioWithout)}</b>` +
+      `<div class="lab-verdict-sub">${!winning
+        ? '애초에 단순 적립을 못 이겼습니다 — 사건을 빼고 더해 봐야 결론은 바뀌지 않습니다. 공포 구간의 이득이 평상시에 현금으로 비켜 있던 기회비용을 넘지 못한 것입니다.'
+        : (fragile
+          ? '결론이 사건 하나에 얹혀 있습니다. 다음에도 같은 크기의 공포가 온다는 보장이 없으므로 이 성과비를 기대수익으로 읽으면 안 됩니다.'
+          : '기여가 여러 사건에 분산돼 있습니다 — 그나마 덜 취약한 편이지만, 사건 수 자체가 한 자릿수라는 점은 그대로입니다.')}</div>`
+    : '';
+}
+
+function _vxRenderGrid(picked, rng, monthly) {
+  const d = state.vx.d;
+  const presets = (d.vix_presets || []).filter(p => p.mode !== 'off');
+  const cells = {};
+  presets.forEach(p => {
+    cells[p.key] = picked.map(a => {
+      const r = _vxRun(a, rng, monthly, p.key);
+      return r ? r.vsFixed.finalRatio : NaN;
+    });
+  });
+  const fmt = v => !isFinite(v) ? '—' : (v >= 1 ? '+' : '') + ((v - 1) * 100).toFixed(1) + '%';
+  let nWin = 0, nTot = 0;
+  presets.forEach(p => cells[p.key].forEach(v => { if (isFinite(v)) { nTot++; if (v > 1) nWin++; } }));
+  document.getElementById('vx-grid').innerHTML =
+    '<thead><tr><th class="name">배수 규칙</th>' + picked.map(a => `<th>${a.label}</th>`).join('') +
+    '</tr></thead><tbody>' +
+    presets.map(p => `<tr><td class="name">${p.label}</td>` +
+      cells[p.key].map(v => `<td class="${isFinite(v) ? (v > 1 ? 'pos' : 'neg') : ''}">${fmt(v)}</td>`).join('') +
+      '</tr>').join('') + '</tbody>';
+  document.getElementById('vx-grid-note').innerHTML =
+    `격자 ${nTot}칸 중 <b>${nWin}칸</b>에서 VIX 연동이 단순 적립을 이겼습니다` +
+    (nTot ? ` (${(nWin / nTot * 100).toFixed(0)}%)` : '') + `. ` +
+    `모든 숫자는 <b>단순 적립 대비 최종 평가액 차이</b>이고 총 납입액은 전부 같습니다. ` +
+    `<b>확장창 백분위</b> 행이 정본입니다 — 고정 임계 행이 더 좋아 보인다면 그건 임계값을 ` +
+    `역사에 맞춰 고른 결과일 가능성이 큽니다.`;
 }
 
 async function init() {

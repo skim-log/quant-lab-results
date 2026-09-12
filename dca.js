@@ -172,7 +172,189 @@
     // — 넘겨도 첫 매수일 배수는 1.0 이라 결과는 같지만, 미러 드리프트를 원천 차단한다.
     const o = Object.assign({}, opts || {}, { scale: null });
     if (!buyIdx || !buyIdx.length) return simulate(ret, fx, [], 0, o);
-    return simulate(ret, fx, [buyIdx[0]], monthly * buyIdx.length, o);
+    // opts.total 을 주면 monthly × 매수횟수 대신 그 금액을 첫날 넣는다 — 현금풀(poolSimulate)의
+    // 시드 때문에 총 유입이 늘어난 경우에도 '같은 총액' 비교를 유지하기 위해서다.
+    const amt = (o.total != null) ? o.total : monthly * buyIdx.length;
+    return simulate(ret, fx, [buyIdx[0]], amt, o);
+  }
+
+  // ── VIX 연동 적립 — 배수 스케줄 ────────────────────────────────────────────
+  /**
+   * 확장창 백분위 순위 — p[i] = #{j < i : v[j] < v[i]} / i. 앞부분(minObs 미달)은 NaN.
+   * dca_sim.expanding_pct_rank 미러(펜윅 트리 O(n log n), 동률은 세지 않는다).
+   *
+   * 고정 임계(VIX 20·30)가 아니라 이걸 정본으로 두는 이유: "VIX 30이면 공포"라는 감각은 VIX 의
+   * 장기 분포를 **지나고 나서** 알기 때문에 생긴 것이라 그 자체가 룩어헤드다. 확장창 백분위는
+   * 그 시점까지 관측된 VIX 만 쓴다.
+   */
+  function expandingPctRank(v, minObs) {
+    minObs = (minObs == null) ? 252 : minObs;
+    const n = v.length;
+    const out = new Float64Array(n).fill(NaN);
+    if (!n) return out;
+    // rank compression — np.unique + searchsorted(side='left') 미러.
+    const sorted = Array.from(v).sort((a, b) => a - b);
+    const uniq = [];
+    for (let i = 0; i < sorted.length; i++) if (i === 0 || sorted[i] !== sorted[i - 1]) uniq.push(sorted[i]);
+    const k = uniq.length;
+    const lowerBound = x => {            // 첫 uniq[m] >= x 의 위치
+      let lo = 0, hi = k;
+      while (lo < hi) { const m = (lo + hi) >> 1; if (uniq[m] < x) lo = m + 1; else hi = m; }
+      return lo;
+    };
+    const tree = new Int32Array(k + 1);
+    const add = i => { for (; i <= k; i += i & (-i)) tree[i]++; };
+    const sum = i => { let s = 0; for (; i > 0; i -= i & (-i)) s += tree[i]; return s; };
+    for (let i = 0; i < n; i++) {
+      const code = lowerBound(v[i]) + 1;
+      if (i >= minObs) out[i] = sum(code - 1) / i;
+      add(code);
+    }
+    return out;
+  }
+
+  /**
+   * VIX → 그날 매수 배수 배열(입력과 같은 길이, 마스터 축). dca_sim.vix_multiplier 미러.
+   *
+   * opts.mode  'pct'(확장창 백분위, 정본) | 'level'(고정 임계, 대조군) | 'off'(전부 1.0)
+   * opts.edges 구간 경계, opts.mults 배수(길이 = edges+1). **경계값은 위 버킷**(searchsorted right).
+   * opts.lag   기본 1 = **전일 종가**로 정한다. 매수는 그날 종가 체결이라 당일 VIX 를 쓰면
+   *            장 마감을 미리 아는 셈이 된다. lag=1 은 실제로 가능한 행동이다.
+   * VIX 가 0(관측 없음)인 구간·lag 로 음수 인덱스가 되는 앞부분·백분위 minObs 미달 구간은
+   * 전부 배수 1.0 — 데이터가 없으면 조용히 고정 적립으로 퇴각한다(신호를 지어내지 않는다).
+   */
+  function vixMultiplier(vix, opts) {
+    opts = opts || {};
+    const n = vix ? vix.length : 0;
+    const m = new Float64Array(n).fill(1);
+    if (!n || opts.mode === 'off' || !opts.mode) return m;
+    const edges = opts.edges || [], mults = opts.mults || [1];
+    const lag = (opts.lag == null) ? 1 : opts.lag;
+    if (mults.length !== edges.length + 1) throw new Error('mults 는 edges 보다 하나 많아야 한다');
+    const sig = new Float64Array(n).fill(NaN);
+    if (opts.mode === 'pct') {
+      const idx = [];
+      for (let i = 0; i < n; i++) if (vix[i] > 0) idx.push(i);
+      if (!idx.length) return m;
+      const obs = new Float64Array(idx.length);
+      for (let i = 0; i < idx.length; i++) obs[i] = vix[idx[i]];
+      const p = expandingPctRank(obs, opts.minObs);
+      for (let i = 0; i < idx.length; i++) sig[idx[i]] = p[i];
+    } else {
+      for (let i = 0; i < n; i++) if (vix[i] > 0) sig[i] = vix[i];
+    }
+    for (let i = 0; i < n; i++) {
+      const j = i - lag;
+      if (j < 0) continue;
+      const s = sig[j];
+      if (!isFinite(s)) continue;
+      let b = 0;                                 // searchsorted(edges, s, side='right')
+      while (b < edges.length && edges[b] <= s) b++;
+      m[i] = mults[b];
+    }
+    return m;
+  }
+
+  /**
+   * 현금풀 적립 — 매달 같은 금액이 풀로 들어오고 `monthly × 배수` 만큼 꺼내 산다.
+   * dca_sim.pool_simulate 미러. **총 유입을 늘리지 않고** "공포에 더 사기"를 구현하는 장치다
+   * (그냥 곱하면 돈을 더 넣은 것이라 최종 평가액을 나란히 놓을 수 없다).
+   *
+   * 하루 순서: ① 매수일이면 monthly 유입(+첫 매수일엔 시드) ② want = monthly×배수, 실제 투입은
+   * min(want, 잔고) — **풀은 마이너스가 될 수 없다** ③ 매수 ④ 그날 말 잔액에 하루치 이자
+   * ⑤ 총 부 = 주식 평가액 + 남은 현금.
+   * cost/flows 는 **지갑에서 나간 금액**(유입)이지 주식에 들어간 금액이 아니다 — 그래야 XIRR 이
+   * 고정 적립·거치식과 같은 축에 놓인다.
+   *
+   * mult/rfCash 는 **마스터 축 전체** 배열(fx 와 같은 규약). mult 가 null 이면 전 구간 1.0 이고
+   * 그 결과는 simulate() 와 완전히 같다(풀 잔고가 항상 0).
+   */
+  function poolSimulate(ret, fx, buyIdx, monthly, mult, rfCash, opts) {
+    opts = opts || {};
+    const fee = opts.fee || 0, off = opts.offset || 0, useFx = opts.useFx !== false;
+    const dpy = opts.dpy || DPY, seedMonths = opts.seedMonths || 0;
+    const n = ret.length;
+    const nav = new Float64Array(n);
+    let v = 1.0;
+    for (let i = 0; i < n; i++) { v *= (1 + ret[i]); nav[i] = v; }
+    const isBuy = new Uint8Array(n);
+    let first = -1;
+    for (const b of buyIdx) {
+      const j = b - off;
+      if (j >= 0 && j < n) { isBuy[j] = 1; if (first < 0 || j < first) first = j; }
+    }
+    const seed = monthly * seedMonths;
+    const equity = new Float64Array(n), cost = new Float64Array(n), cashPath = new Float64Array(n);
+    const costReal = new Float64Array(n);
+    const flows = [], buyPrices = [], buyAmts = [];
+    let units = 0, cash = 0, inflow = 0, invested = 0, spentUsd = 0, starved = 0;
+    for (let i = 0; i < n; i++) {
+      const f = useFx ? (fx[off + i] || 0) : 1;
+      if (isBuy[i]) {
+        const add = monthly + (i === first ? seed : 0);
+        cash += add; inflow += add;
+        flows.push([off + i, -add]);
+        const want = monthly * (mult ? (mult[off + i] == null ? 1 : mult[off + i]) : 1);
+        const amt = (want <= cash) ? want : cash;
+        if (want > cash + 1e-12) starved++;
+        if (amt > 0) {
+          cash -= amt; invested += amt;
+          const amtUsd = f ? amt / f : 0;
+          units += amtUsd * (1 - fee) / nav[i];
+          spentUsd += amtUsd;
+          buyPrices.push(nav[i]);
+        }
+        buyAmts.push(amt);
+      }
+      const rr = rfCash ? (rfCash[off + i] || 0) : 0;
+      cash *= 1 + rr / dpy;
+      cashPath[i] = cash;
+      equity[i] = units * nav[i] * f + cash;
+      cost[i] = inflow;
+      costReal[i] = inflow;
+    }
+    return {
+      equity, cost, costReal, nav, units, flows, buyPrices, offset: off,
+      avgCost: units > 1e-15 ? spentUsd / units : NaN,
+      cash: cashPath, buyAmts, invested, starved,
+      investRate: inflow ? invested / inflow : NaN,
+      leftoverCash: n ? cashPath[n - 1] : 0,
+      totalInflow: inflow,
+    };
+  }
+
+  /**
+   * **같은 총액** 위의 3파전 — VIX 연동 현금풀 / 단순 고정 적립 / 거치식.
+   * dca_sim.compare_funding_modes 미러. 세 방식의 총 유입이 `monthly × 매수횟수 + 시드` 로
+   * 정확히 같아 최종 평가액을 그대로 나란히 놓을 수 있다. 다만 거치식은 그 돈을 t=0 에 이미
+   * 갖고 있어야 하므로 **t=0 부(富)가 다르다** — 화면이 그 차이를 문구로 밝혀야 한다.
+   * fixed 를 simulate 가 아니라 poolSimulate(null) 로 도는 건 회계 규약을 한 글자도 안 어긋나게
+   * 하기 위해서다(두 결과가 같다는 건 파이썬 테스트가 강제한다).
+   */
+  function compareFundingModes(dates, ret, fx, buyIdx, monthly, mult, rfCash, opts) {
+    opts = opts || {};
+    const buy = Array.from(buyIdx).map(Number).sort((a, b) => a - b);
+    const total = monthly * (buy.length + (opts.seedMonths || 0));
+    const vixSim = poolSimulate(ret, fx, buy, monthly, mult, rfCash, opts);
+    const fixSim = poolSimulate(ret, fx, buy, monthly, null, rfCash, opts);
+    const lmpSim = lumpSum(ret, fx, buy, monthly, Object.assign({}, opts, { total }));
+    const vm = dcaMetrics(dates, vixSim), fm = dcaMetrics(dates, fixSim), lm = dcaMetrics(dates, lmpSim);
+    let multMean = NaN;
+    if (vixSim.buyAmts.length && monthly) {
+      let s = 0;
+      for (const a of vixSim.buyAmts) s += a / monthly;
+      multMean = s / vixSim.buyAmts.length;
+    }
+    return {
+      vix: vm, fixed: fm, lump: lm,
+      pool: {
+        investRate: vixSim.investRate, starved: vixSim.starved,
+        leftoverCash: vixSim.leftoverCash, invested: vixSim.invested,
+        totalInflow: vixSim.totalInflow, multMean,
+      },
+      vsFixed: compareDcaLump(vm, fm), vsLump: compareDcaLump(vm, lm),
+      sims: { vix: vixSim, fixed: fixSim, lump: lmpSim },
+    };
   }
 
   /**
@@ -212,6 +394,57 @@
     return Object.assign({}, sim, {
       equity, cost, costReal, cash: cashPath,
       flows: buy.length ? [[buy[0], -total]] : [],
+    });
+  }
+
+  /**
+   * 배수가 **최고 버킷**에 들어간 구간 = '공포 사건'. dca_sim.vix_episodes 미러.
+   * 이 실험의 진짜 한계는 데이터 시작일이 아니라 **사건의 개수**다 — VIX 최상위 구간은
+   * 1990~현재를 다 써도 1998·2001-02·2008-09·2011·2020·2022 정도에 뭉쳐 있어, 수천 거래일처럼
+   * 보여도 독립 관측은 사실상 그 사건 수다. gap 거래일 이내로 떨어진 구간은 한 사건으로 잇는다.
+   */
+  function vixEpisodes(vix, mult, opts) {
+    opts = opts || {};
+    const gap = opts.gap == null ? 60 : opts.gap, minDays = opts.minDays == null ? 3 : opts.minDays;
+    const n = mult ? mult.length : 0;
+    if (!n) return [];
+    let top = -Infinity;
+    for (let i = 0; i < n; i++) if (mult[i] > top) top = mult[i];
+    if (!(top > 1)) return [];
+    const runs = [];
+    for (let i = 0; i < n; i++) {
+      if (mult[i] < top - 1e-12) continue;
+      if (runs.length && i - runs[runs.length - 1][1] <= gap) runs[runs.length - 1][1] = i;
+      else runs.push([i, i]);
+    }
+    const out = [];
+    for (const [lo, hi] of runs) {
+      if (hi - lo + 1 < minDays) continue;
+      let peak = NaN;
+      for (let i = lo; i <= hi; i++) if (vix[i] > 0 && !(vix[i] <= peak)) peak = vix[i];
+      out.push({ lo, hi, days: hi - lo + 1, peakVix: peak });
+    }
+    return out;
+  }
+
+  /**
+   * 사건을 **하나씩 빼고**(그 구간만 배수 1.0) 다시 돌려 성과비가 얼마나 남는지.
+   * dca_sim.leave_one_episode_out 미러. 성과비 1.05 가 2008 을 빼면 1.00 이 된다면 그 전략의
+   * 근거는 "고VIX 에 더 사기"가 아니라 **2008 한 번**이다 — 화면은 이 표를 숨기지 않는다.
+   */
+  function leaveOneEpisodeOut(dates, ret, fx, buyIdx, monthly, mult, rfCash, episodes, opts) {
+    const base = compareFundingModes(dates, ret, fx, buyIdx, monthly, mult, rfCash, opts);
+    const baseRatio = base.vsFixed.finalRatio;
+    return episodes.map(ep => {
+      const m2 = Float64Array.from(mult);
+      for (let i = ep.lo; i <= ep.hi; i++) m2[i] = 1;
+      const c = compareFundingModes(dates, ret, fx, buyIdx, monthly, m2, rfCash, opts);
+      const r = c.vsFixed.finalRatio;
+      return {
+        lo: ep.lo, hi: ep.hi, days: ep.days, peakVix: ep.peakVix,
+        start: dates[ep.lo], end: dates[ep.hi], ratioWithout: r,
+        share: Math.abs(baseRatio - 1) > 1e-12 ? (baseRatio - r) / (baseRatio - 1) : NaN,
+      };
     });
   }
 
@@ -492,7 +725,7 @@
     return out;
   }
 
-  const API = { DPY, CLIP, sliceRange, monthFirstIndices, leverReturns, assetReturns, simulate, lumpSum, cashGlide, compareDcaLump, xirr, dcaMetrics, lumpMetrics, sweep, optimal, constrainedOptimal, downsampleIdx, rollingStarts, sensitivitySummary };
+  const API = { DPY, CLIP, sliceRange, monthFirstIndices, leverReturns, assetReturns, simulate, lumpSum, cashGlide, compareDcaLump, xirr, dcaMetrics, lumpMetrics, sweep, optimal, constrainedOptimal, downsampleIdx, rollingStarts, sensitivitySummary, expandingPctRank, vixMultiplier, poolSimulate, compareFundingModes, vixEpisodes, leaveOneEpisodeOut };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.DCASIM = API;
 })(typeof window !== 'undefined' ? window : globalThis);

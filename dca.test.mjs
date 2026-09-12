@@ -31,12 +31,18 @@ const byKey = Object.fromEntries(d.assets.map(a => [a.key, a]));
 // 상대오차 허용치 — 평가액은 금액이 커서(수억) 절대오차 대신 상대오차로 본다.
 // Python round(...,6) 저장 + JS 배정도 누적 → 1e-9 이면 충분히 빡빡하다.
 const TOL_REL = 1e-9;
+// 픽스처가 round(x,6) 으로 저장돼 값마다 최대 5e-7 의 직렬화 오차를 이미 안고 있다.
+// 금액이 큰 시계열은 분모가 커서 묻히지만, 현금풀처럼 0 근처까지 내려가는 계열은
+// 아래 분모 바닥(1) 때문에 그 반올림 노이즈가 그대로 상대오차로 올라온다 —
+// 관측 자체가 불가능한 구간이므로 metric 에서 덜어낸다. 실제 로직 어긋남은
+// 최소 1e-3 규모라 이 차감으로 가려지지 않는다.
 const TOL_ABS = 1e-6;
 let fails = 0, maxRel = 0;
 
 function relErr(got, exp) {
   const den = Math.max(Math.abs(exp), 1);
-  return Math.abs(got - exp) / den;
+  const diff = Math.max(0, Math.abs(got - exp) - TOL_ABS);
+  return diff / den;
 }
 function checkArr(name, got, exp) {
   if (got.length !== exp.length) { console.error(`✗ ${name}: 길이 ${got.length} ≠ ${exp.length}`); fails++; return; }
@@ -285,6 +291,80 @@ for (const rc of (fix.rolls || [])) {
   }
   if (!fails) console.log(`✓ ${rc.name}  표본=${s.n} 승률=${(s.winRate * 100).toFixed(1)}% ` +
     `성과비 p50=${s.ratioP50.toFixed(4)} 현재백분위=${(s.currentPct * 100).toFixed(1)}%`);
+}
+
+// ── 🧪 VIX 연동 적립(현금풀) — 3파전이 JS 에서도 같은 숫자를 내는가 ──────────
+const vixPresets = Object.fromEntries((fix.vix_presets || []).map(p => [p.key, p]));
+for (const vc of (fix.vix_cases || [])) {
+  const a = byKey[vc.asset];
+  if (!a) { console.error(`✗ ${vc.name}: 자산 ${vc.asset} 없음`); fails++; continue; }
+  const p = vixPresets[vc.preset];
+  if (!p) { console.error(`✗ ${vc.name}: 프리셋 ${vc.preset} 없음`); fails++; continue; }
+  const ar = DCA.assetReturns(d, a, lo, hi, 'mixed');
+  const useFx = vc.currency === 'krw';
+  const mult = DCA.vixMultiplier(d.vix, {
+    mode: p.mode, edges: p.edges, mults: p.mults,
+    lag: fix.vix_lag, minObs: fix.vix_min_obs,
+  });
+  checkArr(`${vc.name} mult`, mult, vc.mult);
+  const buy = DCA.monthFirstIndices(dates, lo, hi);
+  const cmp = DCA.compareFundingModes(dates, ar.ret, useFx ? d.fx : fxOne, buy, vc.monthly,
+    mult, useFx ? d.rf_krw : d.rf,
+    { fee: fix.fee, useFx, offset: lo, dpy: d.dpy, seedMonths: vc.seed_months });
+  checkArr(`${vc.name} equity`, cmp.sims.vix.equity, vc.equity);
+  checkArr(`${vc.name} cost`, cmp.sims.vix.cost, vc.cost);
+  checkArr(`${vc.name} cash`, cmp.sims.vix.cash, vc.cash);
+  for (const [leg, exp] of [['vix', vc.metrics], ['fixed', vc.fixed_metrics], ['lump', vc.lump_metrics]]) {
+    checkNum(`${vc.name}.${leg} final`, cmp[leg].final, exp.final);
+    checkNum(`${vc.name}.${leg} totalCost`, cmp[leg].totalCost, exp.total_cost);
+    checkNum(`${vc.name}.${leg} xirr`, cmp[leg].xirr, exp.xirr, 1e-7);
+    checkNum(`${vc.name}.${leg} mdd`, cmp[leg].mdd, exp.mdd);
+    checkNum(`${vc.name}.${leg} avgCost`, cmp[leg].avgCost, exp.avg_cost);
+    if (cmp[leg].underDays !== exp.under_days) {
+      console.error(`✗ ${vc.name}.${leg} underDays: ${cmp[leg].underDays} ≠ ${exp.under_days}`); fails++;
+    }
+  }
+  // 총 유입이 세 방식에서 같아야 한다 — 이게 깨지면 '같은 총액 비교'라는 전제가 무너진다.
+  for (const leg of ['fixed', 'lump']) {
+    checkNum(`${vc.name} totalCost 일치(${leg})`, cmp[leg].totalCost, cmp.vix.totalCost, 1e-12);
+  }
+  checkNum(`${vc.name}.pool investRate`, cmp.pool.investRate, vc.pool.invest_rate);
+  checkNum(`${vc.name}.pool leftoverCash`, cmp.pool.leftoverCash, vc.pool.leftover_cash);
+  checkNum(`${vc.name}.pool multMean`, cmp.pool.multMean, vc.pool.mult_mean);
+  if (cmp.pool.starved !== vc.pool.starved) {
+    console.error(`✗ ${vc.name}.pool starved: ${cmp.pool.starved} ≠ ${vc.pool.starved}`); fails++;
+  }
+  checkNum(`${vc.name} vsFixed ratio`, cmp.vsFixed.finalRatio, vc.vs_fixed.final_ratio);
+  checkNum(`${vc.name} vsLump ratio`, cmp.vsLump.finalRatio, vc.vs_lump.final_ratio);
+  // 사건 탐지 + leave-one-episode-out — 과최적화 점검 표가 파이썬과 갈리면 결론이 갈린다.
+  const eps = DCA.vixEpisodes(d.vix, mult);
+  if (eps.length !== (vc.episodes || []).length) {
+    console.error(`✗ ${vc.name} 사건 수: ${eps.length} ≠ ${(vc.episodes || []).length}`); fails++;
+  } else {
+    eps.forEach((e, i) => {
+      const E = vc.episodes[i];
+      if (e.lo !== E.lo || e.hi !== E.hi) {
+        console.error(`✗ ${vc.name} 사건[${i}] 범위: ${e.lo}~${e.hi} ≠ ${E.lo}~${E.hi}`); fails++;
+      }
+      checkNum(`${vc.name} 사건[${i}] peakVix`, e.peakVix, E.peak_vix);
+    });
+    const loo = DCA.leaveOneEpisodeOut(dates, ar.ret, useFx ? d.fx : fxOne, buy, vc.monthly,
+      mult, useFx ? d.rf_krw : d.rf,
+      eps, { fee: fix.fee, useFx, offset: lo, dpy: d.dpy, seedMonths: vc.seed_months });
+    loo.forEach((r, i) => {
+      checkNum(`${vc.name} loo[${i}] ratioWithout`, r.ratioWithout, vc.loo[i].ratio_without);
+      checkNum(`${vc.name} loo[${i}] share`, r.share, vc.loo[i].share, 1e-8);
+    });
+  }
+  // 배수 ≡ 1(off) 이면 현금풀은 단순 적립과 완전히 같아야 한다(파이썬 불변식의 JS 판).
+  if (vc.preset === 'off') {
+    const plain = DCA.simulate(ar.ret, useFx ? d.fx : fxOne, buy, vc.monthly,
+      { fee: fix.fee, useFx, offset: lo });
+    checkArr(`${vc.name} off ≡ simulate`, cmp.sims.vix.equity, Array.from(plain.equity));
+  }
+  if (!fails) console.log(`✓ ${vc.name}  평균배수=${cmp.pool.multMean.toFixed(2)} ` +
+    `투입률=${(cmp.pool.investRate * 100).toFixed(0)}% | VIX풀/고정=${cmp.vsFixed.finalRatio.toFixed(3)} ` +
+    `VIX풀/거치=${cmp.vsLump.finalRatio.toFixed(3)}`);
 }
 
 const nReal = (fix.cases || []).filter(c => c.real_equity).length

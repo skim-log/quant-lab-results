@@ -690,6 +690,9 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
 /* 적립식 vs 거치식 막대 — 종목 수만큼만 필요하지만 높이 공급원이 없으면 autosize 가 붕괴한다 */
 #dca-cmp { min-height: 260px; }
 #dca-roll-ratio { min-height: 280px; }
+/* 🧪 VIX 연동 적립 — 위와 같은 이유로 ID 별 높이가 필요하다(없으면 18px 로 접힌 채 굳는다) */
+#vx-equity { min-height: 360px; }
+#vx-flow { min-height: 280px; }
 /* 한 패널 안의 소제목(시작 시점 민감도·창 길이별 승률) — 패널 h3 보다 위 여백을 더 준다 */
 .dca-sub { border-top: 1px solid var(--border); padding-top: 0.9rem; margin-top: 1.3rem !important; }
 
