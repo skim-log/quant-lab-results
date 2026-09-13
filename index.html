@@ -18,13 +18,20 @@
           t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
         document.documentElement.dataset.theme = t;
-      } catch (e) { document.documentElement.dataset.theme = 'light'; }
+        // 화면 모드(초보자/전문가) — 저장값이 없으면 초보자용. 테마와 같이 선반영해야
+        // 전문가용 패널이 한 프레임 번쩍였다 사라지는 깜빡임이 없다.
+        var lv = localStorage.getItem('ql-level');
+        document.documentElement.dataset.mode = (lv === 'expert') ? 'expert' : 'basic';
+      } catch (e) {
+        document.documentElement.dataset.theme = 'light';
+        document.documentElement.dataset.mode = 'basic';
+      }
     })();
   </script>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=42ceebb4" />
+  <link rel="stylesheet" href="style.css?v=cd5c114e" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -35,6 +42,10 @@
         <p class="subtitle">주식 · 자산배분 · 코인 · 부동산 백테스트 — 미리 계산된 결과를 인터랙티브하게 탐색</p>
       </div>
       <div class="header-actions">
+        <div class="level-toggle" id="level-toggle" role="group" aria-label="화면 모드">
+          <button type="button" data-level="basic" title="핵심 지표만 보여 주는 간결한 화면">초보자용</button>
+          <button type="button" data-level="expert" title="모든 분석 패널을 보여 주는 전체 화면">전문가용</button>
+        </div>
         <a class="feedback-link" href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">💬 문의·건의</a>
         <button type="button" id="theme-toggle" class="theme-toggle" aria-label="라이트/다크 테마 전환" title="라이트/다크 테마 전환"></button>
       </div>
@@ -42,6 +53,14 @@
   </header>
 
   <main>
+    <div id="level-banner" class="level-banner hidden">
+      <span class="lb-msg">
+        <b>초보자용 화면</b>으로 열렸습니다 — 성장곡선·낙폭·핵심 지표만 보여 줍니다.
+        전문가용으로 쓰시던 분이라면 →
+      </span>
+      <button type="button" class="lb-go" data-level-banner="expert">전문가용으로 전환</button>
+      <button type="button" class="lb-x" data-level-banner="dismiss" aria-label="안내 닫기" title="닫기">✕</button>
+    </div>
     <section class="controls">
       <div class="control-row">
         <div class="ctl ctl-nav">
@@ -62,7 +81,7 @@
             <button type="button" data-cur="usd">달러</button>
           </div>
         </div>
-        <label class="ctl ctl-check">
+        <label class="ctl ctl-check" data-adv>
           <input type="checkbox" id="logscale" checked /> 로그 스케일
         </label>
       </div>
@@ -81,7 +100,7 @@
         </div>
       </div>
 
-      <div class="control-row ctl-rebal hidden">
+      <div class="control-row ctl-rebal hidden" data-adv>
         <div class="ctl">
           <span class="label">리밸런싱</span>
           <label><select id="alloc-rebal">
@@ -98,7 +117,7 @@
         </div>
       </div>
 
-      <fieldset id="strategies" class="ctl">
+      <fieldset id="strategies" class="ctl" data-adv>
         <legend>전략 선택</legend>
         <div class="strategy-actions">
           <button type="button" id="strat-all-off">모두 끄기</button>
@@ -245,7 +264,7 @@
             <span><b>Calmar</b> = CAGR ÷ |MDD| — 낙폭 1단위당 수익 <em>(↑)</em></span>
           </div>
         </details>
-        <p class="lb-hint">🔀 <strong>열 제목(CAGR · MDD · Sharpe · Sortino · Calmar …)을 클릭</strong>하면 그 지표 기준으로 정렬됩니다(<span class="sort-ind">↕</span> 표시된 열 전부 가능). <strong>행을 클릭</strong>하면 전체 백테스트로 이동합니다.</p>
+        <p class="lb-hint">🔀 <strong>열 제목(CAGR · MDD · Sharpe · Sortino · Calmar …)을 클릭</strong>하면 그 지표 기준으로 정렬됩니다(<span class="sort-ind">↕</span> 표시된 열 전부 가능). <strong>행을 클릭</strong>하면 전체 백테스트로 이동하고, <strong>맨 앞 체크박스</strong>로 여러 개를 골라 한 화면에서 겹쳐 볼 수 있습니다.</p>
         <div id="reco-lb">
           <div class="bt-controls">
             <span class="muted">통화</span>
@@ -253,6 +272,13 @@
             <label>분류 <select id="reco-lb-cat">
               <option value="all">전체</option><option value="dynamic">동적 자산배분</option><option value="static">정적 자산배분</option><option value="momentum">모멘텀·주식</option><option value="crypto">코인</option></select></label>
             <span id="reco-lb-count" class="muted"></span>
+          </div>
+          <!-- 골라서 비교 — 선택은 통화별로 따로 유지된다(원화/달러를 섞어 겹치면 비교가 무의미). -->
+          <div id="lb-selbar" class="lb-selbar">
+            <span id="lb-sel-text" class="muted">비교할 전략을 체크하세요 (최대 6개)</span>
+            <label class="lb-sel-common"><input type="checkbox" id="lb-common" checked /> 공통 구간으로 맞추기</label>
+            <button type="button" id="lb-compare" disabled>선택 비교하기 →</button>
+            <button type="button" id="lb-clear" class="lb-clear" disabled>선택 해제</button>
           </div>
           <div class="lb-wrap"><table id="reco-lb-table" class="lb-table"></table></div>
           <p class="period-note">⚠️ 코인·레버리지 전략은 지표가 높아도 <strong>낙폭(MDD)이 −50%대 이상</strong>일 수 있습니다. 전략마다 검증 기간이 다르니(전기간 기준) 같은 기간·같은 분류끼리 비교하세요. 부동산은 기준이 달라 이 표에서 제외했습니다.</p>
@@ -1251,15 +1277,16 @@
       <div id="blend-frontier" class="chart"></div>
     </section>
 
+    <p id="multi-note" class="period-note hidden"></p>
     <section class="charts">
       <div id="chart-equity" class="chart"></div>
       <div id="chart-dd" class="chart"></div>
       <p id="freq-note-dd" class="period-note freq-note hidden"></p>
-      <div id="chart-annual" class="chart"></div>
+      <div id="chart-annual" class="chart" data-adv></div>
     </section>
 
     <!-- 코인 전용: 적립식(DCA) 납입 vs 평가액 + XIRR — 메인 곡선(TWR)이 매수후보유와 겹치는 이유 해설 -->
-    <section id="cryptodca-section" class="panel hidden">
+    <section id="cryptodca-section" class="panel hidden" data-adv>
       <h2>적립식(DCA) <span class="muted">(납입 누계 vs 평가액 · 금액가중)</span></h2>
       <p class="period-note">위 수익곡선은 <strong>TWR(시간가중)</strong>이라 매수후보유와 DCA가 자산 수익률만 따라 거의 겹칩니다.
         적립의 실제 효과는 <strong>매월 동일액을 꾸준히 넣었을 때</strong>의 평가액과 <strong>XIRR(금액가중 수익률)</strong>로 드러납니다(현재 토글 통화 기준).</p>
@@ -1268,7 +1295,7 @@
     </section>
 
     <!-- 분석 강화: 롤링 수익률 · 최대 낙폭 Top-N · 월별 수익률 히트맵 (모든 백테스트 데이터셋, 브라우저 계산) -->
-    <section id="rolling-section" class="panel hidden">
+    <section id="rolling-section" class="panel hidden" data-adv>
       <h2>롤링 수익률 <span class="muted">(N년 이동창 CAGR 분포)</span></h2>
       <p class="period-note">선택 구간의 모든 N년 이동창 CAGR — <strong>단일 CAGR은 시작 시점의 운에 좌우</strong>되므로,
         창별 분포(최저~최고)가 전략의 기간 의존성을 드러냅니다.
@@ -1280,21 +1307,21 @@
       <div id="chart-rolling" class="chart"></div>
     </section>
 
-    <section id="topdd-section" class="panel hidden">
+    <section id="topdd-section" class="panel hidden" data-adv>
       <h2>최대 낙폭 Top-5 <span class="muted" id="topdd-for"></span></h2>
       <p class="period-note">선택 구간에서 가장 깊은 고점→저점 낙폭 에피소드(회복일·수중 기간 포함). 위험은 평균이 아니라 꼬리에서 옵니다.</p>
       <div id="topdd-curvewrap" class="hidden" style="margin-bottom:.5rem">곡선 <select id="topdd-curve"></select></div>
       <div class="table-wrap"><table id="topdd-table" class="diag-table"></table></div>
     </section>
 
-    <section id="monthly-hm-section" class="panel hidden">
+    <section id="monthly-hm-section" class="panel hidden" data-adv>
       <h2>월별·연간 수익률 히트맵 <span class="muted" id="monthly-hm-for"></span></h2>
       <p class="period-note">연×월 월수익(초록 +, 빨강 −). 일별 데이터는 월말 종가로 리샘플, 첫 부분월은 공백. 맨 오른쪽 <strong>연간</strong> 열은 그 해 월수익을 복리로 합친 연간 수익률(색 스케일은 월과 별도 — 첫 해는 부분연도일 수 있음).</p>
       <div id="chart-monthly-hm" class="chart"></div>
     </section>
 
     <!-- 인라인 일별 위험 렌즈 — 정적/동적 배분 뷰에서 daily_risk.json 이 커버하면 자동 표시(월별 헤드라인은 위에 그대로) -->
-    <section id="inline-daily-lens" class="panel hidden">
+    <section id="inline-daily-lens" class="panel hidden" data-adv>
       <h2>이 배분의 일별 낙폭 <span class="muted">(월말이 감춘 급락 · 정밀 재구성)</span></h2>
       <p class="period-note">위 낙폭 차트는 <strong>월말 기준</strong>이라 한 달 안의 급락(코로나 등)을 얕게 보여줍니다. 아래는 같은 배분을 <strong>일별로 정확 재구성</strong>(일별 환율 반영)해 실제 장중 스트레스를 드러낸 것입니다. <span class="muted">헤드라인·순위는 비교 공정성을 위해 월별 유지 · 통화는 상단 토글.</span></p>
       <div id="idl-verdict" class="lab-verdict"></div>
@@ -1319,18 +1346,18 @@
       <div id="current-pos" class="pills"></div>
     </section>
 
-    <section id="ext-section" class="panel hidden">
+    <section id="ext-section" class="panel hidden" data-adv>
       <h2>확장 지표 <span class="muted" id="ext-for"></span></h2>
       <div id="ext-cards" class="ext-cards"></div>
     </section>
 
-    <section id="bandab-section" class="panel hidden">
+    <section id="bandab-section" class="panel hidden" data-adv>
       <h2>밴드 트리거 A/B</h2>
       <p class="period-note">같은 비중에 밴드 트리거만 토글한 전체기간 비교 (초록 = 밴드가 더 나음)</p>
       <div class="table-wrap"><table id="bandab-table"></table></div>
     </section>
 
-    <section id="maab-section" class="panel hidden">
+    <section id="maab-section" class="panel hidden" data-adv>
       <h2>200일선 필터 A/B</h2>
       <p class="period-note">같은 비중·주기·밴드에 200일 이동평균선 필터만 토글한 전체기간 비교 (초록 = 필터가 더 나음).
         필터 ON이면 자산별로 월말 가격이 200일선 아래일 때 그 비중을 0%·무이자 현금으로 이동.</p>
@@ -1358,7 +1385,7 @@
       <div class="table-wrap"><table id="maab-table"></table></div>
     </section>
 
-    <section id="sweep-section" class="panel hidden">
+    <section id="sweep-section" class="panel hidden" data-adv>
       <h2>리밸런싱 민감도 스윕 <span id="sweep-ma-note" class="muted"></span></h2>
       <p class="period-note">현재 정적 비중을 <strong>주기(없음~연) × 밴드(OFF~30%)</strong> 격자(약 20개)로 브라우저에서 재백테스트.
         비중·비용은 프리셋과 동일, 통화는 현재 토글. <strong>전체 가용 기간 기준</strong>(구간 슬라이더 미반영 — 진짜 재백테스트).</p>
@@ -1378,20 +1405,20 @@
     </section>
 
     <!-- 코인 이평선 필터 민감도 (코인 데이터셋 로드 시에만 표시 — _maybeCryptoMaSensitivity 토글) -->
-    <section id="crypto-ma-section" class="panel hidden">
+    <section id="crypto-ma-section" class="panel hidden" data-adv>
       <h2>이평선 필터 민감도 (과최적화 점검)</h2>
       <p class="period-note">이 코인을 <strong>여러 이동평균 창(20~200일)</strong>으로 추세추종(가격이 이평선 위면 보유, 아래면 현금)했을 때의 낙폭(MDD)·Sharpe입니다(신호통화=현재 통화, 점선=<strong>매수후보유</strong> 낙폭). <strong>넓은 범위에서 낙폭이 줄면</strong> 특정 일수 과최적화가 아니라 추세필터 자체가 강건. 단, 코인은 필터를 써도 낙폭이 −50%대 이상으로 큽니다(고위험).</p>
       <div id="crypto-ma-host"></div>
     </section>
 
-    <section id="events-section" class="panel hidden">
+    <section id="events-section" class="panel hidden" data-adv>
       <details>
         <summary>리밸런싱 이벤트 (<span id="events-count">0</span>)</summary>
         <div id="events" class="events"></div>
       </details>
     </section>
 
-    <section id="diag-section" class="panel hidden">
+    <section id="diag-section" class="panel hidden" data-adv>
       <details>
         <summary>데이터 신뢰도 · 프록시 출처 · 오차추정</summary>
         <div id="diag"></div>
@@ -1404,6 +1431,7 @@
       <div class="table-wrap">
         <table id="metrics-table"></table>
       </div>
+      <p id="basic-cols-note" class="period-note hidden"></p>
       <p id="freq-note-table" class="period-note freq-note hidden"></p>
       <p id="freq-daily-pointer" class="period-note hidden"></p>
       <p class="disclaimer">
@@ -1422,13 +1450,13 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="explain.js?v=42ceebb4" defer></script>
-  <script src="alloc.js?v=42ceebb4" defer></script>
-  <script src="re_apt.js?v=42ceebb4" defer></script>
-  <script src="analytics-live.js?v=42ceebb4" defer></script>
-  <script src="leverage.js?v=42ceebb4" defer></script>
-  <script src="dca.js?v=42ceebb4" defer></script>
-  <script src="lab.js?v=42ceebb4" defer></script>
-  <script src="app.js?v=42ceebb4" defer></script>
+  <script src="explain.js?v=cd5c114e" defer></script>
+  <script src="alloc.js?v=cd5c114e" defer></script>
+  <script src="re_apt.js?v=cd5c114e" defer></script>
+  <script src="analytics-live.js?v=cd5c114e" defer></script>
+  <script src="leverage.js?v=cd5c114e" defer></script>
+  <script src="dca.js?v=cd5c114e" defer></script>
+  <script src="lab.js?v=cd5c114e" defer></script>
+  <script src="app.js?v=cd5c114e" defer></script>
 </body>
 </html>

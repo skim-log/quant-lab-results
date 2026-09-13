@@ -464,9 +464,26 @@ function _mddAfterCagr(cols) {
   c.splice(c.indexOf('CAGR') + 1, 0, 'MDD');
   return c;
 }
+// 초보자용 지표표에 남길 지표(정본 키) — 데이터셋마다 열 이름이 달라 metric_to_col 로 옮긴다.
+// "많이 보여 주는 것"과 "읽히는 것"은 다르다. 나머지 열은 전문가용에서 그대로 나온다.
+const BASIC_METRICS = ['CAGR', 'mdd', 'sharpe', 'total'];
+function _basicCols(d, cols) {
+  const keep = new Set(BASIC_METRICS.map(k => (d.metric_to_col || {})[k]).filter(Boolean));
+  if ((d.table_columns || []).includes('기간')) keep.add('기간');
+  const out = cols.filter(c => keep.has(c));
+  return out.length ? out : cols;      // 매핑이 없는 데이터셋이면 줄이지 않는다(빈 표보다 낫다)
+}
 function renderTable(rows, fullPeriod) {
   const d = state.data;
-  const cols = _mddAfterCagr(d.table_columns);
+  const all = _mddAfterCagr(d.table_columns);
+  const cols = isBasic() ? _basicCols(d, all) : all;
+  const note = document.getElementById('basic-cols-note');
+  if (note) {
+    const trimmed = isBasic() && cols.length < all.length;
+    note.classList.toggle('hidden', !trimmed);
+    if (trimmed) note.innerHTML = `핵심 ${cols.length}개 지표만 보여 주고 있습니다 — ` +
+      `연변동성·Sortino·Calmar 등 나머지 ${all.length - cols.length}개는 우측 상단 <b>전문가용</b>에서 볼 수 있습니다.`;
+  }
   const pct = new Set(d.pct_cols);
   const ratio = new Set(d.ratio_cols);
 
@@ -974,7 +991,30 @@ function setGlobalRange(d) {
   sEl.value = lo; eEl.value = hi;
 }
 
+/**
+ * 오버레이 비교의 기간 안내 — 시작일이 다른 전략을 겹쳤는지, 공통 구간으로 맞췄는지를 밝힌다.
+ * 비교 화면에서 가장 흔한 오독이 "기간이 다른 두 곡선을 같은 잣대로 읽는 것"이라 숨기지 않는다.
+ */
+function _multiNote(merged, win, wanted) {
+  const el = document.getElementById('multi-note'); if (!el) return;
+  const starts = merged.series.map(x => (x.dates || [])[0]).filter(Boolean);
+  const spread = starts.length > 1 && starts.some(a => a !== starts[0]);
+  let msg = '';
+  if (win) {
+    msg = `📅 <b>공통 구간 ${win.lo} ~ ${win.hi}</b> 으로 맞췄습니다 — 선택한 ${merged.series.length}개 전략이 ` +
+      `모두 존재하는 기간입니다. 각자의 전체 기간으로 보려면 위 <b>기간 → 전체</b>를 누르세요` +
+      `(그 경우 시작일이 달라 직접 비교는 주의).`;
+  } else if (wanted && spread) {
+    msg = `⚠️ 선택한 전략들이 <b>동시에 존재하는 구간이 없어</b> 공통 구간을 적용하지 못했습니다 — ` +
+      `각자의 전체 기간으로 그렸으니 곡선을 직접 비교하지 마세요.`;
+  } else if (spread) {
+    msg = `⚠️ 전략마다 <b>시작일이 다릅니다</b> — 겪은 위기가 서로 달라 최종 수익을 직접 비교하면 오독합니다.`;
+  }
+  el.innerHTML = msg;
+  el.classList.toggle('hidden', !msg);
+}
 async function loadDataset(file) {
+  const mn = document.getElementById('multi-note'); if (mn) mn.classList.add('hidden');
   const token = ++state._navToken;   // 로드 시작 = 최신 표식(setCurrency 우회 호출부 포함 모든 경로). 이후 다른 로드/내비가 오면 폐기.
   setStatus('데이터 불러오는 중…');
   try {
@@ -1075,6 +1115,83 @@ function applyTheme(theme, persist) {
     if (el && el._sweep) _drawMaSweep(document.getElementById(h + '-chart'), el._sweep, el._active);
   });
 }
+// ---------------------------------------------------------------------------
+// 화면 모드 — 'basic'(초보자용, 기본) | 'expert'(전문가용)
+//
+// **같은 DOM 을 감추기만 한다.** 초보자용 페이지를 따로 만들면 렌더 경로가 둘로 갈라져
+// "같은 전략인데 두 화면 숫자가 다름" 사고가 난다. 계산은 항상 전부 돌고 표시만 달라지므로
+// 토글이 즉시이고 숫자가 어긋날 수 없다. 전문가 전용 요소는 HTML 의 data-adv 로만 표시하고
+// 숨김 자체는 CSS 한 줄(html[data-mode="basic"] [data-adv])이 한다 — JS 렌더 로직은 무관.
+// 저장 규약은 테마(ql-theme)와 동일하다.
+// ---------------------------------------------------------------------------
+function currentLevel() { return document.documentElement.dataset.mode === 'expert' ? 'expert' : 'basic'; }
+function isBasic() { return currentLevel() === 'basic'; }
+function syncLevelButtons() {
+  const lv = currentLevel();
+  document.querySelectorAll('#level-toggle button').forEach(b => b.classList.toggle('active', b.dataset.level === lv));
+}
+/**
+ * Plotly 는 **폭 0 인 상태에서 그리면 0 폭 차트로 굳는다.** 초보자용에서 감춰진 채 그려진
+ * 차트들이 전문가용으로 전환한 순간 찌그러져 보이는 함정이 여기다 — 보이게 된 차트를 전부
+ * 다시 재기(resize)해야 한다. 숨겨진 요소는 offsetParent 가 null 이라 그걸로 거른다.
+ */
+function _resizeVisiblePlots() {
+  if (typeof Plotly === 'undefined') return;
+  document.querySelectorAll('.js-plotly-plot').forEach(el => {
+    if (el.offsetParent !== null) { try { Plotly.Plots.resize(el); } catch (e) { /* 미초기화 차트 */ } }
+  });
+}
+function applyLevel(level, persist) {
+  const lv = (level === 'expert') ? 'expert' : 'basic';
+  const changed = currentLevel() !== lv;
+  document.documentElement.dataset.mode = lv;
+  if (persist) { try { localStorage.setItem('ql-level', lv); } catch (e) { /* ignore */ } }
+  syncLevelButtons();
+  if (!changed) return;
+  // 감춰졌던 영역(🧪실험실)·분류(정량분석)가 생기거나 사라지므로 **네비를 통째로** 다시 만든다.
+  // setSuperCategory 만 부르면 분류 칩만 갱신되고 대분류 탭 줄은 그대로라 실험실 탭이 안 돌아온다.
+  // buildNav 는 보던 대분류·분류를 보존하므로 화면이 튀지 않는다.
+  if (state.manifest && state.manifest.length) buildNav();
+  _syncExplainerOpen();
+  if (state.data && !document.body.classList.contains('tools-mode')) render();   // 지표표 열 수가 모드마다 다름
+  _resizeVisiblePlots();
+}
+/** 초보자용에서는 전략 설명 아코디언을 기본으로 펼쳐 둔다(접혀 있으면 아무도 안 연다). */
+function _syncExplainerOpen() {
+  const ex = document.getElementById('strategy-explainer');
+  if (ex && isBasic() && !ex.hasAttribute('data-user-toggled')) ex.open = true;
+}
+/**
+ * 첫 진입 1회 안내 — 기본값이 초보자용이라 **기존 사용자도 한 번은 단출해진 화면을 본다**.
+ * 그걸 버그로 오해하지 않도록 전환 버튼과 함께 한 번만 알린다(본 뒤로는 다시 안 뜬다).
+ */
+function _maybeShowLevelBanner() {
+  const el = document.getElementById('level-banner'); if (!el) return;
+  let seen = null;
+  try { seen = localStorage.getItem('ql-level-seen'); } catch (e) { seen = '1'; }   // 저장 불가 환경이면 안 띄운다
+  if (seen || currentLevel() !== 'basic') return;
+  el.classList.remove('hidden');
+  try { localStorage.setItem('ql-level-seen', '1'); } catch (e) { /* ignore */ }
+}
+function setupLevel() {
+  syncLevelButtons();
+  const box = document.getElementById('level-toggle');
+  if (box) box.addEventListener('click', e => {
+    const b = e.target.closest('button[data-level]'); if (!b) return;
+    applyLevel(b.dataset.level, true);
+    const bn = document.getElementById('level-banner'); if (bn) bn.classList.add('hidden');
+  });
+  const bn = document.getElementById('level-banner');
+  if (bn) bn.addEventListener('click', e => {
+    const b = e.target.closest('button[data-level-banner]'); if (!b) return;
+    if (b.dataset.levelBanner === 'expert') applyLevel('expert', true);
+    bn.classList.add('hidden');
+  });
+  const ex = document.getElementById('strategy-explainer');
+  if (ex) ex.addEventListener('toggle', () => ex.setAttribute('data-user-toggled', '1'));
+  _maybeShowLevelBanner();
+}
+
 function setupTheme() {
   syncThemeButton();
   const btn = document.getElementById('theme-toggle');
@@ -1161,13 +1278,23 @@ RE_CATS.forEach(([k, lab], i) => {
   if (k !== 're_index') CAT_BLURB[k] = '국토부 실거래(MOLIT) 기반 — 시군구 거래량·전세가율·월세·전월세전환율 추이 + 개별 단지 조회·백테스트.';
 });
 
+// 초보자용에서 감추는 영역·분류 — 🧪실험실(방법론 논쟁용)과 정량분석(프론티어·상관행렬)은
+// 배경지식 없이 보면 오해를 부른다. 없애는 게 아니라 전문가용에서 그대로 나온다.
+const BASIC_HIDE_SUPER = new Set(['lab']);
+const BASIC_HIDE_CAT = new Set(['analytics']);
 function catsPresent() {
   return [...new Set(state.manifest.map(m => m.category))]
+    .filter(c => !(isBasic() && BASIC_HIDE_CAT.has(c)))
     .sort((a, b) => (CAT_ORDER[a] ?? 9) - (CAT_ORDER[b] ?? 9));
 }
 function supersPresent() {
   return [...new Set(state.manifest.map(m => SUPER_OF[m.category] || 'etc'))]
+    .filter(s => !(isBasic() && BASIC_HIDE_SUPER.has(s)))
     .sort((a, b) => (SUPER_ORDER[a] ?? 9) - (SUPER_ORDER[b] ?? 9));
+}
+/** 이 데이터셋이 지금 모드에서 네비에 안 보이는가(딥링크가 막다른 길이 되는 경우). */
+function _hiddenInBasic(cat) {
+  return isBasic() && (BASIC_HIDE_CAT.has(cat) || BASIC_HIDE_SUPER.has(SUPER_OF[cat] || 'etc'));
 }
 function catsInSuper(sup) {
   return catsPresent().filter(c => (SUPER_OF[c] || 'etc') === sup);
@@ -1200,10 +1327,16 @@ function buildNav() {
     sups.map(s => `<button type="button" data-super="${s}">${SUPER_LABEL[s] || s}</button>`).join('');
   document.querySelectorAll('#super-tabs button').forEach(
     b => b.addEventListener('click', () => setSuperCategory(b.dataset.super)));
-  document.getElementById('group').addEventListener('change', e => setGroup(e.target.value));
-  document.querySelectorAll('#cur-toggle button').forEach(
-    b => b.addEventListener('click', () => setCurrency(b.dataset.cur)));
-  setSuperCategory(sups[0]);
+  // 아래 둘은 **다시 만들어지지 않는 정적 요소**다. 모드 전환으로 buildNav 가 재호출되므로
+  // 가드를 안 두면 리스너가 겹겹이 쌓여 한 번 바꿔도 여러 번 로드된다.
+  if (!state._navWired) {
+    document.getElementById('group').addEventListener('change', e => setGroup(e.target.value));
+    document.querySelectorAll('#cur-toggle button').forEach(
+      b => b.addEventListener('click', () => setCurrency(b.dataset.cur)));
+    state._navWired = true;
+  }
+  // 모드 전환으로 재호출될 수 있다 — 보던 대분류가 아직 있으면 그대로 둔다(화면이 튀지 않게).
+  setSuperCategory(sups.includes(state.nav.super) ? state.nav.super : sups[0]);
 }
 function setSuperCategory(sup) {
   state.nav.super = sup;
@@ -1213,7 +1346,8 @@ function setSuperCategory(sup) {
     cats.map(c => `<button type="button" data-cat="${c}">${CAT_LABEL_NAV[c] || c}</button>`).join('');
   document.querySelectorAll('#cat-tabs button').forEach(
     b => b.addEventListener('click', () => setCategory(b.dataset.cat)));
-  setCategory(cats[0]);
+  // 모드 전환으로 칩만 다시 그린 경우 보던 분류를 그대로 유지한다(없어진 분류면 첫 칩).
+  setCategory(cats.includes(state.nav.category) ? state.nav.category : cats[0]);
 }
 function setCategory(cat) {
   state.nav.category = cat;
@@ -1491,6 +1625,12 @@ function _crosslink(elId, targetBase, label) {
 }
 function gotoDataset(id) {
   const e = state.manifest.find(m => m.id === id); if (!e) return;
+  // 초보자용에서 감춘 분류(실험실·정량분석)로 향하는 딥링크는 막다른 길이 된다 —
+  // 조용히 실패하느니 모드를 올리고 그 사실을 알린다.
+  if (_hiddenInBasic(e.category)) {
+    applyLevel('expert', true);
+    setStatus(`'${CAT_LABEL_NAV[e.category] || e.category}'는 전문가용 화면입니다 — 모드를 전환했습니다.`);
+  }
   // UI(대분류·분류·그룹·통화)는 '무음'으로 한 번에 맞추고, 실제 데이터 로드는 마지막 setCurrency 에서
   // 딱 1회만 수행한다 → 예전엔 단계마다 loadDataset 가 겹쳐 발화(3회 낭비 + 응답 뒤섞임)했던 것을 제거.
   state._navSilent = true;
@@ -1527,6 +1667,50 @@ async function _lbLoad() {
   catch (e) { state.recoLb = []; }
   return state.recoLb;
 }
+// 리더보드 '골라서 비교' — 선택은 **통화별로 따로** 담는다. 원화 전략과 달러 전략을 섞어
+// 겹치면 환산 기준이 달라 비교가 성립하지 않기 때문이다(표 자체가 통화로 필터링돼 있다).
+const LB_MAX_PICK = 6;              // 곡선 7개를 넘으면 색 구분이 무너지고 fetch 도 무거워진다
+// 전략 이름을 속성값에 넣으므로 따옴표·꺾쇠를 막는다(이름은 빌드 산출물이지만 속성 탈출은 기본값).
+function _esc(v) {
+  return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function _lbSelSet() {
+  state.lbSel = state.lbSel || { krw: new Set(), usd: new Set() };
+  const cur = state.recoLbCcy || 'krw';
+  if (!state.lbSel[cur]) state.lbSel[cur] = new Set();
+  return state.lbSel[cur];
+}
+function _lbSelSync() {
+  const sel = _lbSelSet(), n = sel.size;
+  const txt = document.getElementById('lb-sel-text');
+  const cmp = document.getElementById('lb-compare');
+  const clr = document.getElementById('lb-clear');
+  if (txt) {
+    txt.textContent = n ? `${n}개 선택됨${n >= LB_MAX_PICK ? ` (최대 ${LB_MAX_PICK}개 — 더 고르려면 하나를 해제하세요)` : ''}`
+                        : `비교할 전략을 체크하세요 (최대 ${LB_MAX_PICK}개)`;
+    txt.classList.toggle('muted', !n);
+  }
+  if (cmp) { cmp.disabled = n < 2; cmp.textContent = n >= 2 ? `선택한 ${n}개 비교하기 →` : '선택 비교하기 →'; }
+  if (clr) clr.disabled = !n;
+}
+/** 고른 전략만 오버레이한다 — 같은 파일의 다른 전략이 끌려오지 않게 only 로 좁힌다. */
+function _lbCompare() {
+  const sel = _lbSelSet(), names = [...sel];
+  if (names.length < 2) return;
+  const cur = state.recoLbCcy || 'krw';
+  const files = [];
+  for (const r of (state.recoLb || [])) {
+    if (r.cur !== cur || !sel.has(r.name)) continue;
+    const e = state.manifest.find(m => m.id === r.id);
+    const f = e && (e.file || (e.files && e.files[0]));
+    if (f && !files.includes(f)) files.push(f);
+  }
+  if (!files.length) { setStatus('선택한 전략의 데이터셋을 찾지 못했습니다.', true); return; }
+  const common = document.getElementById('lb-common');
+  loadMultiDatasets(files, `내가 고른 전략 ${names.length}개 비교`,
+    { only: new Set(names), commonWindow: !common || common.checked });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 async function renderLeaderboard() {
   const host = document.getElementById('reco-lb'); if (!host) return;
   await _lbLoad();
@@ -1535,6 +1719,20 @@ async function renderLeaderboard() {
   state.recoLbCat = state.recoLbCat || 'all';
   if (!state._lbWired) {
     host.addEventListener('click', e => {
+      // 체크박스는 **먼저** 가로챈다 — 안 그러면 아래 tr 핸들러가 같이 발화해
+      // 체크하려다 화면이 전체 백테스트로 넘어간다.
+      const pick = e.target.closest('input[data-pick]');
+      if (pick) {
+        e.stopPropagation();
+        const sel = _lbSelSet();
+        if (pick.checked) { if (sel.size < LB_MAX_PICK) sel.add(pick.dataset.pick); else pick.checked = false; }
+        else sel.delete(pick.dataset.pick);
+        return _lbDraw();
+      }
+      if (e.target.closest('td.lb-pick')) return;      // 칸 여백 클릭도 이동시키지 않는다
+      const cmp = e.target.closest('#lb-compare'); if (cmp) return _lbCompare();
+      const clr = e.target.closest('#lb-clear'); if (clr) { _lbSelSet().clear(); return _lbDraw(); }
+      if (e.target.closest('#lb-common')) return;      // 공통 구간 체크박스는 표와 무관
       const cc = e.target.closest('#reco-lb-ccy button');
       if (cc) { state.recoLbCcy = cc.dataset.ccy; return _lbDraw(); }
       const th = e.target.closest('th[data-k]');
@@ -1563,22 +1761,31 @@ function _lbDraw() {
     if (s.k === 'name' || s.k === 'period') return s.dir * String(a[s.k] || '').localeCompare(String(b[s.k] || ''));
     return s.dir * (num(a[s.k]) - num(b[s.k]));
   });
-  const head = '<tr>' + LB_COLS.map(c => {
+  const sel = _lbSelSet(), full = sel.size >= LB_MAX_PICK;
+  const head = '<tr><th class="lb-pick" title="비교할 전략 선택"></th>' + LB_COLS.map(c => {
     const numc = !['name', 'cat', 'period'].includes(c.k);
     // 활성 열은 ▲/▼, 그 외 정렬 가능한 열은 흐린 ↕ 를 항상 표시 → "클릭해 정렬" 신호를 명시.
     const arr = (c.k === s.k) ? `<span class="sort-active">${s.dir < 0 ? '▼' : '▲'}</span>` : '<span class="sort-ind">↕</span>';
     return `<th data-k="${c.k}"${numc ? ' class="num"' : ''}>${c.t} ${arr}</th>`;
   }).join('') + '</tr>';
-  const body = list.map(r => '<tr data-id="' + r.id + '" title="클릭 → 전체 백테스트">' + LB_COLS.map(c => {
+  const body = list.map(r => {
+    const on = sel.has(r.name);
+    // 상한에 도달하면 **안 고른 행만** 잠근다 — 해제는 언제든 가능해야 한다.
+    const box = `<td class="lb-pick"><input type="checkbox" data-pick="${_esc(r.name)}"` +
+      `${on ? ' checked' : ''}${(!on && full) ? ' disabled title="최대 ' + LB_MAX_PICK + '개"' : ''} ` +
+      `aria-label="${_esc(r.name)} 비교 선택" /></td>`;
+    return `<tr data-id="${r.id}"${on ? ' class="lb-picked"' : ''} title="클릭 → 전체 백테스트">` + box + LB_COLS.map(c => {
     if (c.k === 'name') return `<td class="lb-name">${r.name}</td>`;
     if (c.k === 'cat') return `<td>${LB_CAT[r.cat] || r.cat}</td>`;
     if (c.k === 'period') return `<td class="num">${_recoYears(r.period) || '—'}</td>`;
     return `<td class="num">${c.kind === 'ratio' ? rat(r[c.k]) : pct(r[c.k])}</td>`;
-  }).join('') + '</tr>').join('');
+    }).join('') + '</tr>';
+  }).join('');
   const tbl = document.getElementById('reco-lb-table');
   if (tbl) tbl.innerHTML = `<thead>${head}</thead><tbody>${body}</tbody>`;
   const cnt = document.getElementById('reco-lb-count');
   if (cnt) cnt.textContent = `${list.length}개 · ${cur === 'krw' ? '원화' : '달러'} 기준`;
+  _lbSelSync();
 }
 
 // ③ '왜 자산배분' 그래프 — 실제 백테스트: 정적 '균형' 배분(파랑) vs S&P 500(빨강), USD 1997~.
@@ -4744,7 +4951,18 @@ function renderRiskParity(d) {
   document.getElementById('an-riskparity').innerHTML = html;
 }
 
-async function loadMultiDatasets(files, title) {
+/**
+ * 여러 데이터셋을 한 화면에 오버레이한다.
+ *
+ * opts.only  — 남길 시리즈 이름 Set. 리더보드에서 고른 비교는 **시리즈 단위**인데 한 데이터셋에
+ *              여러 전략이 들어 있어, 파일을 통째로 겹치면 안 고른 전략까지 끌려온다.
+ * opts.commonWindow — 모든 시리즈가 **동시에 존재하는 구간**으로 창을 좁힌다. 시작일이 다른 전략을
+ *              각자 전체 기간으로 겹치면 "2008 을 겪은 전략"과 "안 겪은 전략"을 나란히 놓는 셈이라
+ *              비교가 성립하지 않는다. 이 프로젝트가 일관되게 지켜 온 '같은 조건에서 비교' 원칙.
+ */
+async function loadMultiDatasets(files, title, opts) {
+  opts = opts || {};
+  const mn = document.getElementById('multi-note'); if (mn) mn.classList.add('hidden');
   const token = ++state._navToken;   // 로드 시작 = 최신 표식(우회 호출부 포함)
   setStatus('여러 데이터셋 불러오는 중…');
   setAnalyticsMode(false); setToolsMode(false);
@@ -4774,19 +4992,40 @@ async function loadMultiDatasets(files, title) {
       if (!cur || len > cur.len) chosen.set(s.name, { len, series: s, td: (d.table_display || {})[s.name], mr: (d.metrics_raw || {})[s.name] });
     }
     for (const nm of order) {
+      if (opts.only && !opts.only.has(nm)) continue;   // 고른 전략만(같은 파일의 다른 전략 배제)
       const c = chosen.get(nm);
       merged.series.push(c.series);
       if (c.td) merged.table_display[nm] = c.td;
       if (c.mr) merged.metrics_raw[nm] = c.mr;
     }
+    if (!merged.series.length) { setStatus('선택한 전략의 시리즈를 찾지 못했습니다.', true); return; }
     state.data = merged;
     state.colToMetric = buildColToMetric(merged);
     buildStrategyList(merged);
     setGlobalRange(merged);
     setActivePreset(0);
+    // 공통 구간 — 각 시리즈의 [시작, 끝] 교집합. 겹치는 구간이 없거나 너무 짧으면 적용하지 않는다
+    // (억지로 맞춘 척하느니 전체 기간 + 경고가 정직하다).
+    let win = null;
+    if (opts.commonWindow) {
+      let lo = null, hi = null;
+      for (const ser of merged.series) {
+        const ds = ser.dates || []; if (!ds.length) continue;
+        const a = ds[0], b = ds[ds.length - 1];
+        if (lo === null || a > lo) lo = a;
+        if (hi === null || b < hi) hi = b;
+      }
+      if (lo && hi && lo < hi) {
+        document.getElementById('start').value = lo;
+        document.getElementById('end').value = hi;
+        clearPresetActive();
+        win = { lo, hi };
+      }
+    }
     document.getElementById('meta').textContent = `${merged.title} · ${merged.series.length}개 시리즈 오버레이`;
     setStatus('');
     render();
+    _multiNote(merged, win, !!opts.commonWindow);
   } catch (err) {
     setStatus('전략 비교 로딩 실패: ' + err.message, true);
   }
@@ -6309,6 +6548,7 @@ function _vxRenderThresholds(r, monthly) {
 
 async function init() {
   setupTheme();
+  setupLevel();
   wireControls();
   try {
     const resp = await fetch('data/manifest.json', { cache: 'no-cache' });

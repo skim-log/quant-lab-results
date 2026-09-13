@@ -185,19 +185,19 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 0 1.2rem 2.5rem; }
 .label { font-weight: 600; font-size: 0.9rem; color: var(--muted); }
 
 /* segmented controls: presets / category tabs / currency toggle */
-.presets, .cat-tabs, .cur-toggle {
+.presets, .cat-tabs, .cur-toggle, .level-toggle {
   display: inline-flex; gap: 0; padding: 2px;
   background: var(--surface-2); border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
-.presets button, .cat-tabs button, .cur-toggle button {
+.presets button, .cat-tabs button, .cur-toggle button, .level-toggle button {
   font-size: 0.85rem; font-family: inherit; padding: 0.32rem 0.8rem;
   border: 0; background: transparent; color: var(--muted);
   border-radius: calc(var(--radius-sm) - 1px); cursor: pointer; white-space: nowrap;
   transition: background-color 0.12s, color 0.12s;
 }
-.presets button:hover, .cat-tabs button:hover, .cur-toggle button:hover { color: var(--fg); }
-.presets button.active, .cat-tabs button.active, .cur-toggle button.active {
+.presets button:hover, .cat-tabs button:hover, .cur-toggle button:hover, .level-toggle button:hover { color: var(--fg); }
+.presets button.active, .cat-tabs button.active, .cur-toggle button.active, .level-toggle button.active {
   background: var(--card); color: var(--accent); font-weight: 600; box-shadow: var(--shadow-sm);
 }
 .cur-toggle button:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -758,3 +758,49 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
    숨기면 "그 옵션이 원래 없다"고 오해하지만, 잠그고 title 로 이유를 달면 왜 못 쓰는지가 남는다. */
 .bt-toggle.is-disabled { opacity: .45; cursor: not-allowed; }
 .bt-toggle.is-disabled button { pointer-events: none; }
+
+/* ---- 화면 모드(초보자/전문가) ----------------------------------------------
+   초보자용은 **같은 DOM 을 감추기만** 한다 — 화면을 따로 만들면 렌더 경로가 둘로 갈라져
+   "같은 전략인데 두 화면 숫자가 다름" 사고가 난다. 계산은 그대로 돌고 표시만 달라지므로
+   토글이 즉시이고 숫자가 어긋날 수 없다. 전문가 전용 요소는 data-adv 로만 표시한다.
+   .hidden 등 다른 축의 표시 제어와 겹칠 수 있어 !important 로 확정한다. */
+html[data-mode="basic"] [data-adv] { display: none !important; }
+.level-toggle button { padding: 0.3rem 0.7rem; }
+/* 첫 진입 1회 안내 — 기존 사용자가 갑자기 단출해진 화면을 버그로 오해하지 않도록. */
+.level-banner {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  margin: 0.9rem 0 0.2rem; padding: 0.6rem 0.85rem;
+  font-size: 0.88rem; line-height: 1.5; color: var(--fg);
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent); border-radius: var(--radius-sm);
+}
+.level-banner .lb-msg { flex: 1 1 18rem; min-width: 0; }
+.level-banner .lb-go {
+  font-size: 0.82rem; font-family: inherit; padding: 0.28rem 0.7rem; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--accent); border-radius: var(--radius-sm); background: var(--card); color: var(--fg);
+}
+.level-banner .lb-go:hover { background: var(--accent); color: #fff; }
+.level-banner .lb-x {
+  font-size: 0.9rem; font-family: inherit; line-height: 1; padding: 0.25rem 0.4rem; cursor: pointer;
+  border: 0; background: transparent; color: var(--muted); border-radius: var(--radius-sm);
+}
+.level-banner .lb-x:hover { color: var(--fg); background: var(--surface); }
+/* 초보자용에서 전략 설명 아코디언은 기본으로 펼쳐 둔다(app.js 가 open 을 붙인다). */
+html[data-mode="basic"] #strategy-explainer { margin-top: 0.4rem; }
+
+/* ---- 리더보드 '골라서 비교' ------------------------------------------------- */
+.lb-selbar {
+  display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+  margin: 0.35rem 0 0.5rem; font-size: 0.85rem;
+}
+.lb-selbar button {
+  font-size: 0.82rem; font-family: inherit; padding: 0.28rem 0.7rem; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--accent); border-radius: var(--radius-sm); background: var(--card); color: var(--fg);
+}
+.lb-selbar button:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.lb-selbar button:disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--border); }
+.lb-selbar .lb-clear { border-color: var(--border); }
+.lb-sel-common { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--muted); cursor: pointer; }
+.lb-table td.lb-pick, .lb-table th.lb-pick { width: 2.2rem; text-align: center; padding-right: 0; }
+.lb-table td.lb-pick input { cursor: pointer; }
+.lb-table tr.lb-picked { background: var(--surface-2); }
