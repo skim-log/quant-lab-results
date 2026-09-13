@@ -375,6 +375,268 @@
    * fixed 를 simulate 가 아니라 poolSimulate(null) 로 도는 건 회계 규약을 한 글자도 안 어긋나게
    * 하기 위해서다(두 결과가 같다는 건 파이썬 테스트가 강제한다).
    */
+  // ── flex 적립 — 현금풀을 없애고 매달 전액을 주식에 넣는다(금액만 VIX 로 변조) ────────────
+  /**
+   * dca_sim.flex_amounts 미러 — 매수일별 **실질 납입액** 스케줄. 합계는 정확히 monthly × 매수횟수.
+   * 현금 제약이 없다는 점만 예산 모드(poolSimulate budget=true)와 다르다: 그달 지갑에서 더 내면
+   * 되므로 '평소에 아껴 두지 않으면 고VIX 에 더 못 산다'는 제약이 사라진다(대신 유동성이 든다).
+   */
+  function flexAmounts(multAtBuys, monthly) {
+    const N = multAtBuys.length;
+    const out = new Float64Array(N);
+    const budget = monthly * N;
+    let spent = 0;
+    for (let k = 0; k < N; k++) {
+      const left = N - k;
+      let rem = budget - spent;
+      if (rem < 0) rem = 0;
+      let a;
+      if (left <= 1) {
+        a = rem;                                  // 마지막 — 배수 무시하고 소진
+      } else {
+        a = (rem / left) * multAtBuys[k];
+        if (a > rem) a = rem;                     // 예산 초과 불가(신용이 아니다)
+        if (a < 0) a = 0;
+      }
+      out[k] = a;
+      spent += a;
+    }
+    return out;
+  }
+
+  /**
+   * dca_sim._amount_simulate 미러 — **실질 금액 스케줄을 그대로** 매수. flex 와 그 대조군의 공통 회계.
+   * simulate 와 회계 규약이 한 글자도 다르지 않아야 비교가 성립한다. 현금을 들지 않으므로
+   * 평가액에 현금 항이 없다(cash 는 형태 호환용 0 배열).
+   */
+  function amountSimulate(ret, fx, sortedJ, reals, opts) {
+    opts = opts || {};
+    const fee = opts.fee || 0, off = opts.offset || 0, useFx = opts.useFx !== false;
+    const scale = opts.scale || null;
+    const n = ret.length;
+    const nav = new Float64Array(n);
+    let v = 1.0;
+    for (let i = 0; i < n; i++) { v *= (1 + ret[i]); nav[i] = v; }
+    const rank = new Int32Array(n).fill(-1);
+    for (let k = 0; k < sortedJ.length; k++) rank[sortedJ[k]] = k;
+    const first = sortedJ.length ? sortedJ[0] : -1;
+    let sbase = 1;
+    if (scale && first >= 0) { const v0 = scale[off + first]; sbase = (v0 > 0) ? v0 : 1; }
+    const sAt = (i) => { if (!scale) return 1; const x = scale[off + i]; return (x > 0) ? x / sbase : 1; };
+    const equity = new Float64Array(n), cost = new Float64Array(n), costReal = new Float64Array(n);
+    const cashPath = new Float64Array(n);
+    const flows = [], buyPrices = [], buyAmts = [], buyScales = [];
+    let units = 0, paid = 0, paidReal = 0, spentUsd = 0;
+    for (let i = 0; i < n; i++) {
+      const f = useFx ? (fx[off + i] || 0) : 1;
+      if (rank[i] >= 0) {
+        const si = sAt(i);
+        const wr = reals[rank[i]] || 0;
+        const amt = wr * si;
+        if (amt > 0) {
+          const amtUsd = f ? amt / f : 0;
+          units += amtUsd * (1 - fee) / nav[i];
+          spentUsd += amtUsd;
+          buyPrices.push(nav[i]);
+        }
+        paid += amt; paidReal += wr;
+        flows.push([off + i, -amt]);
+        buyAmts.push(amt); buyScales.push(si);
+      }
+      equity[i] = units * nav[i] * f;
+      cost[i] = paid;
+      costReal[i] = paidReal;
+    }
+    return {
+      equity, cost, costReal, nav, units, flows, buyPrices, offset: off,
+      avgCost: units > 1e-15 ? spentUsd / units : NaN,
+      cash: cashPath, buyAmts, buyScales, buyReals: Array.from(reals.slice(0, buyAmts.length)),
+      invested: paid, investedReal: paidReal, starved: 0, leftoverCash: 0,
+      totalInflow: paid, investRate: 1,
+    };
+  }
+
+  /**
+   * dca_sim.dollar_weighted_years 미러 — 납입액 가중 평균 보유기간(년).
+   * flex 는 고VIX 달에 앞당겨 넣으므로 총액이 같아도 **돈이 일한 기간**이 늘어난다. 그 이득은
+   * 'VIX 를 봐서'가 아니라 '앞당겨서' 생긴 것이라, 이 값을 맞춘 대조군과 비교하기 전에는
+   * 전략 효과라고 말할 수 없다.
+   */
+  function dollarWeightedYears(sortedJ, reals, n, dpy) {
+    let sw = 0, swt = 0;
+    const k = Math.min(sortedJ.length, reals.length);
+    for (let i = 0; i < k; i++) { const w = reals[i]; sw += w; swt += w * (n - 1 - sortedJ[i]) / dpy; }
+    return sw > 0 ? swt / sw : NaN;
+  }
+
+  /** dca_sim.flex_simulate 미러 — 현금풀 없는 VIX 연동 적립. 현금 0·고갈 0·달성률 1.0. */
+  function flexSimulate(ret, fx, buyIdx, monthly, mult, opts) {
+    opts = opts || {};
+    const off = opts.offset || 0, dpy = opts.dpy || DPY, n = ret.length;
+    const sortedJ = [];
+    for (const b of buyIdx) { const j = b - off; if (j >= 0 && j < n) sortedJ.push(j); }
+    sortedJ.sort((a, b) => a - b);
+    const m = new Float64Array(sortedJ.length);
+    for (let k = 0; k < sortedJ.length; k++) {
+      const x = mult ? mult[off + sortedJ[k]] : 1;
+      m[k] = (x == null) ? 1 : x;
+    }
+    const reals = flexAmounts(m, monthly);
+    const out = amountSimulate(ret, fx, sortedJ, reals, opts);
+    let mx = NaN, mn = NaN, sum = 0, tsum = 0;
+    for (let k = 0; k < reals.length; k++) {
+      const r = monthly ? reals[k] / monthly : NaN;
+      if (!(mx >= r)) mx = r;
+      if (!(mn <= r)) mn = r;
+      sum += r; tsum += m[k];
+    }
+    out.budgetReal = monthly * sortedJ.length;
+    let tot = 0; for (let k = 0; k < reals.length; k++) tot += reals[k];
+    out.fillRate = out.budgetReal ? tot / out.budgetReal : NaN;
+    out.maxRatio = mx; out.minRatio = mn;
+    out.multMean = reals.length ? sum / reals.length : NaN;
+    out.multTargetMean = m.length ? tsum / m.length : NaN;
+    out.dwYears = dollarWeightedYears(sortedJ, reals, n, dpy);
+    return out;
+  }
+
+  /** dca_sim.tilt_amounts 미러 — a_k ∝ exp(lam × (N−1−k)/N), 합계 monthly × N 로 정규화. */
+  function tiltAmounts(nBuys, lam, monthly) {
+    const out = new Float64Array(nBuys);
+    if (nBuys <= 0) return out;
+    let tot = 0;
+    for (let k = 0; k < nBuys; k++) { out[k] = Math.exp(lam * (nBuys - 1 - k) / nBuys); tot += out[k]; }
+    if (!isFinite(tot) || tot <= 0) { for (let k = 0; k < nBuys; k++) out[k] = 1; tot = nBuys; }
+    const target = monthly * nBuys;
+    for (let k = 0; k < nBuys; k++) out[k] = out[k] / tot * target;
+    return out;
+  }
+
+  /**
+   * dca_sim.time_tilt_simulate 미러 — **시간기울기 대조군**. VIX 를 안 보면서 달러가중 보유기간만
+   * 목표치에 맞춘 스케줄. flex 의 "고정적립 대비 +x%" 에 섞여 있는 '그냥 앞당겨서' 몫을 상쇄한다.
+   * lam 은 이분법 80회(파이썬과 동일 횟수)로 찾는다 — 보유기간은 lam 에 대해 단조증가.
+   */
+  function timeTiltSimulate(ret, fx, buyIdx, monthly, targetYears, opts) {
+    opts = opts || {};
+    const off = opts.offset || 0, dpy = opts.dpy || DPY, n = ret.length;
+    const sortedJ = [];
+    for (const b of buyIdx) { const j = b - off; if (j >= 0 && j < n) sortedJ.push(j); }
+    sortedJ.sort((a, b) => a - b);
+    const N = sortedJ.length;
+    let lo = -40, hi = 40;
+    if (N && isFinite(targetYears)) {
+      for (let it = 0; it < 80; it++) {
+        const mid = 0.5 * (lo + hi);
+        const y = dollarWeightedYears(sortedJ, tiltAmounts(N, mid, monthly), n, dpy);
+        if (!isFinite(y)) break;
+        if (y < targetYears) lo = mid; else hi = mid;
+      }
+    }
+    const lam = N ? 0.5 * (lo + hi) : 0;
+    const reals = tiltAmounts(N, lam, monthly);
+    const out = amountSimulate(ret, fx, sortedJ, reals, opts);
+    let mx = NaN, mn = NaN, sum = 0;
+    for (let k = 0; k < reals.length; k++) {
+      const r = monthly ? reals[k] / monthly : NaN;
+      if (!(mx >= r)) mx = r;
+      if (!(mn <= r)) mn = r;
+      sum += r;
+    }
+    out.budgetReal = monthly * N; out.fillRate = 1; out.lam = lam;
+    out.maxRatio = mx; out.minRatio = mn;
+    out.multMean = reals.length ? sum / reals.length : NaN;
+    out.dwYears = dollarWeightedYears(sortedJ, reals, n, dpy);
+    out.targetYears = targetYears;
+    return out;
+  }
+
+  /**
+   * dca_sim.signal_bucket_forward 미러 — 매수시점 신호 버킷별 **이후 수익률**.
+   * "VIX 몇이면 더 넣을까"에 전략 껍데기 없이 답한다. n_episodes(60거래일 이상 떨어진 덩어리 수)를
+   * 같이 내는 것이 핵심이다 — 겹치는 월 표본을 독립 관측으로 착각하면 결론이 과장된다.
+   */
+  function signalBucketForward(signal, ret, buyIdx, opts) {
+    opts = opts || {};
+    const off = opts.offset || 0, dpy = opts.dpy || DPY, lag = opts.lag == null ? 1 : opts.lag;
+    const edges = opts.edges || [20, 30], horizons = opts.horizons || [1, 3, 5];
+    const n = ret.length;
+    const nav = new Float64Array(n);
+    let v = 1.0;
+    for (let i = 0; i < n; i++) { v *= (1 + ret[i]); nav[i] = v; }
+    const nb = edges.length + 1;
+    const labels = opts.labels || edges.map((e, k) => k === 0 ? ('<' + e) : (edges[k - 1] + '-' + e)).concat([edges[edges.length - 1] + '+']);
+    const hits = [], fwd = [];
+    for (let b = 0; b < nb; b++) { hits.push([]); fwd.push(horizons.map(() => [])); }
+    const sortedJ = [];
+    for (const b of buyIdx) { const j = b - off; if (j >= 0 && j < n) sortedJ.push(j); }
+    sortedJ.sort((a, b) => a - b);
+    for (const i of sortedJ) {
+      const s = signal[off + i - lag];
+      if (s == null || !isFinite(s) || s <= 0) continue;
+      let b = 0;
+      while (b < edges.length && s >= edges[b]) b++;      // 경계값은 위 버킷(searchsorted right)
+      hits[b].push(i);
+      horizons.forEach((h, hi2) => {
+        const k = i + Math.round(h * dpy);
+        if (k < n && nav[i] > 0) fwd[b][hi2].push(Math.pow(nav[k] / nav[i], 1 / h) - 1);
+      });
+    }
+    const med = (a) => {
+      if (!a.length) return NaN;
+      const s = a.slice().sort((x, y) => x - y), m = s.length >> 1;
+      return s.length % 2 ? s[m] : 0.5 * (s[m - 1] + s[m]);
+    };
+    return hits.map((idx, b) => {
+      let ep = 0, prev = null;
+      for (const i of idx) { if (prev === null || i - prev > 60) ep++; prev = i; }
+      const row = { label: labels[b], n: idx.length, nEpisodes: ep, fwd: {} };
+      horizons.forEach((h, hi2) => {
+        const a = fwd[b][hi2];
+        row.fwd[h] = { n: a.length, median: med(a), mean: a.length ? a.reduce((s2, x) => s2 + x, 0) / a.length : NaN,
+                       worst: a.length ? Math.min.apply(null, a) : NaN, best: a.length ? Math.max.apply(null, a) : NaN };
+      });
+      return row;
+    });
+  }
+
+  /**
+   * dca_sim.threshold_grid 미러 — `VIX ≥ T 면 k배` 격자. **두 대조군을 같이** 낸다.
+   * vsFixed 만 보면 "임계는 낮을수록·배수는 클수록 좋다"가 되는데, 그건 전략이 아니라 예산을
+   * 앞으로 당겨 거치식에 가까워진 것이다. vsTilt(같은 보유기간 무정보 스케줄 대비)가 그걸 걷어낸다.
+   */
+  function thresholdGrid(ret, fx, buyIdx, monthly, vix, opts) {
+    opts = opts || {};
+    const off = opts.offset || 0, lag = opts.lag == null ? 1 : opts.lag;
+    const thresholds = opts.thresholds || [20, 25, 30, 35, 40];
+    const mults = opts.mults || [1.5, 2, 3, 5];
+    const n = ret.length;
+    const fix = flexSimulate(ret, fx, buyIdx, monthly, null, opts);
+    const fixFinal = n ? fix.equity[n - 1] : NaN;
+    const rows = [];
+    const sortedJ = [];
+    for (const b of buyIdx) { const j = b - off; if (j >= 0 && j < n) sortedJ.push(j); }
+    for (const t of thresholds) {
+      let nHigh = 0;
+      for (const j of sortedJ) {
+        const s = vix[off + j - lag];
+        if (s != null && isFinite(s) && s > 0 && s >= t) nHigh++;
+      }
+      for (const k of mults) {
+        const m = vixMultiplier(vix, { mode: 'level', edges: [t], mults: [1, k], lag });
+        const sim = flexSimulate(ret, fx, buyIdx, monthly, m, opts);
+        const tilt = timeTiltSimulate(ret, fx, buyIdx, monthly, sim.dwYears, opts);
+        const fin = n ? sim.equity[n - 1] : NaN;
+        const tFin = n ? tilt.equity[n - 1] : NaN;
+        rows.push({ threshold: t, mult: k, nHigh, final: fin,
+                    vsFixed: fixFinal ? fin / fixFinal : NaN,
+                    vsTilt: tFin ? fin / tFin : NaN,
+                    dwYears: sim.dwYears, maxRatio: sim.maxRatio });
+      }
+    }
+    return { fixedFinal: fixFinal, fixedDwYears: fix.dwYears, thresholds, mults, rows };
+  }
+
   function idleCashPath(n, rfCash, cash0, first, off, dpy) {
     // dca_sim._idle_cash_path 미러 — 예산 모드에서 거치식이 시드를 '투자하지 않고 이자만' 받게 한다.
     const out = new Float64Array(n);
@@ -391,14 +653,47 @@
   function compareFundingModes(dates, ret, fx, buyIdx, monthly, mult, rfCash, opts) {
     opts = opts || {};
     const buy = Array.from(buyIdx).map(Number).sort((a, b) => a - b);
-    const off = opts.offset || 0, dpy = opts.dpy || DPY, budget = !!opts.budget;
+    const off = opts.offset || 0, dpy = opts.dpy || DPY;
+    // basis 미지정이면 구버전 budget 플래그 동작 그대로(파이썬 compare_funding_modes 와 같은 규약).
+    const basis = opts.basis || (opts.budget ? 'budget' : 'inflow');
+    const n = ret.length;
+
+    if (basis === 'flex') {
+      // 현금풀이 없다 → 시드·현금이자는 정의상 의미가 없어 무시된다.
+      const vixSim = flexSimulate(ret, fx, buy, monthly, mult, opts);
+      const fixSim = flexSimulate(ret, fx, buy, monthly, null, opts);
+      const lmpSim = lumpSum(ret, fx, buy, monthly, Object.assign({}, opts, { total: monthly * buy.length }));
+      const tiltSim = timeTiltSimulate(ret, fx, buy, monthly, vixSim.dwYears, opts);
+      const vm = dcaMetrics(dates, vixSim), fm = dcaMetrics(dates, fixSim);
+      const lm = dcaMetrics(dates, lmpSim), tm = dcaMetrics(dates, tiltSim);
+      return {
+        vix: vm, fixed: fm, lump: lm, tilt: tm,
+        pool: {
+          basis, budget: true, investRate: 1, starved: 0, leftoverCash: 0,
+          invested: vixSim.invested, totalInflow: vixSim.totalInflow,
+          investedReal: vixSim.investedReal, budgetReal: vixSim.budgetReal,
+          fillRate: vixSim.fillRate, investedFixed: fixSim.invested,
+          investedRealFixed: fixSim.investedReal,
+          multMean: vixSim.multMean, multTargetMean: vixSim.multTargetMean,
+          // flex 전용 — 유동성 요구와 '앞당김' 진단
+          maxRatio: vixSim.maxRatio, minRatio: vixSim.minRatio,
+          dwYears: vixSim.dwYears, dwYearsFixed: fixSim.dwYears,
+          dwYearsTilt: tiltSim.dwYears, tiltLam: tiltSim.lam,
+        },
+        vsFixed: compareDcaLump(vm, fm), vsLump: compareDcaLump(vm, lm),
+        vsTilt: compareDcaLump(vm, tm),
+        sims: { vix: vixSim, fixed: fixSim, lump: lmpSim, tilt: tiltSim },
+      };
+    }
+
+    const budget = basis === 'budget';
+    const popts = Object.assign({}, opts, { budget });
     const seedCash = monthly * (opts.seedMonths || 0);
     // 거치식이 첫날 넣는 주식 금액 — 예산 모드면 시드를 빼고 그 시드는 현금으로 들고 있는다.
     const total = monthly * buy.length + (budget ? 0 : seedCash);
-    const vixSim = poolSimulate(ret, fx, buy, monthly, mult, rfCash, opts);
-    const fixSim = poolSimulate(ret, fx, buy, monthly, null, rfCash, opts);
+    const vixSim = poolSimulate(ret, fx, buy, monthly, mult, rfCash, popts);
+    const fixSim = poolSimulate(ret, fx, buy, monthly, null, rfCash, popts);
     let lmpSim = lumpSum(ret, fx, buy, monthly, Object.assign({}, opts, { total }));
-    const n = ret.length;
     let firstJ = -1;
     for (const b of buy) { const j = b - off; if (j >= 0 && j < n && (firstJ < 0 || j < firstJ)) firstJ = j; }
     if (budget && seedCash > 0 && firstJ >= 0) {
@@ -426,7 +721,7 @@
         multTargetMean: vixSim.multTargetMean,
         investedReal: vixSim.investedReal, budgetReal: vixSim.budgetReal,
         fillRate: vixSim.fillRate, investedFixed: fixSim.invested,
-        investedRealFixed: fixSim.investedReal, budget,
+        investedRealFixed: fixSim.investedReal, budget, basis,
       },
       vsFixed: compareDcaLump(vm, fm), vsLump: compareDcaLump(vm, lm),
       sims: { vix: vixSim, fixed: fixSim, lump: lmpSim },
@@ -511,15 +806,20 @@
   function leaveOneEpisodeOut(dates, ret, fx, buyIdx, monthly, mult, rfCash, episodes, opts) {
     const base = compareFundingModes(dates, ret, fx, buyIdx, monthly, mult, rfCash, opts);
     const baseRatio = base.vsFixed.finalRatio;
+    const baseTilt = base.vsTilt ? base.vsTilt.finalRatio : NaN;
     return episodes.map(ep => {
       const m2 = Float64Array.from(mult);
       for (let i = ep.lo; i <= ep.hi; i++) m2[i] = 1;
       const c = compareFundingModes(dates, ret, fx, buyIdx, monthly, m2, rfCash, opts);
       const r = c.vsFixed.finalRatio;
+      const rt = c.vsTilt ? c.vsTilt.finalRatio : NaN;
       return {
         lo: ep.lo, hi: ep.hi, days: ep.days, peakVix: ep.peakVix,
         start: dates[ep.lo], end: dates[ep.hi], ratioWithout: r,
         share: Math.abs(baseRatio - 1) > 1e-12 ? (baseRatio - r) / (baseRatio - 1) : NaN,
+        // flex 모드 전용 — 시간기울기 대조군 대비 초과분의 사건 의존도(고정적립 대비만 보면 과소평가된다)
+        ratioWithoutTilt: rt,
+        shareTilt: (isFinite(baseTilt) && Math.abs(baseTilt - 1) > 1e-12) ? (baseTilt - rt) / (baseTilt - 1) : NaN,
       };
     });
   }
@@ -801,7 +1101,8 @@
     return out;
   }
 
-  const API = { DPY, CLIP, sliceRange, monthFirstIndices, leverReturns, assetReturns, simulate, lumpSum, cashGlide, compareDcaLump, xirr, dcaMetrics, lumpMetrics, sweep, optimal, constrainedOptimal, downsampleIdx, rollingStarts, sensitivitySummary, expandingPctRank, vixMultiplier, poolSimulate, compareFundingModes, vixEpisodes, leaveOneEpisodeOut };
+  const API = { DPY, CLIP, sliceRange, monthFirstIndices, leverReturns, assetReturns, simulate, lumpSum, cashGlide, compareDcaLump, xirr, dcaMetrics, lumpMetrics, sweep, optimal, constrainedOptimal, downsampleIdx, rollingStarts, sensitivitySummary, expandingPctRank, vixMultiplier, poolSimulate, compareFundingModes, vixEpisodes, leaveOneEpisodeOut,
+    flexAmounts, flexSimulate, dollarWeightedYears, tiltAmounts, timeTiltSimulate, signalBucketForward, thresholdGrid };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.DCASIM = API;
 })(typeof window !== 'undefined' ? window : globalThis);

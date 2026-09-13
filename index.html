@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=cfd3ff55" />
+  <link rel="stylesheet" href="style.css?v=0529a646" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -1008,7 +1008,8 @@
     <div id="lab_vixdca-section" class="hidden">
       <section class="panel">
         <h2>🧪 공포에 더 사면 유리할까? <span class="muted">(VIX 연동 적립 · 과최적화 점검)</span></h2>
-        <p class="period-note">매달 같은 금액이 <strong>현금풀</strong>로 들어오고, 그 풀에서 <strong>VIX에 따라 다른 금액</strong>을 꺼내 삽니다 — 평소엔 덜 넣어 모아 뒀다가 공포가 오면 몰아 넣는 식입니다. <strong>지갑에서 나가는 돈은 매달 똑같으므로</strong> 단순 적립식·거치식과 <strong>총 납입액이 정확히 같고</strong>, 그래서 최종 평가액을 그대로 나란히 놓을 수 있습니다.</p>
+        <p class="period-note">주식에 넣을 <strong>총액을 먼저 고정</strong>하고, 매달 그 예산에서 <strong>VIX에 따라 다른 금액</strong>을 넣습니다 — 기본값인 <strong>현금 미보유</strong> 모드는 현금을 한 푼도 들지 않고 <strong>매달 전액을 주식에 넣되 금액만</strong> 바꿉니다. 같은 총액을 첫날 한 번에 넣는 <strong>거치식</strong>, 매달 똑같이 나눠 넣는 <strong>단순 적립식</strong>과 주식 투입 총액이 정확히 같아 최종 평가액을 그대로 나란히 놓을 수 있습니다.</p>
+        <p class="period-note">⚠️ <strong>이 화면에서 가장 중요한 숫자는 '÷ 시간기울기 대조군'입니다.</strong> 공포 달에 앞당겨 넣으면 총액이 같아도 <strong>돈이 시장에 머문 기간 자체가 늘어납니다</strong> — 그 이득은 "싸게 샀다"가 아니라 "일찍 넣었다"입니다. 그래서 <strong>VIX를 전혀 보지 않으면서 같은 기간만큼 앞당긴</strong> 스케줄을 대조군으로 함께 돌리고, 그 대비 성과를 결론으로 씁니다.</p>
         <p class="period-note" style="border-left:3px solid var(--warn-fg);padding-left:.55rem;color:var(--warn-fg)">⚠️ 실험·교육용. VIX 최상위 구간은 1990년 이후를 다 써도 <strong>대여섯 개 사건</strong>(1998·2001~02·2008~09·2011·2020·2022)에 뭉쳐 있습니다. 거래일이 수천 개여도 <strong>독립 관측은 그 사건 수</strong>에 가깝습니다 — 맨 아래 <strong>사건 분해</strong> 표를 반드시 함께 보세요.</p>
         <div class="bt-controls dca-controls">
           <label>월 적립금
@@ -1035,8 +1036,9 @@
         <div class="bt-controls dca-controls">
           <span class="muted">무엇을 같게 두나</span>
           <div id="vx-basis" class="bt-toggle">
-            <button type="button" data-basis="budget" class="active">주식 투자액 고정</button>
-            <button type="button" data-basis="inflow">납입액 고정</button>
+            <button type="button" data-basis="flex" class="active">현금 미보유(월납입 변동)</button>
+            <button type="button" data-basis="budget">주식 투자액 고정(현금풀)</button>
+            <button type="button" data-basis="inflow">납입액 고정(현금풀)</button>
           </div>
           <span class="muted">물가</span>
           <div id="vx-price" class="bt-toggle">
@@ -1069,7 +1071,7 @@
         <h2>세 방식 나란히 <span class="muted">(같은 총액 · 같은 기간 — VIX 연동 vs 단순 적립 vs 거치식)</span></h2>
         <p class="period-note" id="vx-equity-note"></p>
         <div id="vx-equity" class="chart"></div>
-        <h3 class="dca-sub">매달 실제로 얼마를 넣었나 <span class="muted">(막대 = 그달 투입액, 선 = 현금풀 잔고)</span></h3>
+        <h3 class="dca-sub">매달 실제로 얼마를 넣었나 <span class="muted" id="vx-flow-sub">(막대 = 그달 투입액, 점선 = 단순 적립이었다면 넣었을 금액)</span></h3>
         <div id="vx-flow" class="chart"></div>
       </section>
 
@@ -1077,6 +1079,20 @@
         <h2>종목별 3파전 <span class="muted">(선택한 종목 각각에 같은 규칙을 적용하면)</span></h2>
         <div class="table-wrap"><table id="vx-table" class="diag-table"></table></div>
         <p class="period-note" id="vx-table-note"></p>
+      </section>
+
+      <section class="panel">
+        <h2>그래서 VIX 몇에서 더 넣나 <span class="muted">(매수시점 VIX 구간별 이후 수익률)</span></h2>
+        <p class="period-note">전략·예산 규칙을 전부 걷어내고 <strong>원천 질문</strong>만 봅니다: 그 VIX에서 산 돈은 이후 몇 년 동안 얼마가 됐나. 매수일마다 <strong>전일 종가 VIX</strong>로 구간을 나눠, 그날부터 1·3·5년 뒤까지의 연율수익률 중앙값을 냅니다.</p>
+        <div class="table-wrap"><table id="vx-buckets" class="diag-table"></table></div>
+        <p class="period-note" id="vx-buckets-note"></p>
+      </section>
+
+      <section class="panel">
+        <h2>임계 × 배수 격자 <span class="muted">("VIX ≥ T 면 k배" 를 전부 쓸어 보면)</span></h2>
+        <p class="period-note">단일 임계 규칙을 격자로 훑습니다. <strong>앞 숫자는 단순 적립 대비, 괄호는 시간기울기 대조군 대비</strong>입니다 — 앞 숫자만 보면 "임계는 낮을수록, 배수는 클수록 좋다"는 결론이 나오는데, 그건 규칙이 좋아서가 아니라 <strong>예산을 앞으로 당겨 거치식에 가까워졌기</strong> 때문입니다. 괄호가 그 몫을 걷어낸 값입니다.</p>
+        <div class="table-wrap"><table id="vx-thresholds" class="diag-table"></table></div>
+        <p class="period-note" id="vx-thresholds-note"></p>
       </section>
 
       <section class="panel">
@@ -1094,7 +1110,8 @@
         <details class="theory" open>
           <summary>💡 왜 "공포에 더 사기"는 생각보다 잘 안 통하는가</summary>
           <div class="theory-body">
-            <p><strong>① 재원이 공짜가 아닙니다.</strong> 고VIX에 3배를 넣으려면 평소에 1배 미만으로 아껴야 합니다. 그 아낀 돈은 <strong>주식 대신 현금</strong>으로 있었고, 시장은 오르는 날이 더 많았습니다. 공포 구간의 이득이 평상시의 <strong>기회비용</strong>을 넘어야 비로소 이깁니다.</p>
+            <p><strong>⓪ 이득의 대부분은 '싸게 샀다'가 아니라 '일찍 넣었다'입니다.</strong> <strong>현금 미보유</strong> 모드는 공포 달에 예산을 앞당겨 씁니다. 총액이 같아도 <strong>돈이 시장에 머문 기간(달러가중 보유기간)이 늘어나고</strong>, 시장은 오르는 날이 더 많으므로 그것만으로 성과가 좋아집니다. 게다가 고VIX 구간은 1999~2002·2008처럼 <strong>표본의 앞쪽</strong>에 몰려 있어 이 효과가 특히 큽니다. 그래서 이 화면은 VIX를 전혀 보지 않으면서 같은 보유기간을 갖는 <strong>시간기울기 대조군</strong>을 함께 돌리고, 그 대비 성과만을 신호의 기여로 셉니다. 참고로 배수를 매수 횟수만큼 키우면 첫날 전액 투입, 곧 <strong>거치식</strong>이 됩니다 — 배수의 <em>수준</em>은 적립식↔거치식 손잡이일 뿐이고 배수의 <em>모양</em>만이 VIX 신호입니다.</p>
+            <p><strong>① (현금풀 모드에서) 재원이 공짜가 아닙니다.</strong> 고VIX에 3배를 넣으려면 평소에 1배 미만으로 아껴야 합니다. 그 아낀 돈은 <strong>주식 대신 현금</strong>으로 있었고, 시장은 오르는 날이 더 많았습니다. 공포 구간의 이득이 평상시의 <strong>기회비용</strong>을 넘어야 비로소 이깁니다.</p>
             <p><strong>② 임계값이 이미 사후정보입니다.</strong> "VIX 30이면 공포"라는 감각은 VIX의 장기 분포를 <strong>지나고 나서</strong> 알기 때문에 생긴 것입니다. 1990년의 투자자는 그 분포를 몰랐습니다. 그래서 이 화면의 정본은 <strong>확장창 백분위</strong>(그 시점까지 관측된 VIX만 사용)이고, 고정 임계(20/30/40)는 대조군으로만 둡니다.</p>
             <p><strong>③ 레버리지에선 역풍이 더 셉니다.</strong> 고VIX = 고변동성이고, 일별 리밸런싱 레버리지 ETF(QLD·TQQQ)의 <strong>변동성 감쇠가 가장 심한 구간</strong>이 바로 거기입니다. "무서울 때 2배로 담기"가 감쇠와 정면으로 부딪힙니다.</p>
             <p><strong>④ 그래도 의미 있는 지점.</strong> 최종 평가액이 비슷하더라도 <strong>평균 매수단가</strong>는 대개 내려갑니다. 그리고 현금풀은 정의상 하락장에 현금을 들고 있어 <strong>평가액 낙폭(MDD)이 얕아지는</strong> 경향이 있습니다 — 수익이 아니라 <strong>견딜 수 있는가</strong>를 사는 셈입니다. 위 표의 MDD 열을 함께 보세요.</p>
@@ -1405,13 +1422,13 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="explain.js?v=cfd3ff55" defer></script>
-  <script src="alloc.js?v=cfd3ff55" defer></script>
-  <script src="re_apt.js?v=cfd3ff55" defer></script>
-  <script src="analytics-live.js?v=cfd3ff55" defer></script>
-  <script src="leverage.js?v=cfd3ff55" defer></script>
-  <script src="dca.js?v=cfd3ff55" defer></script>
-  <script src="lab.js?v=cfd3ff55" defer></script>
-  <script src="app.js?v=cfd3ff55" defer></script>
+  <script src="explain.js?v=0529a646" defer></script>
+  <script src="alloc.js?v=0529a646" defer></script>
+  <script src="re_apt.js?v=0529a646" defer></script>
+  <script src="analytics-live.js?v=0529a646" defer></script>
+  <script src="leverage.js?v=0529a646" defer></script>
+  <script src="dca.js?v=0529a646" defer></script>
+  <script src="lab.js?v=0529a646" defer></script>
+  <script src="app.js?v=0529a646" defer></script>
 </body>
 </html>

@@ -745,3 +745,8 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* 모드에 따라 의미를 잃는 토글(예: 현금 미보유 모드의 '시작 시드') — 숨기지 않고 잠근다.
+   숨기면 "그 옵션이 원래 없다"고 오해하지만, 잠그고 title 로 이유를 달면 왜 못 쓰는지가 남는다. */
+.bt-toggle.is-disabled { opacity: .45; cursor: not-allowed; }
+.bt-toggle.is-disabled button { pointer-events: none; }

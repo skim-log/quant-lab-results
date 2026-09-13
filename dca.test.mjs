@@ -316,13 +316,15 @@ for (const vc of (fix.vix_cases || [])) {
   // opts 는 한 번만 만들어 compareFundingModes·leaveOneEpisodeOut 이 **같은 것**을 쓰게 한다 —
   // 한쪽에만 scale/budget 을 빠뜨리면 JS 가 조용히 다른 모드를 돌아 패리티가 거짓으로 갈린다.
   const vopt = { fee: fix.fee, useFx, offset: lo, dpy: d.dpy, seedMonths: vc.seed_months,
-                 scale, budget: vc.basis === 'budget' };
+                 scale, basis: vc.basis, budget: vc.basis === 'budget' };
   const cmp = DCA.compareFundingModes(dates, ar.ret, useFx ? d.fx : fxOne, buy, vc.monthly,
     mult, useFx ? d.rf_krw : d.rf, vopt);
   checkArr(`${vc.name} equity`, cmp.sims.vix.equity, vc.equity);
   checkArr(`${vc.name} cost`, cmp.sims.vix.cost, vc.cost);
   checkArr(`${vc.name} cash`, cmp.sims.vix.cash, vc.cash);
-  for (const [leg, exp] of [['vix', vc.metrics], ['fixed', vc.fixed_metrics], ['lump', vc.lump_metrics]]) {
+  const legs = [['vix', vc.metrics], ['fixed', vc.fixed_metrics], ['lump', vc.lump_metrics]];
+  if (vc.tilt_metrics) legs.push(['tilt', vc.tilt_metrics]);   // flex 전용 — 시간기울기 대조군
+  for (const [leg, exp] of legs) {
     checkNum(`${vc.name}.${leg} final`, cmp[leg].final, exp.final);
     checkNum(`${vc.name}.${leg} totalCost`, cmp[leg].totalCost, exp.total_cost);
     checkNum(`${vc.name}.${leg} xirr`, cmp[leg].xirr, exp.xirr, 1e-7);
@@ -333,10 +335,12 @@ for (const vc of (fix.vix_cases || [])) {
     }
   }
   // 총 유입이 세 방식에서 같아야 한다 — 이게 깨지면 '같은 총액 비교'라는 전제가 무너진다.
-  // 단 **실질 고정 모드의 거치식**은 첫 매수일에 '그 시절 가치로 환산한 총액'을 한 번에 넣으므로
-  // 명목 총액이 다른 게 정상이다(lump_simulate docstring). 그때는 실질 총액으로 본다.
+  // 단 **실질 고정 모드**에서는 명목 총액이 다른 게 정상이라 실질 총액으로 본다:
+  //   · 거치식 — 첫 매수일에 '그 시절 가치로 환산한 총액'을 한 번에 넣는다(lump_simulate docstring).
+  //   · flex  — 매달 넣는 **실질** 금액이 달라서 각 납입에 곱해지는 물가배수도 달라진다. 실질 총액
+  //             (= monthly × 매수횟수)은 정확히 같지만 명목 합계는 어긋나는 게 이 모드의 정의다.
   for (const leg of ['fixed', 'lump']) {
-    const nominalOk = !(vc.price === 'real' && leg === 'lump');
+    const nominalOk = !(vc.price === 'real' && (leg === 'lump' || vc.basis === 'flex'));
     if (nominalOk) {
       checkNum(`${vc.name} totalCost 일치(${leg})`, cmp[leg].totalCost, cmp.vix.totalCost, 1e-12);
     } else {
@@ -368,6 +372,20 @@ for (const vc of (fix.vix_cases || [])) {
   }
   checkNum(`${vc.name} vsFixed ratio`, cmp.vsFixed.finalRatio, vc.vs_fixed.final_ratio);
   checkNum(`${vc.name} vsLump ratio`, cmp.vsLump.finalRatio, vc.vs_lump.final_ratio);
+  // flex 모드 — 현금을 들지 않는다는 성질과 시간기울기 대조군까지 JS 가 재현해야 한다.
+  if (vc.basis === 'flex') {
+    checkNum(`${vc.name}.pool maxRatio`, cmp.pool.maxRatio, vc.pool.max_ratio);
+    checkNum(`${vc.name}.pool minRatio`, cmp.pool.minRatio, vc.pool.min_ratio);
+    checkNum(`${vc.name}.pool dwYears`, cmp.pool.dwYears, vc.pool.dw_years, 1e-9);
+    checkNum(`${vc.name}.pool dwYearsTilt`, cmp.pool.dwYearsTilt, vc.pool.dw_years_tilt, 1e-6);
+    checkNum(`${vc.name} vsTilt ratio`, cmp.vsTilt.finalRatio, vc.vs_tilt.final_ratio, 1e-7);
+    // 예산을 정확히 소진하고 현금을 한 푼도 들지 않는다 — 이 모드를 만든 이유 그 자체.
+    checkNum(`${vc.name} flex 예산 정확 소진`, cmp.pool.investedReal, cmp.pool.budgetReal, 1e-9);
+    if (cmp.pool.leftoverCash !== 0 || cmp.pool.starved !== 0) {
+      console.error(`✗ ${vc.name} flex 인데 현금이 남았다: ${cmp.pool.leftoverCash} / 고갈 ${cmp.pool.starved}`);
+      fails++;
+    }
+  }
   // 사건 탐지 + leave-one-episode-out — 과최적화 점검 표가 파이썬과 갈리면 결론이 갈린다.
   const eps = DCA.vixEpisodes(d.vix, mult);
   if (eps.length !== (vc.episodes || []).length) {
@@ -385,18 +403,64 @@ for (const vc of (fix.vix_cases || [])) {
     loo.forEach((r, i) => {
       checkNum(`${vc.name} loo[${i}] ratioWithout`, r.ratioWithout, vc.loo[i].ratio_without);
       checkNum(`${vc.name} loo[${i}] share`, r.share, vc.loo[i].share, 1e-8);
+      if (vc.basis === 'flex') {
+        checkNum(`${vc.name} loo[${i}] ratioWithoutTilt`, r.ratioWithoutTilt,
+          vc.loo[i].ratio_without_tilt, 1e-7);
+      }
     });
   }
-  // 배수 ≡ 1(off) 이면 현금풀은 단순 적립과 완전히 같아야 한다(파이썬 불변식의 JS 판).
+  // 화면의 새 패널 2개 — 구간별 이후 수익률 · 임계×배수 격자.
+  if (vc.buckets) {
+    const bk = DCA.signalBucketForward(d.vix, ar.ret, buy, {
+      offset: lo, dpy: d.dpy, lag: fix.vix_lag, edges: fix.bucket_edges, horizons: fix.bucket_horizons });
+    if (bk.length !== vc.buckets.length) {
+      console.error(`✗ ${vc.name} buckets 행 수: ${bk.length} ≠ ${vc.buckets.length}`); fails++;
+    } else {
+      bk.forEach((x, i) => {
+        const E = vc.buckets[i];
+        if (x.label !== E.label || x.n !== E.n || x.nEpisodes !== E.n_episodes) {
+          console.error(`✗ ${vc.name} buckets[${i}]: ${x.label}/${x.n}/${x.nEpisodes} ` +
+            `≠ ${E.label}/${E.n}/${E.n_episodes}`); fails++;
+        }
+        fix.bucket_horizons.forEach(h => {
+          checkNum(`${vc.name} buckets[${i}].${h}y median`, x.fwd[h].median, E.fwd[h].median);
+          checkNum(`${vc.name} buckets[${i}].${h}y worst`, x.fwd[h].worst, E.fwd[h].worst);
+        });
+      });
+    }
+  }
+  if (vc.grid) {
+    const gr = DCA.thresholdGrid(ar.ret, useFx ? d.fx : fxOne, buy, vc.monthly, d.vix,
+      Object.assign({}, vopt, { lag: fix.vix_lag, thresholds: fix.grid_thresholds, mults: fix.grid_mults }));
+    checkNum(`${vc.name} grid fixedFinal`, gr.fixedFinal, vc.grid.fixed_final);
+    if (gr.rows.length !== vc.grid.rows.length) {
+      console.error(`✗ ${vc.name} grid 칸 수: ${gr.rows.length} ≠ ${vc.grid.rows.length}`); fails++;
+    } else {
+      gr.rows.forEach((x, i) => {
+        const E = vc.grid.rows[i];
+        if (x.threshold !== E.threshold || x.mult !== E.mult || x.nHigh !== E.n_high) {
+          console.error(`✗ ${vc.name} grid[${i}] 키: ${x.threshold}/${x.mult}/${x.nHigh} ` +
+            `≠ ${E.threshold}/${E.mult}/${E.n_high}`); fails++;
+        }
+        checkNum(`${vc.name} grid[${i}] vsFixed`, x.vsFixed, E.vs_fixed, 1e-9);
+        checkNum(`${vc.name} grid[${i}] vsTilt`, x.vsTilt, E.vs_tilt, 1e-7);
+        checkNum(`${vc.name} grid[${i}] maxRatio`, x.maxRatio, E.max_ratio);
+      });
+    }
+  }
+  // 배수 ≡ 1(off) 이면 (현금풀이든 flex 든) 단순 적립과 완전히 같아야 한다(파이썬 불변식의 JS 판).
   if (vc.preset === 'off') {
     const plain = DCA.simulate(ar.ret, useFx ? d.fx : fxOne, buy, vc.monthly,
       { fee: fix.fee, useFx, offset: lo, scale });
     checkArr(`${vc.name} off ≡ simulate`, cmp.sims.vix.equity, Array.from(plain.equity));
   }
   if (!fails) console.log(`✓ ${vc.name}  평균배수=${cmp.pool.multMean.toFixed(2)} ` +
-    `투입률=${(cmp.pool.investRate * 100).toFixed(0)}% 달성률=${(cmp.pool.fillRate * 100).toFixed(1)}% ` +
-    `| VIX풀/고정=${cmp.vsFixed.finalRatio.toFixed(3)} ` +
-    `VIX풀/거치=${cmp.vsLump.finalRatio.toFixed(3)}`);
+    (vc.basis === 'flex'
+      ? `월납입=${cmp.pool.minRatio.toFixed(2)}~${cmp.pool.maxRatio.toFixed(2)}배 `
+      : `투입률=${(cmp.pool.investRate * 100).toFixed(0)}% 달성률=${(cmp.pool.fillRate * 100).toFixed(1)}% `) +
+    `| VIX/고정=${cmp.vsFixed.finalRatio.toFixed(3)} ` +
+    `VIX/거치=${cmp.vsLump.finalRatio.toFixed(3)}` +
+    (vc.basis === 'flex' ? ` VIX/시간대조군=${cmp.vsTilt.finalRatio.toFixed(3)}` : ''));
 }
 
 const nReal = (fix.cases || []).filter(c => c.real_equity).length

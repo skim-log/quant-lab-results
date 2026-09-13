@@ -163,7 +163,7 @@ const CAT_BLURB = {
   static: '고정 비중 정적 자산배분(주기 리밸런싱 + 표류 밴드).',
   momentum: '개별 시장 모멘텀·레버리지 전략 비교(위험=TWR, 수익=XIRR).',
   dca: '미국 ETF(QQQ·QLD·TQQQ·SPY·SCHD 등)에 매달 일정액을 넣었다면? 적립금·기간·종목을 직접 바꿔 즉석 재계산 + 적립식 기준 최적 레버리지.',
-  lab_vixdca: 'VIX(공포지수)에 따라 매달 넣는 금액을 바꾸면 단순 적립식·거치식을 이길까? 현금풀 설계라 세 방식의 총 납입액이 같다.',
+  lab_vixdca: 'VIX(공포지수)에 따라 매달 넣는 금액을 바꾸면 단순 적립식·거치식을 이길까? 주식 투입 총액을 고정하고 시점만 바꾼다 — 이득이 신호 덕인지 그냥 앞당긴 덕인지 대조군으로 가른다.',
   crypto: '암호화폐 전략: 매수후보유·DCA·이동평균선 추세(20/60/120/200일 × 달러·원화 신호). 곡선=TWR(위험비교), 적립 수익=XIRR.',
   analytics: '8자산 월수익 기반 정량분석 — 상관·효율적 프론티어·리스크패리티·위험수익(무위험 2%).',
   compare: '여러 전략을 한 곡선에 오버레이 비교(통화 토글 + 지표 열 클릭 정렬 리더보드).',
@@ -1257,7 +1257,7 @@ function setCurrency(cur) {
   if (entry.mode === 'lab_rebal') return loadTool(entry, 'lab_rebal');          // 🧪 실험실: 리밸 주기 민감도
   if (entry.mode === 'lab_blend') return loadTool(entry, 'lab_blend');          // 🧪 실험실: 고정 블렌드 최적화
   if (entry.mode === 'lab_dailyrisk') return loadTool(entry, 'lab_dailyrisk');  // 🧪 실험실: 일별 vs 월별 위험 렌즈
-  if (entry.mode === 'lab_vixdca') return loadTool(entry, 'lab_vixdca');        // 🧪 실험실: VIX 연동 적립(현금풀)
+  if (entry.mode === 'lab_vixdca') return loadTool(entry, 'lab_vixdca');        // 🧪 실험실: VIX 연동 적립
   // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
   if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
   else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
@@ -5515,7 +5515,17 @@ function applyBlendWeights(which) {              // 추천 비중을 블렌드 �
 }
 
 // ---------------------------------------------------------------------------
-// 🧪 실험실 · VIX 연동 적립(현금풀) — dca.json 을 그대로 재사용한다(마스터 날짜축 공유).
+// 🧪 실험실 · VIX 연동 적립 — dca.json 을 그대로 재사용한다(마스터 날짜축 공유).
+//
+// **총액 기준 3택(basis)** — 무엇을 같게 두고 비교하느냐가 결론을 가른다.
+//   flex   : 현금을 아예 안 들고 매달 전액을 주식에 넣되 금액만 VIX 로 바꾼다(기본).
+//   budget : 같은 주식 총액이지만 재원이 현금풀이라 규칙이 지시한 배수를 못 채우는 달이 생긴다.
+//   inflow : 지갑에서 나가는 돈만 고정 — 주식에 들어간 총액이 대조군보다 적어진다.
+// 같은 규칙이 budget 에서는 지고 flex 에서는 이긴다. 어느 쪽이 옳은 게 아니라 다른 질문이다.
+//
+// **flex 의 함정과 그 대조군** — 고VIX 달에 앞당겨 넣으면 총액이 같아도 돈이 시장에 머문 기간이
+// 늘어난다. 그 이득은 신호가 아니라 '앞당김'이므로, VIX 를 전혀 안 보면서 같은 달러가중 보유기간을
+// 갖는 **시간기울기 대조군**을 함께 돌리고 그 대비 성과를 결론으로 쓴다(vsTilt).
 //
 // **왜 적립식 시뮬레이터 화면과 분리했나** — 그쪽 엔진의 전제는 "적립식엔 신호가 없다 →
 // 룩어헤드가 원천적으로 없다"(dca_sim.py 모듈 독스트링)이다. VIX 규칙은 신호 기반이라 그 전제를
@@ -5538,8 +5548,9 @@ function enterVixDca(d) {
     source: df.source || 'real',
     seed: String(df.seed_months == null ? 0 : df.seed_months),
     preset: df.preset || 'pct_standard',
-    // 총액 기준 — 'budget'(주식 투자액 고정, 기본) | 'inflow'(납입액 고정)
-    basis: df.basis || 'budget',
+    // 총액 기준 — 'flex'(현금 미보유·월납입 변동, 기본) | 'budget'(주식 투자액 고정·현금풀)
+    //           | 'inflow'(납입액 고정·현금풀)
+    basis: df.basis || 'flex',
     // 물가 기준 — 'real'(실질 고정, 기본) | 'nominal'(명목 고정). 적립식 시뮬레이터와 같은 규약.
     price: df.price || 'real',
     start: null, end: null, period: 'max', _mult: {},
@@ -5557,13 +5568,14 @@ function enterVixDca(d) {
       '<div class="lab-verdict-sub">FRED:VIXCLS 번들(data/fred/VIXCLS.csv)을 만들거나 ' +
       '빌드 환경에서 FRED·야후 접속이 되어야 합니다. ' +
       '<code>python scripts/fetch_macro_bundle.py --ids VIXCLS</code></div>';
-    ['vx-cards', 'vx-table', 'vx-episodes', 'vx-grid'].forEach(id => {
+    ['vx-cards', 'vx-table', 'vx-episodes', 'vx-grid', 'vx-buckets', 'vx-thresholds'].forEach(id => {
       const el = document.getElementById(id); if (el) el.innerHTML = '';
     });
     return;
   }
 
   _vxBuildPresets();
+  _vxSyncSeedLock();
   _vxBuildAssets();
   _vxSyncAmountUnit();
   _vxBuildPeriods();
@@ -5579,7 +5591,9 @@ function enterVixDca(d) {
       _vxFull();
     }));
     document.getElementById('vx-seed').addEventListener('click', e => _vxToggle(e, 'seed', _vxFull));
-    document.getElementById('vx-basis').addEventListener('click', e => _vxToggle(e, 'basis', _vxFull));
+    document.getElementById('vx-basis').addEventListener('click', e => _vxToggle(e, 'basis', () => {
+      _vxSyncSeedLock(); _vxFull();
+    }));
     document.getElementById('vx-price').addEventListener('click', e => _vxToggle(e, 'price', _vxFull));
     document.getElementById('vx-preset').addEventListener('click', e => _vxToggle(e, 'preset', () => {
       _vxSyncPresetNote(); _vxFull();
@@ -5616,6 +5630,20 @@ function enterVixDca(d) {
   _vxFull();
 }
 
+/** 현금 미보유 모드인가 — 시드·현금풀 관련 UI 가 전부 이 값으로 갈린다. */
+function _vxFlex() { return state.vx.basis === 'flex'; }
+/**
+ * flex 에는 현금풀이 없어 '시작 시드'(= 풀에 미리 넣어 둘 탄약)가 정의되지 않는다.
+ * 토글을 남겨 두면 눌러도 아무 일이 없어 화면이 거짓말을 하게 되므로 잠그고 이유를 적는다.
+ */
+function _vxSyncSeedLock() {
+  const box = document.getElementById('vx-seed');
+  if (!box) return;
+  const off = _vxFlex();
+  box.classList.toggle('is-disabled', off);
+  box.querySelectorAll('button').forEach(b => { b.disabled = off; });
+  box.title = off ? '현금 미보유 모드에는 현금풀이 없어 시작 시드가 의미를 갖지 않습니다.' : '';
+}
 function _vxHasVix() {
   const d = state.vx.d;
   return !!(d.vix && d.vix.length === d.dates.length && (d.vix_meta || {}).n_obs);
@@ -5778,8 +5806,9 @@ function _vxRun(a, rng, monthly, multKey) {
   const ar = DCASIM.assetReturns(d, a, lo, hi, state.vx.source);
   const buy = DCASIM.monthFirstIndices(d.dates, lo, hi);
   const opt = { fee: d.fee, offset: lo, useFx, dpy: d.dpy,
-    seedMonths: parseFloat(state.vx.seed) || 0,
-    scale: _vxScale(), budget: state.vx.basis !== 'inflow' };
+    // flex 는 현금풀이 없어 시드가 정의되지 않는다 — 엔진도 무시하지만 여기서 먼저 0 으로 못박는다.
+    seedMonths: _vxFlex() ? 0 : (parseFloat(state.vx.seed) || 0),
+    scale: _vxScale(), basis: state.vx.basis, budget: state.vx.basis === 'budget' };
   const cmp = DCASIM.compareFundingModes(d.dates, ar.ret, d.fx, buy, monthly,
     _vxMult(multKey), _vxRfCash(), opt);
   return Object.assign({ asset: a, lo, hi, ar, buy, opt }, cmp);
@@ -5801,70 +5830,121 @@ function _vxFull() {
   _vxRenderTable(runs);
   _vxRenderEpisodes(head, monthly);
   _vxRenderGrid(picked, rng, monthly);
+  _vxRenderBuckets(head);
+  _vxRenderThresholds(head, monthly);
 }
 
 function _vxRenderCards(r, monthly) {
   const card = (l, v, s) => `<div class="ext-card"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s || ''}</div></div>`;
-  const p = r.pool, vs = r.vsFixed, vl = r.vsLump;
+  const p = r.pool, vs = r.vsFixed, vl = r.vsLump, vt = r.vsTilt;
   const seed = parseFloat(state.vx.seed) || 0;
+  const flex = _vxFlex();
+  const realOn = _vxRealActive();
+
   document.getElementById('vx-cards').innerHTML =
-    card('VIX 연동', _vxMoney(r.vix.final), `현금풀 · MDD ${fmtPct(r.vix.mdd)}`) +
+    card('VIX 연동', _vxMoney(r.vix.final),
+      `${flex ? '현금 미보유' : '현금풀'} · MDD ${fmtPct(r.vix.mdd)}`) +
     card('단순 적립', _vxMoney(r.fixed.final), `매달 정액 · MDD ${fmtPct(r.fixed.mdd)}`) +
+    (flex ? card('시간기울기 대조군', _vxMoney(r.tilt.final),
+      `VIX 안 봄 · 보유기간만 동일`) : '') +
     card('거치식', _vxMoney(r.lump.final), `첫날 일괄 · MDD ${fmtPct(r.lump.mdd)}`) +
-    (p.budget
-      ? card('주식 투자액', _vxMoney(p.budgetReal),
-          `${_vxMoney(monthly)} × ${r.vix.months}회${_vxRealActive() ? ' (첫 달 가치)' : ''} · ` +
-          `세 방식 동일 · 달성 ${fmtPct(p.fillRate)}`)
-      : card('총 납입액', _vxMoney(r.vix.totalCost),
-          `${_vxMoney(monthly)} × ${r.vix.months}회${seed ? ` + 시드 ${seed}개월` : ''} · 세 방식 동일`)) +
+    (flex
+      ? card('주식 투입 총액', _vxMoney(p.budgetReal),
+          `${_vxMoney(monthly)} × ${r.vix.months}회${realOn ? ' (첫 달 가치)' : ''} · ` +
+          `네 방식 동일 · 남은 현금 0`)
+      : p.budget
+        ? card('주식 투자액', _vxMoney(p.budgetReal),
+            `${_vxMoney(monthly)} × ${r.vix.months}회${realOn ? ' (첫 달 가치)' : ''} · ` +
+            `세 방식 동일 · 달성 ${fmtPct(p.fillRate)}`)
+        : card('총 납입액', _vxMoney(r.vix.totalCost),
+            `${_vxMoney(monthly)} × ${r.vix.months}회${seed ? ` + 시드 ${seed}개월` : ''} · 세 방식 동일`)) +
     card('÷ 단순 적립', _vxVs(vs.finalRatio), vs.dcaWins ? 'VIX 연동 승' : '단순 적립 승') +
+    (flex ? card('÷ 시간대조군', _vxVs(vt.finalRatio),
+      vt.dcaWins ? 'VIX 신호의 순수 기여' : '앞당김을 빼면 열세') : '') +
     card('÷ 거치식', _vxVs(vl.finalRatio), vl.dcaWins ? 'VIX 연동 승' : '거치식 승') +
-    card('평균 배수', isFinite(p.multMean) ? p.multMean.toFixed(2) + '배' : '—',
-      p.budget ? `규칙 지시 ${isFinite(p.multTargetMean) ? p.multTargetMean.toFixed(2) : '—'}배 · 고갈 ${p.starved}회`
-               : `투입률 ${fmtPct(p.investRate)} · 고갈 ${p.starved}회`) +
+    (flex
+      ? card('월 납입 범위',
+          `${isFinite(p.minRatio) ? p.minRatio.toFixed(2) : '—'}~${isFinite(p.maxRatio) ? p.maxRatio.toFixed(2) : '—'}배`,
+          `최대 ${_vxMoney(monthly * (p.maxRatio || 1))} — 그달 지갑에서 실제로 나가야 합니다`)
+      : card('평균 배수', isFinite(p.multMean) ? p.multMean.toFixed(2) + '배' : '—',
+          p.budget ? `규칙 지시 ${isFinite(p.multTargetMean) ? p.multTargetMean.toFixed(2) : '—'}배 · 고갈 ${p.starved}회`
+                   : `투입률 ${fmtPct(p.investRate)} · 고갈 ${p.starved}회`)) +
+    (flex
+      ? card('돈이 일한 기간', isFinite(p.dwYears) ? p.dwYears.toFixed(1) + '년' : '—',
+          `단순 적립 ${isFinite(p.dwYearsFixed) ? p.dwYearsFixed.toFixed(1) : '—'}년 · ` +
+          `달러가중 평균 (길수록 유리)`)
+      : '') +
     card('평균단가', _vxCheap(r.vix, r.fixed), '단순 적립 대비 (−면 싸게 담음)');
 
+  // ── 판정문 — flex 에서는 '고정 적립 대비'가 아니라 **시간대조군 대비**가 결론이다 ──────
   const vb = document.getElementById('vx-verdict');
   const gainF = vs.finalRatio - 1, gainL = vl.finalRatio - 1;
-  const tie = Math.abs(gainF) < 0.02;
-  vb.className = 'lab-verdict ' + (tie ? 'verdict-tie' : (gainF > 0 ? 'verdict-win' : 'verdict-lose'));
-  vb.innerHTML =
-    `<b>${r.asset.label}</b> · ${r.vix.start}~${r.vix.end} — 같은 총액으로 ` +
-    `VIX 연동이 단순 적립 대비 <b>${(gainF * 100 >= 0 ? '+' : '') + (gainF * 100).toFixed(1)}%</b>, ` +
-    `거치식 대비 <b>${(gainL * 100 >= 0 ? '+' : '') + (gainL * 100).toFixed(1)}%</b>` +
-    `<div class="lab-verdict-sub">` +
-    (tie ? '차이가 2% 미만 — 사실상 무승부입니다. ' : '') +
-    `평가액 MDD는 ${fmtPct(r.vix.mdd)}(VIX 연동) vs ${fmtPct(r.fixed.mdd)}(단순 적립). ` +
-    `아래 <b>사건 분해</b>에서 이 차이가 사건 몇 개에서 왔는지 반드시 확인하세요.</div>`;
+  const gainT = flex ? vt.finalRatio - 1 : NaN;
+  const lead = flex ? gainT : gainF;
+  const tie = Math.abs(lead) < 0.02;
+  const pc = g => (g * 100 >= 0 ? '+' : '') + (g * 100).toFixed(1) + '%';
+  vb.className = 'lab-verdict ' + (tie ? 'verdict-tie' : (lead > 0 ? 'verdict-win' : 'verdict-lose'));
+  vb.innerHTML = flex
+    ? `<b>${r.asset.label}</b> · ${r.vix.start}~${r.vix.end} — 같은 돈을 주식에 넣고 <b>시점만</b> VIX로 바꾸면 ` +
+      `단순 적립 대비 <b>${pc(gainF)}</b>, 그런데 <b>시간기울기 대조군 대비는 ${pc(gainT)}</b>` +
+      `<div class="lab-verdict-sub">` +
+      `VIX 규칙은 공포 달에 앞당겨 넣으므로 총액이 같아도 <b>돈이 일한 기간이 늘어납니다</b> ` +
+      `(${isFinite(p.dwYearsFixed) ? p.dwYearsFixed.toFixed(1) : '—'}년 → ${isFinite(p.dwYears) ? p.dwYears.toFixed(1) : '—'}년). ` +
+      `오른쪽 숫자는 <b>VIX를 전혀 안 보면서 같은 기간만큼 앞당긴</b> 스케줄과 견준 것이라, ` +
+      `그 '앞당김' 몫을 걷어낸 <b>신호의 순수 기여</b>입니다. ` +
+      (Math.abs(gainF - gainT) > 0.01
+        ? `두 숫자가 ${pc(gainF)} vs ${pc(gainT)}로 갈린다면 이득의 상당 부분은 '싸게 샀다'가 아니라 <b>'그냥 일찍 넣었다'</b>입니다. `
+        : '') +
+      `아래 <b>사건 분해</b>에서 이 차이가 사건 몇 개에서 왔는지도 반드시 확인하세요.</div>`
+    : `<b>${r.asset.label}</b> · ${r.vix.start}~${r.vix.end} — 같은 총액으로 ` +
+      `VIX 연동이 단순 적립 대비 <b>${pc(gainF)}</b>, 거치식 대비 <b>${pc(gainL)}</b>` +
+      `<div class="lab-verdict-sub">` +
+      (tie ? '차이가 2% 미만 — 사실상 무승부입니다. ' : '') +
+      `평가액 MDD는 ${fmtPct(r.vix.mdd)}(VIX 연동) vs ${fmtPct(r.fixed.mdd)}(단순 적립). ` +
+      `아래 <b>사건 분해</b>에서 이 차이가 사건 몇 개에서 왔는지 반드시 확인하세요.</div>`;
 
-  const leftover = p.leftoverCash / p.totalInflow;
-  const realOn = _vxRealActive();
+  // ── 회계 설명 ────────────────────────────────────────────────────────────
+  const leftover = p.totalInflow ? p.leftoverCash / p.totalInflow : 0;
   const priceBit = realOn
-    ? `납입액은 <b>실질 고정</b>입니다 — 매달 같은 금액이 아니라 같은 <b>구매력</b>을 넣습니다` +
-      `(첫 달 ${_vxMoney(monthly)} → 마지막 달 ${_vxMoney(r.vix.lastAmt)}). ` +
+    ? `납입액은 <b>실질 고정</b>입니다 — 매달 같은 금액이 아니라 같은 <b>구매력</b>을 넣습니다. ` +
       `적립식 시뮬레이터의 '실질 고정'과 같은 규약입니다. `
     : (state.vx.price === 'real'
         ? `<b>이 통화의 물가지수가 빌드에 없어 명목 고정으로 돌았습니다.</b> `
         : `납입액은 <b>명목 고정</b>입니다 — 매달 같은 금액을 넣습니다(물가 보정 없음). `);
-  document.getElementById('vx-pool-note').innerHTML = priceBit + (p.budget
-    ? `예산 회계: 주식에 넣을 총액을 <b>${_vxMoney(p.budgetReal)}</b>로 먼저 고정하고, 매수일마다 ` +
-      `<b>남은 예산 ÷ 남은 횟수 × 배수</b>만큼 삽니다 — 많이 썼으면 기준이 줄고 아꼈으면 늘어나는 ` +
-      `<b>자기보정</b>이라 총액이 저절로 맞춰집니다(남은 예산·남은 횟수는 그 시점 정보뿐이라 룩어헤드가 없습니다). ` +
-      `마지막 매수일은 아낄 이유가 없어 배수와 무관하게 잔여를 소진합니다. ` +
-      `실제 달성 <b>${fmtPct(p.fillRate)}</b>${p.fillRate < 0.999 ? ' — 대기 현금이 물가에 녹은 만큼 못 채웁니다' : ''}. ` +
-      `아직 안 넣은 돈은 단기금리로 굴러가고 최종 평가액에 포함됩니다(기말 잔여 ${_vxMoney(p.leftoverCash)}). ` +
-      `<b>세 방식이 주식에 넣은 돈이 같으므로</b>, 남는 차이는 오직 <b>언제 넣었는가</b>입니다.`
-    : `현금풀 회계: 매달 ${_vxMoney(monthly)}씩 풀로 들어오고, 거기서 <b>${_vxMoney(monthly)} × 배수</b>만큼 꺼내 삽니다. ` +
-      `풀 잔고보다 많이 사려 한 달(<b>고갈 ${p.starved}회</b>)은 잔고까지만 삽니다 — 신용이 아닙니다. ` +
-      `남은 현금은 적립통화 단기금리로 굴러가고 <b>최종 평가액에 포함</b>됩니다(기말 잔여 ${_vxMoney(p.leftoverCash)}, 총 유입의 ${fmtPct(leftover)}). ` +
-      `<b>주의 — 주식에 실제로 들어간 돈은 대조군보다 ${fmtPct(1 - p.fillRate)} 적습니다</b>(투입률 ${fmtPct(p.investRate)}). ` +
-      `'덜 넣어서 진 것'과 '타이밍이 틀려서 진 것'을 가르려면 위 토글을 <b>주식 투자액 고정</b>으로 바꿔 보세요.`);
+  document.getElementById('vx-pool-note').innerHTML = priceBit + (flex
+    ? `회계: <b>현금풀이 없습니다.</b> 주식에 넣을 총액을 <b>${_vxMoney(p.budgetReal)}</b>로 먼저 고정하고, ` +
+      `매수일마다 <b>남은 예산 ÷ 남은 횟수 × 배수</b>를 지갑에서 바로 넣습니다 — 많이 썼으면 기준이 줄고 ` +
+      `아꼈으면 늘어나는 <b>자기보정</b>이라 총액이 저절로 맞춰지고(남은 예산·남은 횟수는 그 시점 정보뿐이라 ` +
+      `룩어헤드가 없습니다), 마지막 매수일은 잔여를 소진합니다. 그래서 <b>현금 잔고가 항상 0, 예산 달성률 100%</b>입니다. ` +
+      `<b>대신 유동성이 듭니다</b> — 이 규칙은 어느 달엔 기준액의 <b>${isFinite(p.maxRatio) ? p.maxRatio.toFixed(2) : '—'}배` +
+      `(${_vxMoney(monthly * (p.maxRatio || 1))})</b>를 요구했습니다. 감당할 수 없으면 실행할 수 없는 규칙입니다. ` +
+      `<br><b>배수는 금액이 아니라 '예산 소진 속도'입니다</b> — 전 구간 배수가 2배면 앞달마다 2배씩 써서 예산이 일찍 ` +
+      `바닥나고, 매수 횟수만큼 키우면 첫날 전액(= 거치식)이 됩니다. 즉 배수의 <b>수준</b>은 적립식↔거치식 사이의 ` +
+      `손잡이이고, 배수의 <b>모양</b>만이 VIX 신호입니다. 이 둘을 가르는 게 <b>시간기울기 대조군</b>입니다.`
+    : p.budget
+      ? `예산 회계: 주식에 넣을 총액을 <b>${_vxMoney(p.budgetReal)}</b>로 먼저 고정하고, 매수일마다 ` +
+        `<b>남은 예산 ÷ 남은 횟수 × 배수</b>만큼 삽니다 — 많이 썼으면 기준이 줄고 아꼈으면 늘어나는 ` +
+        `<b>자기보정</b>이라 총액이 저절로 맞춰집니다. 마지막 매수일은 잔여를 소진합니다. ` +
+        `<b>다만 재원이 현금풀이라</b> 규칙이 지시한 배수를 그달에 못 채우는 일이 잦습니다 ` +
+        `(<b>고갈 ${p.starved}회</b> · 지시 평균 ${isFinite(p.multTargetMean) ? p.multTargetMean.toFixed(2) : '—'}배 → ` +
+        `실현 ${isFinite(p.multMean) ? p.multMean.toFixed(2) : '—'}배) — 총액은 맞지만 <b>투입이 뒤로 밀립니다</b>. ` +
+        `실제 달성 <b>${fmtPct(p.fillRate)}</b>, 기말 잔여 현금 ${_vxMoney(p.leftoverCash)}. ` +
+        `현금을 아예 안 들고 싶으면 위 토글을 <b>현금 미보유</b>로 바꿔 보세요.`
+      : `현금풀 회계: 매달 ${_vxMoney(monthly)}씩 풀로 들어오고, 거기서 <b>${_vxMoney(monthly)} × 배수</b>만큼 꺼내 삽니다. ` +
+        `풀 잔고보다 많이 사려 한 달(<b>고갈 ${p.starved}회</b>)은 잔고까지만 삽니다 — 신용이 아닙니다. ` +
+        `남은 현금은 적립통화 단기금리로 굴러가고 <b>최종 평가액에 포함</b>됩니다(기말 잔여 ${_vxMoney(p.leftoverCash)}, 총 유입의 ${fmtPct(leftover)}). ` +
+        `<b>주의 — 주식에 실제로 들어간 돈은 대조군보다 ${fmtPct(1 - p.fillRate)} 적습니다</b>(투입률 ${fmtPct(p.investRate)}). ` +
+        `'덜 넣어서 진 것'과 '타이밍이 틀려서 진 것'을 가르려면 위 토글을 <b>현금 미보유</b>나 <b>주식 투자액 고정</b>으로 바꿔 보세요.`);
 
-  document.getElementById('vx-basis-note').innerHTML = p.budget
-    ? `<b>주식 투자액 고정</b> — 세 방식이 주식에 넣는 총액이 같습니다. "같은 돈을 주식에 넣을 때 ` +
-      `<b>시점만</b> VIX로 바꾸면 유리한가"를 묻습니다. 지갑에서 나가는 돈은 방식마다 다를 수 있습니다.`
-    : `<b>납입액 고정</b> — 지갑에서 나가는 돈이 매달 같습니다. VIX 전략은 아낀 돈을 끝까지 다 쓰지 못해 ` +
-      `<b>주식에 들어간 총액이 대조군보다 적습니다</b>. "내 지갑 제약이 같을 때 어느 쪽이 낫나"를 묻습니다.`;
+  document.getElementById('vx-basis-note').innerHTML = flex
+    ? `<b>현금 미보유</b> — 현금풀 없이 <b>매달 전액을 주식에 넣되 금액만</b> VIX로 바꿉니다. 세 방식이 주식에 넣는 ` +
+      `실질 총액이 같고 아무도 현금을 들지 않아, 차이가 오직 <b>언제 넣었는가</b>에서만 옵니다. ` +
+      `대신 공포 달에는 지갑에서 평소의 몇 배가 나가야 합니다(위 '월 납입 범위' 카드).`
+    : p.budget
+      ? `<b>주식 투자액 고정</b> — 세 방식이 주식에 넣는 총액이 같습니다. 다만 재원이 <b>현금풀</b>이라 규칙이 지시한 ` +
+        `배수를 못 채우는 달이 생기고, 그만큼 투입이 뒤로 밀립니다(고갈 ${p.starved}회).`
+      : `<b>납입액 고정</b> — 지갑에서 나가는 돈이 매달 같습니다. VIX 전략은 아낀 돈을 끝까지 다 쓰지 못해 ` +
+        `<b>주식에 들어간 총액이 대조군보다 적습니다</b>. "내 지갑 제약이 같을 때 어느 쪽이 낫나"를 묻습니다.`;
 }
 function _vxVs(ratio) {
   if (!isFinite(ratio)) return '—';
@@ -5881,20 +5961,33 @@ function _vxRenderEquity(r) {
   const d = state.vx.d;
   const x = d.dates.slice(r.lo, r.hi + 1);
   const hov = '%{x|%Y-%m-%d}<br>%{y:,.0f}';
+  const flex = _vxFlex();
   const traces = [
-    { type: 'scatter', mode: 'lines', name: 'VIX 연동(현금풀)', x, y: Array.from(r.sims.vix.equity),
+    { type: 'scatter', mode: 'lines', name: flex ? 'VIX 연동(현금 미보유)' : 'VIX 연동(현금풀)',
+      x, y: Array.from(r.sims.vix.equity),
       line: { width: 2, color: VX_COL.pool }, hovertemplate: hov + '<extra>VIX 연동</extra>' },
     { type: 'scatter', mode: 'lines', name: '단순 적립식', x, y: Array.from(r.sims.fixed.equity),
       line: { width: 1.6, color: VX_COL.fixed }, hovertemplate: hov + '<extra>단순 적립</extra>' },
+  ];
+  // 시간기울기 대조군 — VIX 를 안 보면서 보유기간만 같게 맞춘 곡선. VIX 곡선이 이 선 위로
+  // 못 올라가면 그 이득은 신호가 아니라 '앞당김'이다. 그래서 판정문과 같은 자리에 그린다.
+  if (flex && r.sims.tilt) {
+    traces.push({ type: 'scatter', mode: 'lines', name: '시간기울기 대조군(VIX 안 봄)',
+      x, y: Array.from(r.sims.tilt.equity),
+      line: { width: 1.6, color: VX_COL.cash, dash: 'dash' },
+      hovertemplate: hov + '<extra>시간대조군</extra>' });
+  }
+  traces.push(
     { type: 'scatter', mode: 'lines', name: '거치식(첫날 일괄)', x, y: Array.from(r.sims.lump.equity),
       line: { width: 1.6, color: VX_COL.lump }, hovertemplate: hov + '<extra>거치식</extra>' },
     { type: 'scatter', mode: 'lines', name: '누적 납입액', x, y: Array.from(r.sims.vix.cost),
-      line: { width: 1.2, color: VX_COL.fixed, dash: 'dot' }, hovertemplate: hov + '<extra>납입</extra>' },
-  ];
+      line: { width: 1.2, color: VX_COL.fixed, dash: 'dot' }, hovertemplate: hov + '<extra>납입</extra>' });
   const layout = baseLayout('', `평가액 (${_vxCcy() === 'usd' ? '달러' : '원'})`);
   Plotly.react('vx-equity', traces, layout, PLOTCFG);
   document.getElementById('vx-equity-note').innerHTML =
-    `세 곡선의 <b>누적 납입액이 완전히 같습니다</b>(점선). 다만 거치식은 그 돈을 <b>첫날 이미 갖고 있어야</b> 하므로 ` +
+    (flex ? `<b>점선(누적 납입액)은 VIX 연동 기준입니다</b> — 실질 고정 모드에서는 방식마다 명목 납입 시점이 달라 ` +
+            `명목 합계가 조금씩 다를 수 있지만, <b>주식에 들어간 실질 총액은 네 방식 모두 같습니다</b>. ` : '') +
+    `${flex ? '네' : '세'} 곡선의 <b>주식 투입 총액이 완전히 같습니다</b>. 다만 거치식은 그 돈을 <b>첫날 이미 갖고 있어야</b> 하므로 ` +
     `t=0 시점의 부(富)가 다릅니다 — 적립식 두 방식과 같은 축에서 보려면 이 점을 감안하세요. ` +
     `적립식↔거치식의 공정 비교 자체는 <b>적립식 시뮬레이터</b> 화면의 '비교 기준' 토글이 더 자세히 다룹니다.`;
 }
@@ -5905,16 +5998,33 @@ function _vxRenderFlow(r) {
   const bx = sim.flows.map(f => d.dates[f[0]]);
   const by = Array.from(sim.buyAmts);
   const x = d.dates.slice(r.lo, r.hi + 1);
+  const flex = _vxFlex();
   const traces = [
     { type: 'bar', name: '그달 투입액', x: bx, y: by, marker: { color: VX_COL.pool },
       hovertemplate: '%{x|%Y-%m}<br>%{y:,.0f}<extra>투입</extra>' },
-    { type: 'scatter', mode: 'lines', name: '현금풀 잔고', x, y: Array.from(sim.cash),
-      line: { width: 1.6, color: VX_COL.cash }, yaxis: 'y2',
-      hovertemplate: '%{x|%Y-%m-%d}<br>%{y:,.0f}<extra>풀 잔고</extra>' },
   ];
+  // flex 에는 잔고가 없다(항상 0) — 대신 '단순 적립이었다면 넣었을 금액'을 기준선으로 깐다.
+  // 막대가 그 선 위로 얼마나 튀는지가 곧 그달 지갑에서 더 나가야 하는 돈이다.
+  if (flex) {
+    traces.push({ type: 'scatter', mode: 'lines', name: '기준액(단순 적립)',
+      x: bx, y: Array.from(r.sims.fixed.buyAmts),
+      line: { width: 1.6, color: VX_COL.fixed, dash: 'dot' },
+      hovertemplate: '%{x|%Y-%m}<br>%{y:,.0f}<extra>기준액</extra>' });
+  } else {
+    traces.push({ type: 'scatter', mode: 'lines', name: '현금풀 잔고', x, y: Array.from(sim.cash),
+      line: { width: 1.6, color: VX_COL.cash }, yaxis: 'y2',
+      hovertemplate: '%{x|%Y-%m-%d}<br>%{y:,.0f}<extra>풀 잔고</extra>' });
+  }
   const layout = baseLayout('', `투입액 (${_vxCcy() === 'usd' ? '달러' : '원'})`);
-  layout.yaxis2 = { title: { text: '현금풀 잔고' }, overlaying: 'y', side: 'right',
-    gridcolor: 'rgba(0,0,0,0)', color: cssVar('--chart-muted') };
+  if (!flex) {
+    layout.yaxis2 = { title: { text: '현금풀 잔고' }, overlaying: 'y', side: 'right',
+      gridcolor: 'rgba(0,0,0,0)', color: cssVar('--chart-muted') };
+  }
+  const sub = document.getElementById('vx-flow-sub');
+  if (sub) {
+    sub.textContent = flex ? '(막대 = 그달 투입액, 점선 = 단순 적립이었다면 넣었을 금액)'
+                           : '(막대 = 그달 투입액, 선 = 현금풀 잔고)';
+  }
   layout.legend = Object.assign({}, layout.legend, { orientation: 'h' });
   Plotly.react('vx-flow', traces, layout, PLOTCFG);
 }
@@ -5926,26 +6036,41 @@ function _vxRenderTable(runs) {
     return `<tr><td class="name">${r.asset.label}</td>` +
       `<td>${_vxMoney(r.vix.final)}</td><td>${_vxMoney(r.fixed.final)}</td><td>${_vxMoney(r.lump.final)}</td>` +
       `<td class="${win ? 'pos' : 'neg'}">${_vxVs(r.vsFixed.finalRatio)}</td>` +
+      (flexMode
+        ? `<td class="${r.vsTilt.finalRatio > 1 ? 'pos' : 'neg'}">${_vxVs(r.vsTilt.finalRatio)}</td>` : '') +
       `<td>${_vxVs(r.vsLump.finalRatio)}</td>` +
       `<td>${fmtPct(r.vix.xirr)}</td><td>${fmtPct(r.fixed.xirr)}</td>` +
       `<td>${fmtPct(r.vix.mdd)}</td><td>${fmtPct(r.fixed.mdd)}</td>` +
       // 예산 모드에서 '투입률'(= 투자액 ÷ 유입액)은 이자까지 투자되면 100% 를 넘어 오독을 부른다.
       // 그 모드가 묻는 건 '예산을 얼마나 채웠나'이므로 달성률을 보여 준다.
-      `<td>${num(r.pool.multMean)}배</td>` +
-      `<td>${fmtPct(budgetMode ? r.pool.fillRate : r.pool.investRate)}</td></tr>`;
+      // flex 는 정의상 현금이 없어 둘 다 의미가 없다 — 대신 **요구 유동성**을 낸다.
+      (flexMode
+        ? `<td>${num(r.pool.maxRatio)}배</td><td>${num(r.pool.dwYears)}년</td></tr>`
+        : `<td>${num(r.pool.multMean)}배</td>` +
+          `<td>${fmtPct(budgetMode ? r.pool.fillRate : r.pool.investRate)}</td></tr>`);
   };
   const budgetMode = !!(runs[0] && runs[0].pool && runs[0].pool.budget);
+  const flexMode = !!(runs[0] && runs[0].pool && runs[0].pool.basis === 'flex');
   document.getElementById('vx-table').innerHTML =
     '<thead><tr><th class="name">종목</th><th>VIX 연동</th><th>단순 적립</th><th>거치식</th>' +
-    '<th>÷단순</th><th>÷거치</th><th>XIRR(VIX)</th><th>XIRR(단순)</th>' +
-    `<th>MDD(VIX)</th><th>MDD(단순)</th><th>평균배수</th><th>${budgetMode ? '예산 달성' : '투입률'}</th></tr></thead><tbody>` +
-    runs.map(row).join('') + '</tbody>';
+    `<th>÷단순</th>${flexMode ? '<th>÷시간대조군</th>' : ''}<th>÷거치</th><th>XIRR(VIX)</th><th>XIRR(단순)</th>` +
+    `<th>MDD(VIX)</th><th>MDD(단순)</th>` +
+    (flexMode ? '<th>최대 월납입</th><th>돈이 일한 기간</th>'
+              : `<th>평균배수</th><th>${budgetMode ? '예산 달성' : '투입률'}</th>`) +
+    '</tr></thead><tbody>' + runs.map(row).join('') + '</tbody>';
   const wins = runs.filter(r => r.vsFixed.finalRatio > 1).length;
+  const winsT = runs.filter(r => r.vsTilt && r.vsTilt.finalRatio > 1).length;
   document.getElementById('vx-table-note').innerHTML =
-    `선택 종목 ${runs.length}개 중 <b>${wins}개</b>에서 VIX 연동이 단순 적립을 이겼습니다. ` +
+    `선택 종목 ${runs.length}개 중 <b>${wins}개</b>에서 VIX 연동이 단순 적립을 이겼습니다` +
+    (flexMode ? ` — 그런데 <b>시간기울기 대조군</b>까지 이긴 건 <b>${winsT}개</b>입니다. 두 숫자가 갈리는 만큼이 ` +
+                `'싸게 샀다'가 아니라 <b>'그냥 일찍 넣었다'</b>에서 온 몫입니다. ` : '. ') +
     `종목마다 시작일이 다르면(실제 ETF 상장일) 각 행의 기간이 다를 수 있습니다 — ` +
     `종목 간 직접 비교보다 <b>같은 행 안의 세 방식 비교</b>가 이 화면의 질문입니다. ` +
-    `MDD 열도 함께 보세요: 현금풀은 하락장에 현금을 들고 있어 낙폭이 얕아지는 경향이 있습니다.` +
+    (flexMode
+      ? `MDD 열도 함께 보세요: 현금 미보유 모드는 항상 100% 주식이라 <b>현금풀처럼 낙폭이 얕아지지 않습니다</b> — ` +
+        `오히려 공포 구간에 크게 담은 만큼 낙폭이 깊어질 수 있습니다. '최대 월납입' 열은 그 규칙을 실행하려면 ` +
+        `어느 달에 기준액의 몇 배를 내야 했는지입니다.`
+      : `MDD 열도 함께 보세요: 현금풀은 하락장에 현금을 들고 있어 낙폭이 얕아지는 경향이 있습니다.`) +
     (budgetMode
       ? ` <b>예산 모드에서 특히 볼 것 — 평균단가</b>: 납입액 고정에서는 VIX 연동이 단순 적립보다 ` +
         `싸게 담지만, 주식 투자액을 맞추면 대개 <b>더 비싸게</b> 담습니다. 아껴 둔 예산이 결국 ` +
@@ -5969,7 +6094,12 @@ function _vxRenderEpisodes(r, monthly) {
   }
   const loo = DCASIM.leaveOneEpisodeOut(d.dates, r.ar.ret, d.fx, r.buy, monthly, mult,
     _vxRfCash(), eps, r.opt);
-  const base = r.vsFixed.finalRatio;
+  // flex 에서는 '고정 적립 대비'가 아니라 **시간기울기 대조군 대비**가 결론이다(앞당김 몫을 걷어낸 값).
+  // 그쪽으로 기준을 안 바꾸면 "사건을 빼도 여전히 이긴다"는 표가 실은 '앞당김'을 세고 있게 된다.
+  const flexMode = _vxFlex();
+  const pick = x => flexMode ? x.ratioWithoutTilt : x.ratioWithout;
+  const pickShare = x => flexMode ? x.shareTilt : x.share;
+  const base = flexMode ? r.vsTilt.finalRatio : r.vsFixed.finalRatio;
   // base < 1 이면 이 전략은 지고 있다 — 그때 'share' 는 초과분이 아니라 **부족분**의 기여다.
   // 같은 수식이지만 뜻이 뒤집히므로 라벨을 바꾼다(이기지도 않았는데 '초과분'이라 적으면 오독한다).
   const winning = base > 1;
@@ -5979,27 +6109,31 @@ function _vxRenderEpisodes(r, monthly) {
     `<th>이 사건을 빼면</th><th>${shareLab}</th></tr></thead><tbody>` +
     loo.map(x => `<tr><td class="name">${x.start} ~ ${x.end}</td><td>${x.days}</td>` +
       `<td>${isFinite(x.peakVix) ? x.peakVix.toFixed(1) : '—'}</td>` +
-      `<td>${_vxVs(x.ratioWithout)}</td>` +
-      `<td class="${x.share > 0.5 ? 'neg' : ''}">${isFinite(x.share) ? (x.share * 100).toFixed(0) + '%' : '—'}</td></tr>`).join('') +
+      `<td>${_vxVs(pick(x))}</td>` +
+      `<td class="${pickShare(x) > 0.5 ? 'neg' : ''}">${isFinite(pickShare(x)) ? (pickShare(x) * 100).toFixed(0) + '%' : '—'}</td></tr>`).join('') +
     `<tr class="lab-row-best"><td class="name">전부 포함(기준)</td><td>—</td><td>—</td>` +
     `<td>${_vxVs(base)}</td><td>100%</td></tr></tbody>`;
   // 이기는 경우엔 '초과분을 가장 많이 만든' 사건(=share 최대)이 맞다. 하지만 지는 경우엔
   // share 가 대개 0 이하라 최댓값을 고르면 **아무 영향도 없던 사건**(0%)이 대표로 뽑힌다 —
   // 그때는 성과비를 가장 크게 움직인 사건(|share| 최대)을 지목해야 표와 문장이 어긋나지 않는다.
-  const _rank = winning ? (x => x.share) : (x => Math.abs(x.share));
-  const top = loo.reduce((a, b) => (isFinite(b.share) && (!a || _rank(b) > _rank(a))) ? b : a, null);
-  const fragile = top && isFinite(top.share) && top.share > 0.5;
+  const _rank = winning ? (x => pickShare(x)) : (x => Math.abs(pickShare(x)));
+  const top = loo.reduce((a, b) => (isFinite(pickShare(b)) && (!a || _rank(b) > _rank(a))) ? b : a, null);
+  const fragile = top && isFinite(pickShare(top)) && pickShare(top) > 0.5;
   // 이기지도 못했으면 '취약하다/견고하다'를 따질 대상 자체가 없다 — 그 경우는 중립으로 적는다.
   vb.className = 'lab-verdict ' + (!winning ? 'verdict-lose' : (fragile ? 'verdict-lose' : 'verdict-win'));
   vb.innerHTML = top
     ? `공포 사건 <b>${eps.length}개</b> 중 <b>${top.start}~${top.end}</b>` +
       `(VIX 최고 ${isFinite(top.peakVix) ? top.peakVix.toFixed(0) : '?'}) ` +
       (winning
-        ? `하나가 초과분의 <b>${(top.share * 100).toFixed(0)}%</b>를 만들었습니다 — `
+        ? `하나가 초과분의 <b>${(pickShare(top) * 100).toFixed(0)}%</b>를 만들었습니다 — `
         : `이 성과비를 가장 크게 움직였습니다 — `) +
-      `이 사건을 빼면 ${_vxVs(base)} → <b>${_vxVs(top.ratioWithout)}</b>` +
+      `이 사건을 빼면 ${_vxVs(base)} → <b>${_vxVs(pick(top))}</b>` +
+      (flexMode ? `<div class="lab-verdict-sub">기준은 <b>시간기울기 대조군 대비</b> 성과비입니다 — `
+                  + `'앞당김' 몫을 이미 걷어낸 숫자라, 여기서 무너지면 신호 자체가 사건 하나에 얹혀 있다는 뜻입니다.</div>` : '') +
       `<div class="lab-verdict-sub">${!winning
-        ? '애초에 단순 적립을 못 이겼습니다 — 사건을 빼고 더해 봐야 결론은 바뀌지 않습니다. 공포 구간의 이득이 평상시에 현금으로 비켜 있던 기회비용을 넘지 못한 것입니다.'
+        ? (flexMode
+            ? '애초에 시간기울기 대조군을 못 이겼습니다 — VIX를 보지 않고 같은 기간만큼 앞당기기만 해도 같거나 더 나았다는 뜻입니다. 사건을 빼고 더해 봐야 결론은 바뀌지 않습니다.'
+            : '애초에 단순 적립을 못 이겼습니다 — 사건을 빼고 더해 봐야 결론은 바뀌지 않습니다. 공포 구간의 이득이 평상시에 현금으로 비켜 있던 기회비용을 넘지 못한 것입니다.')
         : (fragile
           ? '결론이 사건 하나에 얹혀 있습니다. 다음에도 같은 크기의 공포가 온다는 보장이 없으므로 이 성과비를 기대수익으로 읽으면 안 됩니다.'
           : '기여가 여러 사건에 분산돼 있습니다 — 그나마 덜 취약한 편이지만, 사건 수 자체가 한 자릿수라는 점은 그대로입니다.')}</div>`
@@ -6010,27 +6144,143 @@ function _vxRenderGrid(picked, rng, monthly) {
   const d = state.vx.d;
   const presets = (d.vix_presets || []).filter(p => p.mode !== 'off');
   const cells = {};
+  const flexMode = _vxFlex();
+  const tcells = {};
   presets.forEach(p => {
-    cells[p.key] = picked.map(a => {
-      const r = _vxRun(a, rng, monthly, p.key);
-      return r ? r.vsFixed.finalRatio : NaN;
-    });
+    const runs = picked.map(a => _vxRun(a, rng, monthly, p.key));
+    cells[p.key] = runs.map(r => r ? r.vsFixed.finalRatio : NaN);
+    tcells[p.key] = runs.map(r => (r && r.vsTilt) ? r.vsTilt.finalRatio : NaN);
   });
   const fmt = v => !isFinite(v) ? '—' : (v >= 1 ? '+' : '') + ((v - 1) * 100).toFixed(1) + '%';
-  let nWin = 0, nTot = 0;
+  let nWin = 0, nTot = 0, nWinT = 0;
   presets.forEach(p => cells[p.key].forEach(v => { if (isFinite(v)) { nTot++; if (v > 1) nWin++; } }));
+  presets.forEach(p => tcells[p.key].forEach(v => { if (isFinite(v) && v > 1) nWinT++; }));
   document.getElementById('vx-grid').innerHTML =
     '<thead><tr><th class="name">배수 규칙</th>' + picked.map(a => `<th>${a.label}</th>`).join('') +
     '</tr></thead><tbody>' +
     presets.map(p => `<tr><td class="name">${p.label}</td>` +
-      cells[p.key].map(v => `<td class="${isFinite(v) ? (v > 1 ? 'pos' : 'neg') : ''}">${fmt(v)}</td>`).join('') +
+      cells[p.key].map((v, k) => {
+        // flex 에서는 대조군 대비를 괄호로 같이 적는다 — 색도 그쪽으로 칠한다(그게 결론이므로).
+        const t = tcells[p.key][k];
+        const lead = flexMode && isFinite(t) ? t : v;
+        return `<td class="${isFinite(lead) ? (lead > 1 ? 'pos' : 'neg') : ''}">${fmt(v)}` +
+          (flexMode ? `<span class="muted"> (${fmt(t)})</span>` : '') + '</td>';
+      }).join('') +
       '</tr>').join('') + '</tbody>';
   document.getElementById('vx-grid-note').innerHTML =
     `격자 ${nTot}칸 중 <b>${nWin}칸</b>에서 VIX 연동이 단순 적립을 이겼습니다` +
-    (nTot ? ` (${(nWin / nTot * 100).toFixed(0)}%)` : '') + `. ` +
-    `모든 숫자는 <b>단순 적립 대비 최종 평가액 차이</b>이고 총 납입액은 전부 같습니다. ` +
+    (nTot ? ` (${(nWin / nTot * 100).toFixed(0)}%)` : '') +
+    (flexMode ? ` — 괄호는 <b>시간기울기 대조군 대비</b>이고, 그쪽까지 이긴 칸은 <b>${nWinT}칸</b>입니다(색은 이 기준). `
+              : `. `) +
+    `앞 숫자는 <b>단순 적립 대비 최종 평가액 차이</b>이고 주식 투입 총액은 전부 같습니다. ` +
     `<b>확장창 백분위</b> 행이 정본입니다 — 고정 임계 행이 더 좋아 보인다면 그건 임계값을 ` +
     `역사에 맞춰 고른 결과일 가능성이 큽니다.`;
+}
+
+/**
+ * 🧪 VIX 구간별 '이후 수익률' — "그래서 VIX 몇이면 더 넣나"에 **전략 껍데기 없이** 답한다.
+ *
+ * 배수 스케줄·예산 규칙·환율·수수료를 다 통과한 최종 평가액으로 이 질문에 답하면, 규칙 설계의
+ * 우연(어느 해에 고VIX 가 몰렸는가)과 신호의 정보가 뒤섞인다. 여기서는 매수일마다 **그날의
+ * 전일 종가 VIX** 로 구간을 나누고, 그날부터 h년 뒤까지의 연율수익률만 본다.
+ * 계산 정본은 dca_sim.signal_bucket_forward, 미러는 web/dca.js signalBucketForward.
+ */
+function _vxRenderBuckets(r) {
+  const d = state.vx.d;
+  const el = document.getElementById('vx-buckets');
+  if (!el) return;
+  const rows = DCASIM.signalBucketForward(d.vix, r.ar.ret, r.buy, {
+    offset: r.lo, dpy: d.dpy, lag: (d.vix_defaults || {}).lag,
+    edges: [15, 20, 25, 30, 40], horizons: [1, 3, 5],
+  });
+  const pc = v => isFinite(v) ? (v * 100).toFixed(1) + '%' : '—';
+  // 색은 '전 구간 중앙값'과의 비교로 칠한다 — 절대 수익률이 높다고 좋은 구간이 아니다.
+  const all = rows.flatMap(x => x.fwd[5].n ? [x.fwd[5].median] : []);
+  const mid = all.length ? all.slice().sort((a, b) => a - b)[all.length >> 1] : NaN;
+  el.innerHTML =
+    '<thead><tr><th class="name">매수시점 VIX</th><th>매수 월수</th><th>독립 사건</th>' +
+    '<th>이후 1년</th><th>이후 3년</th><th>이후 5년</th><th>5년 최악</th></tr></thead><tbody>' +
+    rows.map(x => {
+      const m5 = x.fwd[5].median;
+      const cls = !isFinite(m5) || !isFinite(mid) ? '' : (m5 > mid ? 'pos' : (m5 < mid ? 'neg' : ''));
+      return `<tr><td class="name">${x.label}</td><td>${x.n}</td>` +
+        `<td class="${x.nEpisodes <= 6 ? 'neg' : ''}">${x.nEpisodes}</td>` +
+        `<td>${pc(x.fwd[1].median)}</td><td>${pc(x.fwd[3].median)}</td>` +
+        `<td class="${cls}">${pc(m5)}</td><td>${pc(x.fwd[5].worst)}</td></tr>`;
+    }).join('') + '</tbody>';
+  // 상위 구간(30+ · 40+)이 실제로 더 나았는지, 중간 구간(20~30)이 오히려 나빴는지를 문장으로 못박는다.
+  const by = {}; rows.forEach(x => { by[x.label] = x; });
+  const hi = ['30-40', '40+'].map(k => by[k]).filter(x => x && isFinite(x.fwd[5].median));
+  const mids = ['20-25', '25-30'].map(k => by[k]).filter(x => x && isFinite(x.fwd[5].median));
+  const avg = a => a.reduce((s, x) => s + x.fwd[5].median, 0) / a.length;
+  // 버킷별 사건 수는 **더하지 않는다** — 한 위기가 30-40 과 40+ 를 오가면 양쪽에 따로 잡혀
+  // 합계가 실제 위기 수보다 커진다(dca_sim.signal_bucket_forward 독스트링 참조).
+  const epTxt = hi.map(x => `${x.label} ${x.nEpisodes}개`).join(' · ');
+  document.getElementById('vx-buckets-note').innerHTML =
+    `모든 수치는 <b>그 구간에서 산 돈의 이후 연율수익률 중앙값</b>입니다(매수일 기준, 전일 종가 VIX). ` +
+    (hi.length && mids.length
+      ? `이 표본에서 <b>VIX 30 이상</b> 구간의 이후 5년은 <b>${pc(avg(hi))}</b>, ` +
+        `<b>VIX 20~30</b> 구간은 <b>${pc(avg(mids))}</b>입니다 — ` +
+        (avg(hi) > avg(mids)
+          ? `"공포에 더 산다"가 통한다면 그건 <b>30 이상</b>에서지 20 언저리가 아닙니다. `
+          : `상위 구간이 더 낫지도 않았습니다. `)
+      : '') +
+    `<b>다만 '독립 사건' 열이 이 표의 진짜 한계입니다</b> — 이후 수익률 창이 서로 겹치므로 월 수는 ` +
+    `독립 관측 수가 아닙니다. 같은 버킷의 매수월을 60거래일 규칙으로 묶으면 ${epTxt ? `<b>${epTxt}</b>` : '몇 덩어리'}뿐입니다. ` +
+    `(한 위기가 두 버킷을 오가면 양쪽에 따로 잡히므로 <b>이 값들을 더하면 안 됩니다</b> — 버킷 안에서의 상한으로만 읽으세요.) ` +
+    `그리고 20·30·40 이라는 <b>숫자 자체가 사후정보</b>입니다(1990년의 투자자는 VIX의 장기 분포를 몰랐습니다) — ` +
+    `룩어헤드 없는 판본은 위 <b>배수 규칙</b> 토글의 '확장창 백분위' 프리셋입니다.`;
+}
+
+/**
+ * 🧪 임계 × 배수 격자 — `VIX ≥ T 면 k배` 를 쓸어 보되 **두 대조군을 같이** 적는다.
+ * vsFixed 만 보면 "임계는 낮을수록·배수는 클수록 좋다"는 결론에 이르는데, 그건 전략이 아니라
+ * 예산을 앞으로 당겨 거치식에 가까워진 것뿐이다. 괄호의 vsTilt 가 그 몫을 걷어낸다.
+ */
+function _vxRenderThresholds(r, monthly) {
+  const d = state.vx.d;
+  const el = document.getElementById('vx-thresholds');
+  if (!el) return;
+  if (!_vxFlex()) {
+    el.innerHTML = '';
+    document.getElementById('vx-thresholds-note').innerHTML =
+      `이 표는 <b>현금 미보유</b> 모드에서만 의미가 있습니다 — 현금풀에서는 "VIX ≥ T 면 k배"가 ` +
+      `평소에 아껴 둔 잔액이 없어 <b>대부분 실행되지 못하기</b> 때문입니다. 위 토글을 바꿔 보세요.`;
+    return;
+  }
+  const opts = Object.assign({}, r.opt, { lag: (d.vix_defaults || {}).lag,
+    thresholds: [20, 25, 30, 35, 40], mults: [1.5, 2, 3, 5] });
+  const g = DCASIM.thresholdGrid(r.ar.ret, d.fx, r.buy, monthly, d.vix, opts);
+  const fmt = v => !isFinite(v) ? '—' : (v >= 1 ? '+' : '') + ((v - 1) * 100).toFixed(1) + '%';
+  const at = (t, k) => g.rows.find(x => x.threshold === t && x.mult === k);
+  el.innerHTML =
+    '<thead><tr><th class="name">임계</th>' + g.mults.map(k => `<th>${k}배</th>`).join('') +
+    '<th>해당 월수</th><th>최대 월납입</th></tr></thead><tbody>' +
+    g.thresholds.map(t => {
+      const last = at(t, g.mults[g.mults.length - 1]);
+      return `<tr><td class="name">VIX ≥ ${t}</td>` +
+        g.mults.map(k => {
+          const x = at(t, k);
+          if (!x) return '<td>—</td>';
+          return `<td class="${x.vsTilt > 1 ? 'pos' : 'neg'}">${fmt(x.vsFixed)}` +
+            `<span class="muted"> (${fmt(x.vsTilt)})</span></td>`;
+        }).join('') +
+        `<td>${last ? last.nHigh : '—'}</td>` +
+        `<td>${last && isFinite(last.maxRatio) ? last.maxRatio.toFixed(1) + '배' : '—'}</td></tr>`;
+    }).join('') + '</tbody>';
+  const winsT = g.rows.filter(x => x.vsTilt > 1).length;
+  const winsF = g.rows.filter(x => x.vsFixed > 1).length;
+  // 대조군 기준 최고 칸 — 수익률이 아니라 '신호의 순수 기여'로 고른다.
+  const best = g.rows.reduce((a, b) => (isFinite(b.vsTilt) && (!a || b.vsTilt > a.vsTilt)) ? b : a, null);
+  document.getElementById('vx-thresholds-note').innerHTML =
+    `앞 숫자는 <b>단순 적립 대비</b>, 괄호는 <b>시간기울기 대조군 대비</b>입니다(색은 괄호 기준). ` +
+    `${g.rows.length}칸 중 단순 적립을 이긴 칸은 <b>${winsF}칸</b>이지만, 대조군까지 이긴 칸은 <b>${winsT}칸</b>입니다. ` +
+    (best ? `대조군 기준 최고는 <b>VIX ≥ ${best.threshold} → ${best.mult}배</b>(${fmt(best.vsTilt)}, ` +
+            `최대 월납입 ${isFinite(best.maxRatio) ? best.maxRatio.toFixed(1) : '—'}배)입니다. ` : '') +
+    `<b>앞 숫자만 보면 임계가 낮고 배수가 클수록 좋아 보이는데, 그건 전략이 아닙니다</b> — ` +
+    `고VIX 달이 이 표본의 앞쪽(1999~2002·2008)에 몰려 있어 예산을 앞으로 당긴 효과이고, 배수를 매수 횟수만큼 ` +
+    `키우면 결국 <b>거치식</b>이 됩니다. 괄호 숫자가 그 몫을 걷어낸 값입니다. ` +
+    `'해당 월수'가 한 자릿수~수십인 행은 <b>사건 서너 개</b> 위에 선 결론이라는 점도 같이 보세요.`;
 }
 
 async function init() {
