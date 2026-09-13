@@ -273,32 +273,68 @@
     opts = opts || {};
     const fee = opts.fee || 0, off = opts.offset || 0, useFx = opts.useFx !== false;
     const dpy = opts.dpy || DPY, seedMonths = opts.seedMonths || 0;
+    const scale = opts.scale || null, budget = !!opts.budget;
     const n = ret.length;
     const nav = new Float64Array(n);
     let v = 1.0;
     for (let i = 0; i < n; i++) { v *= (1 + ret[i]); nav[i] = v; }
     const isBuy = new Uint8Array(n);
-    let first = -1;
+    // 매수 순번(몇 번째 매수인가)을 미리 매긴다 — 예산 모드가 '남은 횟수'를 알아야 한다.
+    const rank = new Int32Array(n).fill(-1);
+    const sorted = [];
     for (const b of buyIdx) {
       const j = b - off;
-      if (j >= 0 && j < n) { isBuy[j] = 1; if (first < 0 || j < first) first = j; }
+      if (j >= 0 && j < n) { isBuy[j] = 1; sorted.push(j); }
     }
+    sorted.sort((a, b) => a - b);
+    for (let k = 0; k < sorted.length; k++) rank[sorted[k]] = k;
+    const nBuysTotal = sorted.length;
+    const first = nBuysTotal ? sorted[0] : -1;
+    // 물가 재기준화 — 첫 매수일이 1.0. 0/결측이면 명목으로 안전 퇴각(simulate 와 같은 규약).
+    let sbase = 1;
+    if (scale && first >= 0) {
+      const v0 = scale[off + first];
+      sbase = (v0 > 0) ? v0 : 1;
+    }
+    const sAt = (i) => {
+      if (!scale) return 1;
+      const x = scale[off + i];
+      return (x > 0) ? x / sbase : 1;
+    };
     const seed = monthly * seedMonths;
+    // 주식 예산(실질) — 예산 모드에서만 의미가 있다. 시드는 예산이 아니라 초기 탄약이다.
+    const budgetReal = monthly * nBuysTotal;
     const equity = new Float64Array(n), cost = new Float64Array(n), cashPath = new Float64Array(n);
     const costReal = new Float64Array(n);
-    const flows = [], buyPrices = [], buyAmts = [];
-    let units = 0, cash = 0, inflow = 0, invested = 0, spentUsd = 0, starved = 0;
+    const flows = [], buyPrices = [], buyAmts = [], buyScales = [];
+    let units = 0, cash = 0, inflow = 0, invested = 0, investedReal = 0, spentUsd = 0, starved = 0;
+    let multTargetSum = 0, nBuys = 0, seedReal = 0;
     for (let i = 0; i < n; i++) {
       const f = useFx ? (fx[off + i] || 0) : 1;
       if (isBuy[i]) {
-        const add = monthly + (i === first ? seed : 0);
+        const si = sAt(i);
+        buyScales.push(si);
+        nBuys++;
+        if (i === first) seedReal = seed;   // 시드는 첫 매수일 투입이라 실질 가치 = 명목 그대로
+        const add = monthly * si + (i === first ? seed : 0);
         cash += add; inflow += add;
         flows.push([off + i, -add]);
-        const want = monthly * (mult ? (mult[off + i] == null ? 1 : mult[off + i]) : 1);
+        const m = mult ? (mult[off + i] == null ? 1 : mult[off + i]) : 1;
+        multTargetSum += m;
+        let want;
+        if (budget) {
+          const left = nBuysTotal - rank[i];        // 이번 것 포함 남은 매수 횟수
+          let rem = budgetReal - investedReal;
+          if (rem < 0) rem = 0;
+          want = (left <= 1) ? rem * si             // 마지막 — 배수 무시하고 소진
+                             : (rem / left) * si * m;
+        } else {
+          want = monthly * si * m;
+        }
         const amt = (want <= cash) ? want : cash;
         if (want > cash + 1e-12) starved++;
         if (amt > 0) {
-          cash -= amt; invested += amt;
+          cash -= amt; invested += amt; investedReal += amt / si;
           const amtUsd = f ? amt / f : 0;
           units += amtUsd * (1 - fee) / nav[i];
           spentUsd += amtUsd;
@@ -311,7 +347,8 @@
       cashPath[i] = cash;
       equity[i] = units * nav[i] * f + cash;
       cost[i] = inflow;
-      costReal[i] = inflow;
+      // 실질 납입원금 — 각 유입(monthly × 물가배수)의 첫 매수일 가치는 정의상 정확히 monthly 다.
+      costReal[i] = monthly * nBuys + seedReal;
     }
     return {
       equity, cost, costReal, nav, units, flows, buyPrices, offset: off,
@@ -320,6 +357,13 @@
       investRate: inflow ? invested / inflow : NaN,
       leftoverCash: n ? cashPath[n - 1] : 0,
       totalInflow: inflow,
+      investedReal, budgetReal, buyScales,
+      fillRate: budgetReal ? investedReal / budgetReal : NaN,
+      // 실제 실현 배수 — 물가를 걷어낸 기준액(monthly × 그날 물가배수) 대비 실제 투입.
+      multMean: (buyAmts.length && monthly)
+        ? buyAmts.reduce((s2, a, k) => s2 + a / (monthly * buyScales[k]), 0) / buyAmts.length : NaN,
+      // 규칙이 지시한 배수의 평균 — 실현치와의 간격이 곧 '고갈로 못 산 몫'이다.
+      multTargetMean: buyAmts.length ? multTargetSum / buyAmts.length : NaN,
     };
   }
 
@@ -331,26 +375,58 @@
    * fixed 를 simulate 가 아니라 poolSimulate(null) 로 도는 건 회계 규약을 한 글자도 안 어긋나게
    * 하기 위해서다(두 결과가 같다는 건 파이썬 테스트가 강제한다).
    */
+  function idleCashPath(n, rfCash, cash0, first, off, dpy) {
+    // dca_sim._idle_cash_path 미러 — 예산 모드에서 거치식이 시드를 '투자하지 않고 이자만' 받게 한다.
+    const out = new Float64Array(n);
+    let c = 0;
+    for (let i = 0; i < n; i++) {
+      if (i === first) c += cash0;
+      const rr = rfCash ? (rfCash[off + i] || 0) : 0;
+      c *= 1 + rr / dpy;
+      out[i] = c;
+    }
+    return out;
+  }
+
   function compareFundingModes(dates, ret, fx, buyIdx, monthly, mult, rfCash, opts) {
     opts = opts || {};
     const buy = Array.from(buyIdx).map(Number).sort((a, b) => a - b);
-    const total = monthly * (buy.length + (opts.seedMonths || 0));
+    const off = opts.offset || 0, dpy = opts.dpy || DPY, budget = !!opts.budget;
+    const seedCash = monthly * (opts.seedMonths || 0);
+    // 거치식이 첫날 넣는 주식 금액 — 예산 모드면 시드를 빼고 그 시드는 현금으로 들고 있는다.
+    const total = monthly * buy.length + (budget ? 0 : seedCash);
     const vixSim = poolSimulate(ret, fx, buy, monthly, mult, rfCash, opts);
     const fixSim = poolSimulate(ret, fx, buy, monthly, null, rfCash, opts);
-    const lmpSim = lumpSum(ret, fx, buy, monthly, Object.assign({}, opts, { total }));
-    const vm = dcaMetrics(dates, vixSim), fm = dcaMetrics(dates, fixSim), lm = dcaMetrics(dates, lmpSim);
-    let multMean = NaN;
-    if (vixSim.buyAmts.length && monthly) {
-      let s = 0;
-      for (const a of vixSim.buyAmts) s += a / monthly;
-      multMean = s / vixSim.buyAmts.length;
+    let lmpSim = lumpSum(ret, fx, buy, monthly, Object.assign({}, opts, { total }));
+    const n = ret.length;
+    let firstJ = -1;
+    for (const b of buy) { const j = b - off; if (j >= 0 && j < n && (firstJ < 0 || j < firstJ)) firstJ = j; }
+    if (budget && seedCash > 0 && firstJ >= 0) {
+      const idle = idleCashPath(n, rfCash, seedCash, firstJ, off, dpy);
+      const eq = new Float64Array(n), ct = new Float64Array(n), cr = new Float64Array(n);
+      for (let i = 0; i < n; i++) {
+        const step = i >= firstJ ? seedCash : 0;
+        eq[i] = lmpSim.equity[i] + idle[i];
+        ct[i] = lmpSim.cost[i] + step;
+        cr[i] = lmpSim.costReal[i] + step;
+      }
+      lmpSim = Object.assign({}, lmpSim, {
+        equity: eq, cost: ct, costReal: cr,
+        flows: lmpSim.flows.concat([[off + firstJ, -seedCash]]),
+      });
     }
+    const vm = dcaMetrics(dates, vixSim), fm = dcaMetrics(dates, fixSim), lm = dcaMetrics(dates, lmpSim);
+    const multMean = vixSim.multMean;
     return {
       vix: vm, fixed: fm, lump: lm,
       pool: {
         investRate: vixSim.investRate, starved: vixSim.starved,
         leftoverCash: vixSim.leftoverCash, invested: vixSim.invested,
         totalInflow: vixSim.totalInflow, multMean,
+        multTargetMean: vixSim.multTargetMean,
+        investedReal: vixSim.investedReal, budgetReal: vixSim.budgetReal,
+        fillRate: vixSim.fillRate, investedFixed: fixSim.invested,
+        investedRealFixed: fixSim.investedReal, budget,
       },
       vsFixed: compareDcaLump(vm, fm), vsLump: compareDcaLump(vm, lm),
       sims: { vix: vixSim, fixed: fixSim, lump: lmpSim },

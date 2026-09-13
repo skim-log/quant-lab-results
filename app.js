@@ -5538,6 +5538,10 @@ function enterVixDca(d) {
     source: df.source || 'real',
     seed: String(df.seed_months == null ? 0 : df.seed_months),
     preset: df.preset || 'pct_standard',
+    // 총액 기준 — 'budget'(주식 투자액 고정, 기본) | 'inflow'(납입액 고정)
+    basis: df.basis || 'budget',
+    // 물가 기준 — 'real'(실질 고정, 기본) | 'nominal'(명목 고정). 적립식 시뮬레이터와 같은 규약.
+    price: df.price || 'real',
     start: null, end: null, period: 'max', _mult: {},
   };
   if (!state.vx.picks.size && d.assets.length) state.vx.picks.add(d.assets[0].key);
@@ -5575,6 +5579,8 @@ function enterVixDca(d) {
       _vxFull();
     }));
     document.getElementById('vx-seed').addEventListener('click', e => _vxToggle(e, 'seed', _vxFull));
+    document.getElementById('vx-basis').addEventListener('click', e => _vxToggle(e, 'basis', _vxFull));
+    document.getElementById('vx-price').addEventListener('click', e => _vxToggle(e, 'price', _vxFull));
     document.getElementById('vx-preset').addEventListener('click', e => _vxToggle(e, 'preset', () => {
       _vxSyncPresetNote(); _vxFull();
     }));
@@ -5635,6 +5641,19 @@ function _vxSyncAmountUnit() {
   const df = state.vx.d.defaults || {};
   el.value = (usd ? (df.monthly_usd || 1000) : (df.monthly_krw || 1000000)).toLocaleString('en-US');
 }
+/**
+ * 적립통화의 물가지수(마스터 축) — '실질 고정'이면 매달 같은 **구매력**을 넣는다.
+ * 적립식 시뮬레이터의 '비교 기준 = 실질 고정'과 같은 규약이라 두 화면 숫자를 나란히 볼 수 있다.
+ * 해당 통화 CPI 가 페이로드에 없으면 null → 엔진이 명목 고정으로 안전 퇴각한다.
+ */
+function _vxScale() {
+  if (state.vx.price === 'nominal') return null;
+  const d = state.vx.d;
+  const cpi = state.vx.ccy === 'krw' ? d.cpi_krw : d.cpi_usd;
+  return (cpi && cpi.length) ? cpi : null;
+}
+/** 실질 고정이 실제로 걸렸는가 — CPI 가 없어 명목으로 퇴각했으면 화면이 그 사실을 밝혀야 한다. */
+function _vxRealActive() { return state.vx.price !== 'nominal' && !!_vxScale(); }
 /** 적립통화의 현금 이자율(마스터 축) — 현금풀은 **항상** 이자를 받는다(장롱에 두지 않는다). */
 function _vxRfCash() {
   const d = state.vx.d;
@@ -5759,7 +5778,8 @@ function _vxRun(a, rng, monthly, multKey) {
   const ar = DCASIM.assetReturns(d, a, lo, hi, state.vx.source);
   const buy = DCASIM.monthFirstIndices(d.dates, lo, hi);
   const opt = { fee: d.fee, offset: lo, useFx, dpy: d.dpy,
-    seedMonths: parseFloat(state.vx.seed) || 0 };
+    seedMonths: parseFloat(state.vx.seed) || 0,
+    scale: _vxScale(), budget: state.vx.basis !== 'inflow' };
   const cmp = DCASIM.compareFundingModes(d.dates, ar.ret, d.fx, buy, monthly,
     _vxMult(multKey), _vxRfCash(), opt);
   return Object.assign({ asset: a, lo, hi, ar, buy, opt }, cmp);
@@ -5791,12 +5811,17 @@ function _vxRenderCards(r, monthly) {
     card('VIX 연동', _vxMoney(r.vix.final), `현금풀 · MDD ${fmtPct(r.vix.mdd)}`) +
     card('단순 적립', _vxMoney(r.fixed.final), `매달 정액 · MDD ${fmtPct(r.fixed.mdd)}`) +
     card('거치식', _vxMoney(r.lump.final), `첫날 일괄 · MDD ${fmtPct(r.lump.mdd)}`) +
-    card('총 납입액', _vxMoney(r.vix.totalCost),
-      `${_vxMoney(monthly)} × ${r.vix.months}회${seed ? ` + 시드 ${seed}개월` : ''} · 세 방식 동일`) +
+    (p.budget
+      ? card('주식 투자액', _vxMoney(p.budgetReal),
+          `${_vxMoney(monthly)} × ${r.vix.months}회${_vxRealActive() ? ' (첫 달 가치)' : ''} · ` +
+          `세 방식 동일 · 달성 ${fmtPct(p.fillRate)}`)
+      : card('총 납입액', _vxMoney(r.vix.totalCost),
+          `${_vxMoney(monthly)} × ${r.vix.months}회${seed ? ` + 시드 ${seed}개월` : ''} · 세 방식 동일`)) +
     card('÷ 단순 적립', _vxVs(vs.finalRatio), vs.dcaWins ? 'VIX 연동 승' : '단순 적립 승') +
     card('÷ 거치식', _vxVs(vl.finalRatio), vl.dcaWins ? 'VIX 연동 승' : '거치식 승') +
     card('평균 배수', isFinite(p.multMean) ? p.multMean.toFixed(2) + '배' : '—',
-      `투입률 ${fmtPct(p.investRate)} · 고갈 ${p.starved}회`) +
+      p.budget ? `규칙 지시 ${isFinite(p.multTargetMean) ? p.multTargetMean.toFixed(2) : '—'}배 · 고갈 ${p.starved}회`
+               : `투입률 ${fmtPct(p.investRate)} · 고갈 ${p.starved}회`) +
     card('평균단가', _vxCheap(r.vix, r.fixed), '단순 적립 대비 (−면 싸게 담음)');
 
   const vb = document.getElementById('vx-verdict');
@@ -5813,11 +5838,33 @@ function _vxRenderCards(r, monthly) {
     `아래 <b>사건 분해</b>에서 이 차이가 사건 몇 개에서 왔는지 반드시 확인하세요.</div>`;
 
   const leftover = p.leftoverCash / p.totalInflow;
-  document.getElementById('vx-pool-note').innerHTML =
-    `현금풀 회계: 매달 ${_vxMoney(monthly)}씩 풀로 들어오고, 거기서 <b>${_vxMoney(monthly)} × 배수</b>만큼 꺼내 삽니다. ` +
-    `풀 잔고보다 많이 사려 한 달(<b>고갈 ${p.starved}회</b>)은 잔고까지만 삽니다 — 신용이 아닙니다. ` +
-    `남은 현금은 적립통화 단기금리로 굴러가고 <b>최종 평가액에 포함</b>됩니다(기말 잔여 ${_vxMoney(p.leftoverCash)}, 총 유입의 ${fmtPct(leftover)}). ` +
-    `평소 배수가 1 미만이어야 공포 구간에 더 살 재원이 생깁니다 — 그게 이 전략이 치르는 비용입니다.`;
+  const realOn = _vxRealActive();
+  const priceBit = realOn
+    ? `납입액은 <b>실질 고정</b>입니다 — 매달 같은 금액이 아니라 같은 <b>구매력</b>을 넣습니다` +
+      `(첫 달 ${_vxMoney(monthly)} → 마지막 달 ${_vxMoney(r.vix.lastAmt)}). ` +
+      `적립식 시뮬레이터의 '실질 고정'과 같은 규약입니다. `
+    : (state.vx.price === 'real'
+        ? `<b>이 통화의 물가지수가 빌드에 없어 명목 고정으로 돌았습니다.</b> `
+        : `납입액은 <b>명목 고정</b>입니다 — 매달 같은 금액을 넣습니다(물가 보정 없음). `);
+  document.getElementById('vx-pool-note').innerHTML = priceBit + (p.budget
+    ? `예산 회계: 주식에 넣을 총액을 <b>${_vxMoney(p.budgetReal)}</b>로 먼저 고정하고, 매수일마다 ` +
+      `<b>남은 예산 ÷ 남은 횟수 × 배수</b>만큼 삽니다 — 많이 썼으면 기준이 줄고 아꼈으면 늘어나는 ` +
+      `<b>자기보정</b>이라 총액이 저절로 맞춰집니다(남은 예산·남은 횟수는 그 시점 정보뿐이라 룩어헤드가 없습니다). ` +
+      `마지막 매수일은 아낄 이유가 없어 배수와 무관하게 잔여를 소진합니다. ` +
+      `실제 달성 <b>${fmtPct(p.fillRate)}</b>${p.fillRate < 0.999 ? ' — 대기 현금이 물가에 녹은 만큼 못 채웁니다' : ''}. ` +
+      `아직 안 넣은 돈은 단기금리로 굴러가고 최종 평가액에 포함됩니다(기말 잔여 ${_vxMoney(p.leftoverCash)}). ` +
+      `<b>세 방식이 주식에 넣은 돈이 같으므로</b>, 남는 차이는 오직 <b>언제 넣었는가</b>입니다.`
+    : `현금풀 회계: 매달 ${_vxMoney(monthly)}씩 풀로 들어오고, 거기서 <b>${_vxMoney(monthly)} × 배수</b>만큼 꺼내 삽니다. ` +
+      `풀 잔고보다 많이 사려 한 달(<b>고갈 ${p.starved}회</b>)은 잔고까지만 삽니다 — 신용이 아닙니다. ` +
+      `남은 현금은 적립통화 단기금리로 굴러가고 <b>최종 평가액에 포함</b>됩니다(기말 잔여 ${_vxMoney(p.leftoverCash)}, 총 유입의 ${fmtPct(leftover)}). ` +
+      `<b>주의 — 주식에 실제로 들어간 돈은 대조군보다 ${fmtPct(1 - p.fillRate)} 적습니다</b>(투입률 ${fmtPct(p.investRate)}). ` +
+      `'덜 넣어서 진 것'과 '타이밍이 틀려서 진 것'을 가르려면 위 토글을 <b>주식 투자액 고정</b>으로 바꿔 보세요.`);
+
+  document.getElementById('vx-basis-note').innerHTML = p.budget
+    ? `<b>주식 투자액 고정</b> — 세 방식이 주식에 넣는 총액이 같습니다. "같은 돈을 주식에 넣을 때 ` +
+      `<b>시점만</b> VIX로 바꾸면 유리한가"를 묻습니다. 지갑에서 나가는 돈은 방식마다 다를 수 있습니다.`
+    : `<b>납입액 고정</b> — 지갑에서 나가는 돈이 매달 같습니다. VIX 전략은 아낀 돈을 끝까지 다 쓰지 못해 ` +
+      `<b>주식에 들어간 총액이 대조군보다 적습니다</b>. "내 지갑 제약이 같을 때 어느 쪽이 낫나"를 묻습니다.`;
 }
 function _vxVs(ratio) {
   if (!isFinite(ratio)) return '—';
@@ -5882,19 +5929,29 @@ function _vxRenderTable(runs) {
       `<td>${_vxVs(r.vsLump.finalRatio)}</td>` +
       `<td>${fmtPct(r.vix.xirr)}</td><td>${fmtPct(r.fixed.xirr)}</td>` +
       `<td>${fmtPct(r.vix.mdd)}</td><td>${fmtPct(r.fixed.mdd)}</td>` +
-      `<td>${num(r.pool.multMean)}배</td><td>${fmtPct(r.pool.investRate)}</td></tr>`;
+      // 예산 모드에서 '투입률'(= 투자액 ÷ 유입액)은 이자까지 투자되면 100% 를 넘어 오독을 부른다.
+      // 그 모드가 묻는 건 '예산을 얼마나 채웠나'이므로 달성률을 보여 준다.
+      `<td>${num(r.pool.multMean)}배</td>` +
+      `<td>${fmtPct(budgetMode ? r.pool.fillRate : r.pool.investRate)}</td></tr>`;
   };
+  const budgetMode = !!(runs[0] && runs[0].pool && runs[0].pool.budget);
   document.getElementById('vx-table').innerHTML =
     '<thead><tr><th class="name">종목</th><th>VIX 연동</th><th>단순 적립</th><th>거치식</th>' +
     '<th>÷단순</th><th>÷거치</th><th>XIRR(VIX)</th><th>XIRR(단순)</th>' +
-    '<th>MDD(VIX)</th><th>MDD(단순)</th><th>평균배수</th><th>투입률</th></tr></thead><tbody>' +
+    `<th>MDD(VIX)</th><th>MDD(단순)</th><th>평균배수</th><th>${budgetMode ? '예산 달성' : '투입률'}</th></tr></thead><tbody>` +
     runs.map(row).join('') + '</tbody>';
   const wins = runs.filter(r => r.vsFixed.finalRatio > 1).length;
   document.getElementById('vx-table-note').innerHTML =
     `선택 종목 ${runs.length}개 중 <b>${wins}개</b>에서 VIX 연동이 단순 적립을 이겼습니다. ` +
     `종목마다 시작일이 다르면(실제 ETF 상장일) 각 행의 기간이 다를 수 있습니다 — ` +
     `종목 간 직접 비교보다 <b>같은 행 안의 세 방식 비교</b>가 이 화면의 질문입니다. ` +
-    `MDD 열도 함께 보세요: 현금풀은 하락장에 현금을 들고 있어 낙폭이 얕아지는 경향이 있습니다.`;
+    `MDD 열도 함께 보세요: 현금풀은 하락장에 현금을 들고 있어 낙폭이 얕아지는 경향이 있습니다.` +
+    (budgetMode
+      ? ` <b>예산 모드에서 특히 볼 것 — 평균단가</b>: 납입액 고정에서는 VIX 연동이 단순 적립보다 ` +
+        `싸게 담지만, 주식 투자액을 맞추면 대개 <b>더 비싸게</b> 담습니다. 아껴 둔 예산이 결국 ` +
+        `나중에 투입되는데 시장은 대체로 우상향이라 '나중'이 '비쌈'이기 때문입니다 — ` +
+        `즉 낮은 평균단가는 규칙의 성과가 아니라 <b>돈을 덜 쓴 결과</b>였던 셈입니다.`
+      : '');
 }
 
 function _vxRenderEpisodes(r, monthly) {

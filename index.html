@@ -24,7 +24,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=1f991c65" />
+  <link rel="stylesheet" href="style.css?v=cfd3ff55" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -1032,6 +1032,19 @@
             <button type="button" data-seed="12">12개월</button>
           </div>
         </div>
+        <div class="bt-controls dca-controls">
+          <span class="muted">무엇을 같게 두나</span>
+          <div id="vx-basis" class="bt-toggle">
+            <button type="button" data-basis="budget" class="active">주식 투자액 고정</button>
+            <button type="button" data-basis="inflow">납입액 고정</button>
+          </div>
+          <span class="muted">물가</span>
+          <div id="vx-price" class="bt-toggle">
+            <button type="button" data-price="real" class="active">실질 고정</button>
+            <button type="button" data-price="nominal">명목 고정</button>
+          </div>
+        </div>
+        <p class="period-note" id="vx-basis-note"></p>
         <div class="bt-controls">
           <span class="muted">배수 규칙</span>
           <div id="vx-preset" class="bt-toggle"></div>
@@ -1392,13 +1405,13 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="explain.js?v=1f991c65" defer></script>
-  <script src="alloc.js?v=1f991c65" defer></script>
-  <script src="re_apt.js?v=1f991c65" defer></script>
-  <script src="analytics-live.js?v=1f991c65" defer></script>
-  <script src="leverage.js?v=1f991c65" defer></script>
-  <script src="dca.js?v=1f991c65" defer></script>
-  <script src="lab.js?v=1f991c65" defer></script>
-  <script src="app.js?v=1f991c65" defer></script>
+  <script src="explain.js?v=cfd3ff55" defer></script>
+  <script src="alloc.js?v=cfd3ff55" defer></script>
+  <script src="re_apt.js?v=cfd3ff55" defer></script>
+  <script src="analytics-live.js?v=cfd3ff55" defer></script>
+  <script src="leverage.js?v=cfd3ff55" defer></script>
+  <script src="dca.js?v=cfd3ff55" defer></script>
+  <script src="lab.js?v=cfd3ff55" defer></script>
+  <script src="app.js?v=cfd3ff55" defer></script>
 </body>
 </html>

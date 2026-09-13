@@ -308,9 +308,17 @@ for (const vc of (fix.vix_cases || [])) {
   });
   checkArr(`${vc.name} mult`, mult, vc.mult);
   const buy = DCA.monthFirstIndices(dates, lo, hi);
+  // 총액 기준(예산/납입액) · 물가 기준(실질/명목) 토글을 픽스처가 지정한 대로 태운다.
+  const scale = vc.price === 'real' ? (useFx ? d.cpi_krw : d.cpi_usd) : null;
+  if (vc.price === 'real' && !(scale && scale.length)) {
+    console.error(`✗ ${vc.name}: CPI 없음(실질 케이스인데 페이로드에 물가지수가 없다)`); fails++; continue;
+  }
+  // opts 는 한 번만 만들어 compareFundingModes·leaveOneEpisodeOut 이 **같은 것**을 쓰게 한다 —
+  // 한쪽에만 scale/budget 을 빠뜨리면 JS 가 조용히 다른 모드를 돌아 패리티가 거짓으로 갈린다.
+  const vopt = { fee: fix.fee, useFx, offset: lo, dpy: d.dpy, seedMonths: vc.seed_months,
+                 scale, budget: vc.basis === 'budget' };
   const cmp = DCA.compareFundingModes(dates, ar.ret, useFx ? d.fx : fxOne, buy, vc.monthly,
-    mult, useFx ? d.rf_krw : d.rf,
-    { fee: fix.fee, useFx, offset: lo, dpy: d.dpy, seedMonths: vc.seed_months });
+    mult, useFx ? d.rf_krw : d.rf, vopt);
   checkArr(`${vc.name} equity`, cmp.sims.vix.equity, vc.equity);
   checkArr(`${vc.name} cost`, cmp.sims.vix.cost, vc.cost);
   checkArr(`${vc.name} cash`, cmp.sims.vix.cash, vc.cash);
@@ -325,12 +333,36 @@ for (const vc of (fix.vix_cases || [])) {
     }
   }
   // 총 유입이 세 방식에서 같아야 한다 — 이게 깨지면 '같은 총액 비교'라는 전제가 무너진다.
+  // 단 **실질 고정 모드의 거치식**은 첫 매수일에 '그 시절 가치로 환산한 총액'을 한 번에 넣으므로
+  // 명목 총액이 다른 게 정상이다(lump_simulate docstring). 그때는 실질 총액으로 본다.
   for (const leg of ['fixed', 'lump']) {
-    checkNum(`${vc.name} totalCost 일치(${leg})`, cmp[leg].totalCost, cmp.vix.totalCost, 1e-12);
+    const nominalOk = !(vc.price === 'real' && leg === 'lump');
+    if (nominalOk) {
+      checkNum(`${vc.name} totalCost 일치(${leg})`, cmp[leg].totalCost, cmp.vix.totalCost, 1e-12);
+    } else {
+      checkNum(`${vc.name} realCost 일치(${leg})`, cmp[leg].realCost, cmp.vix.realCost, 1e-9);
+    }
   }
   checkNum(`${vc.name}.pool investRate`, cmp.pool.investRate, vc.pool.invest_rate);
   checkNum(`${vc.name}.pool leftoverCash`, cmp.pool.leftoverCash, vc.pool.leftover_cash);
   checkNum(`${vc.name}.pool multMean`, cmp.pool.multMean, vc.pool.mult_mean);
+  checkNum(`${vc.name}.pool multTargetMean`, cmp.pool.multTargetMean, vc.pool.mult_target_mean);
+  checkNum(`${vc.name}.pool investedReal`, cmp.pool.investedReal, vc.pool.invested_real);
+  checkNum(`${vc.name}.pool budgetReal`, cmp.pool.budgetReal, vc.pool.budget_real);
+  checkNum(`${vc.name}.pool fillRate`, cmp.pool.fillRate, vc.pool.fill_rate);
+  checkNum(`${vc.name}.pool investedRealFixed`, cmp.pool.investedRealFixed,
+    vc.pool.invested_real_fixed);
+  // 예산 모드의 존재 이유 — 주식에 넣는 **실질 총액**이 세 방식에서 같아야 한다.
+  // 대조군(고정 적립)은 정의상 정확히 예산을 채운다. VIX 쪽은 대기 현금이 물가에 녹으면
+  // 못 채울 수 있으므로(설계상 허용 — fill_rate 가 그걸 드러낸다) '넘지 않는다'만 강제한다.
+  if (vc.basis === 'budget') {
+    checkNum(`${vc.name} 고정적립 예산 정확 충족`, cmp.pool.investedRealFixed,
+      cmp.pool.budgetReal, 1e-9);
+    if (cmp.pool.investedReal > cmp.pool.budgetReal * (1 + 1e-9)) {
+      console.error(`✗ ${vc.name} 예산 초과 투자: ${cmp.pool.investedReal} > ${cmp.pool.budgetReal}`);
+      fails++;
+    }
+  }
   if (cmp.pool.starved !== vc.pool.starved) {
     console.error(`✗ ${vc.name}.pool starved: ${cmp.pool.starved} ≠ ${vc.pool.starved}`); fails++;
   }
@@ -349,8 +381,7 @@ for (const vc of (fix.vix_cases || [])) {
       checkNum(`${vc.name} 사건[${i}] peakVix`, e.peakVix, E.peak_vix);
     });
     const loo = DCA.leaveOneEpisodeOut(dates, ar.ret, useFx ? d.fx : fxOne, buy, vc.monthly,
-      mult, useFx ? d.rf_krw : d.rf,
-      eps, { fee: fix.fee, useFx, offset: lo, dpy: d.dpy, seedMonths: vc.seed_months });
+      mult, useFx ? d.rf_krw : d.rf, eps, vopt);
     loo.forEach((r, i) => {
       checkNum(`${vc.name} loo[${i}] ratioWithout`, r.ratioWithout, vc.loo[i].ratio_without);
       checkNum(`${vc.name} loo[${i}] share`, r.share, vc.loo[i].share, 1e-8);
@@ -359,11 +390,12 @@ for (const vc of (fix.vix_cases || [])) {
   // 배수 ≡ 1(off) 이면 현금풀은 단순 적립과 완전히 같아야 한다(파이썬 불변식의 JS 판).
   if (vc.preset === 'off') {
     const plain = DCA.simulate(ar.ret, useFx ? d.fx : fxOne, buy, vc.monthly,
-      { fee: fix.fee, useFx, offset: lo });
+      { fee: fix.fee, useFx, offset: lo, scale });
     checkArr(`${vc.name} off ≡ simulate`, cmp.sims.vix.equity, Array.from(plain.equity));
   }
   if (!fails) console.log(`✓ ${vc.name}  평균배수=${cmp.pool.multMean.toFixed(2)} ` +
-    `투입률=${(cmp.pool.investRate * 100).toFixed(0)}% | VIX풀/고정=${cmp.vsFixed.finalRatio.toFixed(3)} ` +
+    `투입률=${(cmp.pool.investRate * 100).toFixed(0)}% 달성률=${(cmp.pool.fillRate * 100).toFixed(1)}% ` +
+    `| VIX풀/고정=${cmp.vsFixed.finalRatio.toFixed(3)} ` +
     `VIX풀/거치=${cmp.vsLump.finalRatio.toFixed(3)}`);
 }
 
