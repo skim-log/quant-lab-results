@@ -1153,8 +1153,17 @@ function applyLevel(level, persist) {
   // buildNav 는 보던 대분류·분류를 보존하므로 화면이 튀지 않는다.
   if (state.manifest && state.manifest.length) buildNav();
   _syncExplainerOpen();
+  _syncIntros();
   if (state.data && !document.body.classList.contains('tools-mode')) render();   // 지표표 열 수가 모드마다 다름
   _resizeVisiblePlots();
+}
+/**
+ * 섹션 설명문(details.intro) — 초보자용은 접고, 전문가용은 펼친다.
+ * 설명이 카드 위에 깔리면 읽지 않고 스크롤로 건너뛴다. 정보를 지우는 게 아니라 순서를 바꾼다.
+ * 사용자가 직접 펼친 것은 존중한다(모드를 다시 건드리기 전까지 유지).
+ */
+function _syncIntros() {
+  document.querySelectorAll('details.intro').forEach(d => { d.open = !isBasic(); });
 }
 /** 초보자용에서는 전략 설명 아코디언을 기본으로 펼쳐 둔다(접혀 있으면 아무도 안 연다). */
 function _syncExplainerOpen() {
@@ -1189,6 +1198,7 @@ function setupLevel() {
   });
   const ex = document.getElementById('strategy-explainer');
   if (ex) ex.addEventListener('toggle', () => ex.setAttribute('data-user-toggled', '1'));
+  _syncIntros();
   _maybeShowLevelBanner();
 }
 
@@ -1355,7 +1365,24 @@ function setCategory(cat) {
   const groups = groupsIn(cat);
   document.getElementById('group').innerHTML =
     groups.map(g => `<option value="${g}">${g}</option>`).join('');
+  _syncSingleChoice();
   setGroup(groups[0]);
+}
+/**
+ * 선택지가 하나뿐인 컨트롤은 초보자용에서 감춘다 — 고를 게 없는 칸이 화면을 먹고, 뭘 골라야
+ * 하는지 모르는 사람에게는 오히려 선택을 요구하는 것처럼 보인다(추천 탭의 '분류: 추천 전략',
+ * '전략/프리셋: 추천 전략'이 그랬다). 전문가용에서는 구조가 보이도록 그대로 둔다.
+ */
+function _syncSingleChoice() {
+  const one = (el, n) => { if (el) el.classList.toggle('ctl-solo', isBasic() && n <= 1); };
+  one(document.getElementById('cat-ctl'), document.querySelectorAll('#cat-tabs button').length);
+  one(document.getElementById('group-ctl'), document.querySelectorAll('#group option').length);
+  // 안의 컨트롤이 전부 감춰진 줄은 빈 여백만 남는다 — 줄째로 접는다.
+  document.querySelectorAll('main > .controls .control-row').forEach(row => {
+    row.classList.remove('ctl-solo');
+    const live = [...row.children].some(el => el.offsetParent !== null);
+    row.classList.toggle('ctl-solo', !live);
+  });
 }
 function setGroup(g) {
   state.nav.group = g;
@@ -1372,6 +1399,8 @@ function setCurrency(cur) {
   });
   const entry = resolveEntry(state.nav.category, state.nav.group, cur);
   if (!entry) return;
+  setTimeout(_syncSingleChoice, 0);   // 뷰 전환으로 컨트롤 표시가 바뀐 뒤 다시 판정
+
   if (state._navSilent) return;   // 무음 내비: UI·상태만 갱신, 실제 로드는 호출부(gotoDataset 등)가 1회만 수행
   state._navToken++;   // 뷰 전환 시작 표식 → 진행 중이던 비동기 로드 무효화. loadX 도 진입 시 증가하지만,
                        // enterReco/guide/blend 등 '동기' 뷰는 로더를 안 거치므로 여기서 올려야 stale 로드가 덮어쓰지 못함.
@@ -1545,18 +1574,33 @@ function _recoYears(per) {                          // "YYYY-MM-DD~YYYY-MM-DD" �
 function _recoCardHtml(entry, met, spark, why, labelOverride) {
   const pct = x => (x == null || !isFinite(x)) ? '—' : (x * 100).toFixed(1) + '%';
   const rat = x => (x == null || !isFinite(x)) ? '—' : Number(x).toFixed(2);
-  const title = labelOverride || entry.label.replace(/\s*\((USD|KRW)\)\s*$/, '');
+  let title = labelOverride || entry.label.replace(/\s*\((USD|KRW)\)\s*$/, '');
+  // 섹션 제목이 이미 말하는 분류 접두어는 카드마다 반복돼 눈을 어지럽힌다 — 초보자용에선 뗀다.
+  if (isBasic()) title = title.replace(/^(동적 자산배분|정적 자산배분|모멘텀)\s*·\s*/, '');
   const cur = entry.currency ? ` · ${entry.currency.toUpperCase()}` : '';
   const yrs = _recoYears(met && met.period);
   // 기간을 눈에 띄는 배지로(전략마다 검증 기간이 달라 지표 비교 시 주의 — 사용자 요청).
   const period = `<div class="reco-period">📅 <b>${yrs || '기간 미상'}</b>${met && met.period ? ` · ${met.period}` : ''}${cur}</div>`;
+  // 초보자용 지표 — **평문이 주, 용어는 작은 보조**. 세 숫자를 같은 크기로 늘어놓으면 눈이
+  // 어디 멈출지 모른다 → 연평균 수익 하나만 크게 세우고 나머지는 아래에 작게 붙인다.
+  const metrics = isBasic()
+    ? `<div class="reco-metrics rm-basic">` +
+        `<div class="rm-hero"><span class="rm-lab">연평균 수익 <i>CAGR</i></span>` +
+        `<span class="rm-val">${pct(met && met.cagr)}</span></div>` +
+        `<div class="rm-sub">` +
+        `<span><span class="rm-lab">최대 하락 <i>MDD</i></span><b>${pct(met && met.mdd)}</b></span>` +
+        `<span><span class="rm-lab">위험 대비 <i>Sharpe</i></span><b>${rat(met && met.sharpe)}</b></span>` +
+        // 기간은 별도 배지 줄을 하나 더 쓰는 대신 같은 줄에 넣는다 — 카드마다 30px 씩 아낀다.
+        // 전략마다 검증 기간이 달라 **반드시 보여야 하는 값**이라 지우지는 않는다.
+        `<span><span class="rm-lab">검증 기간</span><b>${yrs || '—'}</b></span>` +
+        `</div></div>`
+    : `<div class="reco-metrics"><span><b>CAGR</b> ${pct(met && met.cagr)}</span>` +
+      `<span><b>MDD</b> ${pct(met && met.mdd)}</span><span><b>Sharpe</b> ${rat(met && met.sharpe)}</span></div>`;
   return `<div class="reco-card"><div class="reco-head">` +
     `<span class="reco-title">${title}</span>` +
     `<button type="button" class="reco-apply" data-reco-goto="${entry.id}">자세히 보기 →</button></div>` +
     `<div class="reco-why">${why}</div>${spark || ''}` +
-    `<div class="reco-metrics"><span><b>CAGR</b> ${pct(met && met.cagr)}</span>` +
-    `<span><b>MDD</b> ${pct(met && met.mdd)}</span><span><b>Sharpe</b> ${rat(met && met.sharpe)}</span></div>` +
-    period + `</div>`;
+    metrics + (isBasic() ? '' : period) + `</div>`;
 }
 async function _recoRenderInto(elId, picks) {
   const el = document.getElementById(elId); if (!el) return;
@@ -1570,6 +1614,28 @@ async function _recoRenderInto(elId, picks) {
     return _recoCardHtml(r.entry, met, s && _sparkline(s.nav), p.why, p.label);
   }).filter(Boolean).join('');
   el.innerHTML = html || '<p class="period-note">표시할 추천 데이터가 없습니다(빌드 전이거나 데이터셋 누락).</p>';
+  _capCards(el);
+}
+/**
+ * 초보자용에서 한 묶음에 카드가 8장씩 쏟아지면 고를 수가 없다 — 4장만 보이고 나머지는 버튼으로.
+ * 숨김은 클래스로만 하므로 '더 보기'를 누르면 즉시 나타난다(다시 그리지 않는다).
+ */
+function _capCards(el, keep) {
+  const cards = [...el.querySelectorAll(':scope > .reco-card')];
+  const old = el.parentElement && el.parentElement.querySelector(`[data-more-for="${el.id}"]`);
+  if (old) old.remove();
+  cards.forEach(c => c.classList.remove('rc-hidden'));
+  const n = keep || 4;
+  if (!isBasic() || cards.length <= n + 1) return;
+  cards.slice(n).forEach(c => c.classList.add('rc-hidden'));
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'reco-more'; btn.dataset.moreFor = el.id;
+  btn.textContent = `${cards.length - n}개 더 보기`;
+  btn.addEventListener('click', () => {
+    cards.forEach(c => c.classList.remove('rc-hidden'));
+    btn.remove();
+  });
+  el.insertAdjacentElement('afterend', btn);
 }
 function renderRecoBlendCards() {                   // 큐레이션 조합(블렌딩 탭의 RECO_BLENDS 재사용)
   const el = document.getElementById('reco-fin-blends'); if (!el) return;
@@ -1580,6 +1646,7 @@ function renderRecoBlendCards() {                   // 큐레이션 조합(블�
     `<div class="reco-w">${r.legs.map(l => `${RECO_LABEL[l.base] || l.base} ${l.w}%`).join(' · ')}</div>` +
     `<div class="reco-period">지표는 「블렌딩에서 열기」에서 확인</div></div>`;
   el.innerHTML = RECO_BLENDS.map(card).join('');
+  _capCards(el);
 }
 function renderRecoTab() {
   if (!state._recoWired) {                           // 카드 클릭 위임(딥링크 · 조합 열기)
@@ -1661,6 +1728,11 @@ const LB_COLS = [
   { k: 'total', t: '총수익', kind: 'pct' }, { k: 'period', t: '기간', kind: 'per' },
 ];
 const LB_CAT = { dynamic: '동적', static: '정적', momentum: '모멘텀', crypto: '코인' };
+// 초보자용 랭킹표 — 105행 × 10열(1,200칸 넘는 표)은 읽는 표가 아니라 벽이다.
+// 상위 몇 개 × 핵심 4열만 보여 주고 전체는 전문가용으로 넘긴다. 용어는 평문으로 바꾼다.
+const LB_BASIC_COLS = ['name', 'cagr', 'mdd', 'sharpe'];
+const LB_BASIC_TITLE = { cagr: '연평균', mdd: '최대 하락', sharpe: '위험 대비' };
+const LB_BASIC_ROWS = 8;
 async function _lbLoad() {
   if (state.recoLb) return state.recoLb;
   try { state.recoLb = ((await (await fetch('data/leaderboard.json', { cache: 'no-cache' })).json()).rows) || []; }
@@ -1762,19 +1834,23 @@ function _lbDraw() {
     return s.dir * (num(a[s.k]) - num(b[s.k]));
   });
   const sel = _lbSelSet(), full = sel.size >= LB_MAX_PICK;
-  const head = '<tr><th class="lb-pick" title="비교할 전략 선택"></th>' + LB_COLS.map(c => {
+  const basic = isBasic();
+  const COLS = basic ? LB_COLS.filter(c => LB_BASIC_COLS.includes(c.k)) : LB_COLS;
+  const head = '<tr><th class="lb-pick" title="비교할 전략 선택"></th>' + COLS.map(c => {
     const numc = !['name', 'cat', 'period'].includes(c.k);
     // 활성 열은 ▲/▼, 그 외 정렬 가능한 열은 흐린 ↕ 를 항상 표시 → "클릭해 정렬" 신호를 명시.
     const arr = (c.k === s.k) ? `<span class="sort-active">${s.dir < 0 ? '▼' : '▲'}</span>` : '<span class="sort-ind">↕</span>';
-    return `<th data-k="${c.k}"${numc ? ' class="num"' : ''}>${c.t} ${arr}</th>`;
+    const t = basic ? (LB_BASIC_TITLE[c.k] || c.t) : c.t;
+    return `<th data-k="${c.k}"${numc ? ' class="num"' : ''}>${t} ${arr}</th>`;
   }).join('') + '</tr>';
-  const body = list.map(r => {
+  const shown = basic ? list.slice(0, LB_BASIC_ROWS) : list;
+  const body = shown.map(r => {
     const on = sel.has(r.name);
     // 상한에 도달하면 **안 고른 행만** 잠근다 — 해제는 언제든 가능해야 한다.
     const box = `<td class="lb-pick"><input type="checkbox" data-pick="${_esc(r.name)}"` +
       `${on ? ' checked' : ''}${(!on && full) ? ' disabled title="최대 ' + LB_MAX_PICK + '개"' : ''} ` +
       `aria-label="${_esc(r.name)} 비교 선택" /></td>`;
-    return `<tr data-id="${r.id}"${on ? ' class="lb-picked"' : ''} title="클릭 → 전체 백테스트">` + box + LB_COLS.map(c => {
+    return `<tr data-id="${r.id}"${on ? ' class="lb-picked"' : ''} title="클릭 → 전체 백테스트">` + box + COLS.map(c => {
     if (c.k === 'name') return `<td class="lb-name">${r.name}</td>`;
     if (c.k === 'cat') return `<td>${LB_CAT[r.cat] || r.cat}</td>`;
     if (c.k === 'period') return `<td class="num">${_recoYears(r.period) || '—'}</td>`;
@@ -1784,7 +1860,20 @@ function _lbDraw() {
   const tbl = document.getElementById('reco-lb-table');
   if (tbl) tbl.innerHTML = `<thead>${head}</thead><tbody>${body}</tbody>`;
   const cnt = document.getElementById('reco-lb-count');
-  if (cnt) cnt.textContent = `${list.length}개 · ${cur === 'krw' ? '원화' : '달러'} 기준`;
+  if (cnt) cnt.textContent = basic
+    ? `상위 ${shown.length}개 · ${cur === 'krw' ? '원화' : '달러'} 기준`
+    : `${list.length}개 · ${cur === 'krw' ? '원화' : '달러'} 기준`;
+  // 잘라 냈다는 사실과 전체를 보는 길을 같이 남긴다(숨겼다는 걸 숨기지 않는다).
+  const wrap = tbl && tbl.closest('.lb-wrap');
+  const prev = document.getElementById('lb-showall');
+  if (prev) prev.remove();
+  if (basic && wrap && list.length > shown.length) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.id = 'lb-showall'; b.className = 'reco-more';
+    b.textContent = `전체 ${list.length}개 순위 보기 (전문가용) →`;
+    b.addEventListener('click', () => applyLevel('expert', true));
+    wrap.insertAdjacentElement('afterend', b);
+  }
   _lbSelSync();
 }
 

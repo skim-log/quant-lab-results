@@ -804,3 +804,73 @@ html[data-mode="basic"] #strategy-explainer { margin-top: 0.4rem; }
 .lb-table td.lb-pick, .lb-table th.lb-pick { width: 2.2rem; text-align: center; padding-right: 0; }
 .lb-table td.lb-pick input { cursor: pointer; }
 .lb-table tr.lb-picked { background: var(--surface-2); }
+
+/* ---- P0 헤더 모바일 붕괴 수정 -----------------------------------------------
+   .header-inner 는 flex + space-between 인데 .header-actions 가 flex:none 이라
+   좁은 화면에서 제목 쪽이 0 에 가깝게 눌려 한 글자씩 줄바꿈됐다(430px 에서 첫 화면
+   950px 를 제목이 잡아먹음). 좁을 땐 제목과 버튼을 **각자 한 줄씩** 쓰게 한다. */
+@media (max-width: 640px) {
+  .header-inner { flex-wrap: wrap; gap: 0.55rem; }
+  .header-titles { flex: 1 1 100%; }
+  .header-actions { flex: 1 1 100%; justify-content: flex-start; flex-wrap: wrap; gap: 0.4rem; }
+  /* 부제는 사이트 소개문이라 휴대폰 초보자용에선 첫 화면을 차지할 값어치가 없다. */
+  html[data-mode="basic"] .subtitle { display: none; }
+}
+
+/* ---- P1 설명문 접기 ---------------------------------------------------------
+   설명이 카드 위에 깔리면 읽지 않고 스크롤로 건너뛴다 — 보고, 궁금하면 펼치게 한다.
+   전문가용에서는 app.js 가 open 을 붙여 지금까지와 같이 펼쳐진 채로 보인다. */
+details.intro { margin: 0.3rem 0 0.6rem; }
+details.intro > summary {
+  cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 0.25rem;
+  font-size: 0.8rem; color: var(--muted); padding: 0.16rem 0.5rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2);
+}
+details.intro > summary::-webkit-details-marker { display: none; }
+details.intro > summary:hover { color: var(--fg); border-color: var(--border-strong); }
+details.intro[open] > summary { margin-bottom: 0.35rem; }
+details.intro > p { margin: 0.2rem 0 0; }
+
+/* ---- P2·P3 초보자용 카드 — 숫자에 위계를 준다 ---------------------------------
+   기존엔 보이는 요소 1,000개가 전부 13.4px 라 눈이 멈출 곳이 없었다. '깔끔함'은 여백보다
+   **위계**에서 온다 — 연평균 수익 하나만 크게 세우고, 나머지는 작게 회색으로 내린다.
+   용어(CAGR·MDD·Sharpe)는 지우지 않고 평문 옆 작은 보조로 남겨 자연스럽게 익히게 한다. */
+.reco-metrics.rm-basic { display: block; }
+.rm-hero { display: flex; flex-direction: column; gap: 0.05rem; margin: 0.1rem 0 0.45rem; }
+.rm-lab { font-size: 0.72rem; color: var(--muted); font-weight: 500; letter-spacing: 0; }
+.rm-lab i { font-style: normal; opacity: 0.6; font-size: 0.68rem; margin-left: 0.15rem; }
+.rm-val {
+  font-size: 1.7rem; font-weight: 800; line-height: 1.15; letter-spacing: -0.03em;
+  color: var(--fg); font-variant-numeric: tabular-nums;
+}
+.rm-sub { display: flex; gap: 1.4rem; flex-wrap: wrap; }
+.rm-sub > span { display: flex; flex-direction: column; gap: 0.02rem; }
+.rm-sub b { font-size: 0.95rem; font-weight: 700; color: var(--fg); font-variant-numeric: tabular-nums; }
+html[data-mode="basic"] .reco-card { padding: 0.85rem 1rem 0.9rem; }
+html[data-mode="basic"] .reco-title { font-size: 1rem; }
+html[data-mode="basic"] .reco-why { color: var(--muted); font-size: 0.83rem; margin: 0.3rem 0 0.15rem; }
+html[data-mode="basic"] .reco-cards { gap: 0.7rem; }
+/* 초보자용에선 섹션 제목이 굵은 덩어리로 연달아 나와 얼룩져 보인다 — 한 단계 눌러 준다. */
+html[data-mode="basic"] #reco-section h2 { font-size: 1.12rem; }
+html[data-mode="basic"] .reco-presets-title { font-size: 0.92rem; color: var(--muted); font-weight: 600; }
+
+/* 더 보기 / 전체 순위 보기 — 목록을 자르되 자른 사실과 나가는 길을 남긴다. */
+.reco-more {
+  display: block; width: 100%; margin: 0.1rem 0 0.9rem; padding: 0.55rem 0.8rem;
+  font-size: 0.85rem; font-family: inherit; cursor: pointer; color: var(--fg);
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+.reco-more:hover { border-color: var(--border-strong); background: var(--surface); }
+.reco-card.rc-hidden { display: none; }
+
+/* 선택지가 하나뿐인 컨트롤(초보자용) — 고를 게 없는 칸은 화면만 먹는다. */
+.ctl-solo { display: none !important; }
+/* 초보자용 추천 탭: 제목의 부연 문구와 패널 여백을 한 단계 눌러 카드가 먼저 보이게 한다. */
+html[data-mode="basic"] #reco-section h2 .muted { display: none; }
+html[data-mode="basic"] #reco-section .panel { padding-top: 0.9rem; padding-bottom: 0.9rem; }
+
+/* 첫 패널은 제목 + 설명 토글뿐이라 초보자용에선 '빈 카드'처럼 보인다 — 카드 껍데기를 벗겨
+   페이지 머리글로 읽히게 한다(내용은 그대로). */
+html[data-mode="basic"] #reco-section > section.panel:first-child {
+  background: none; border: none; box-shadow: none; padding: 0.2rem 0 0; margin-bottom: 0.1rem;
+}

@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=cd5c114e" />
+  <link rel="stylesheet" href="style.css?v=20ce0c6a" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -67,11 +67,11 @@
           <span class="label">영역</span>
           <div class="cat-tabs" id="super-tabs"></div>
         </div>
-        <div class="ctl ctl-nav">
+        <div class="ctl ctl-nav" id="cat-ctl">
           <span class="label">분류</span>
           <div class="cat-tabs" id="cat-tabs"></div>
         </div>
-        <label class="ctl">전략 / 프리셋
+        <label class="ctl" id="group-ctl">전략 / 프리셋
           <select id="group"></select>
         </label>
         <div class="ctl ctl-cur">
@@ -216,21 +216,27 @@
     <div id="reco-section" class="hidden">
       <section class="panel">
         <h2>추천 전략 <span class="muted">— 어디서 시작할지 고르는 큐레이션</span></h2>
+        <details class="intro"><summary>ℹ️ 이 목록은 뭔가요?</summary>
         <p class="period-note">이 사이트엔 수십 개의 전략이 있어 처음엔 막막할 수 있습니다. 아래는 <strong>대표적이고 공부하기 좋은 출발점</strong> 몇 가지를 추린 것입니다. 카드의 <em>“자세히 보기”</em>를 누르면 그 전략의 전체 백테스트 화면으로 이동합니다. <strong>특정 전략을 권유하는 것이 아니며, 모든 수치는 과거 백테스트</strong>라 미래 수익을 보장하지 않습니다.</p>
+        </details>
       </section>
 
       <section class="panel">
         <h2>핵심 금융자산 전략</h2>
+        <details class="intro"><summary>ℹ️ 어떻게 골랐고, 지표는 무슨 뜻인가요?</summary>
         <p class="period-note">유동적인 ETF·자산배분 전략을 <strong>원화 기준</strong>으로 봅니다(카드 클릭 후 달러 전환 가능). <strong>원화 위험 대비 수익(Sharpe) 상위 + 성격 다양성</strong>으로 선별했습니다(전체 순위는 아래 “전체 전략 랭킹” 참고). 지표는 현재 배포 데이터 기준 자동 표시 — <strong>CAGR</strong> 연복리수익 · <strong>MDD</strong> 최대낙폭 · <strong>Sharpe</strong> 위험 대비 효율.</p>
         <p class="period-note">⏱ <strong>전략마다 검증 기간이 다릅니다</strong>(예: 영구 포트폴리오 90년+ vs BAA 19년). 기간이 길수록 대공황·오일쇼크 같은 <strong>혹독한 구간</strong>을 포함해 CAGR가 낮고 MDD가 크게 보일 수 있으니, 카드의 <strong>📅 기간 배지</strong>를 함께 보고 같은 기간끼리 비교하세요.</p>
+        </details>
         <h3 class="reco-presets-title">개별 전략 <span class="muted">(동적·모멘텀)</span></h3>
         <div id="reco-fin-individual" class="reco-cards"></div>
         <h3 class="reco-presets-title">정적 배분 + 200일선(MA200) 필터 <span class="muted">— 글로벌 자산배분 · 미국 ETF 조합(SCHD·SPY·QQQ+)</span></h3>
+        <details class="intro"><summary>ℹ️ 200일선 필터가 뭔가요?</summary>
         <p class="period-note">정적 분산에 “가격이 200일 이동평균선 위일 때만 보유(아래로 내려오면 현금)” 추세 필터를 더한 변형입니다. 수익은 소폭 낮아질 수 있어도 <strong>최대낙폭(MDD)이 크게 줄어</strong> 위험 대비 수익(Sharpe·Calmar)이 개선됩니다. 아래엔 유튜브에서 자주 다루는 <strong>미국 ETF 고정배분(SCHD·SPY·QQQ+금)</strong>도 같은 잣대로 포함 — 전체 전략 랭킹에도 등재됩니다. 비중을 직접 바꿔보려면 <strong>정적 자산배분 › 미국 ETF 조합</strong> 플레이그라운드로, 연금·IRP 구현은 그 안 국내 대체 ETF 안내를 참고하세요. 지표는 원화·MA200 기준(‘자세히 보기’에서 필터 OFF·벤치마크 비교).</p>
+        </details>
         <div id="reco-fin-ma" class="reco-cards"></div>
-        <h4 class="reco-presets-title" style="font-size:0.95rem">이평선 필터 민감도 (과최적화 점검) <span class="muted">— 200일이 특별한가?</span></h4>
-        <p class="period-note">여러 이동평균 창(50~300거래일)에서의 낙폭(MDD)·Sharpe. <strong>넓은 범위에서 낙폭이 줄면 200일 과최적화가 아니라 추세필터 자체가 강건</strong>합니다(점선=필터 없는 원배분 낙폭, 원화 기준).</p>
-        <label class="period-note">프리셋
+        <h4 class="reco-presets-title" style="font-size:0.95rem" data-adv>이평선 필터 민감도 (과최적화 점검) <span class="muted">— 200일이 특별한가?</span></h4>
+        <p class="period-note" data-adv>여러 이동평균 창(50~300거래일)에서의 낙폭(MDD)·Sharpe. <strong>넓은 범위에서 낙폭이 줄면 200일 과최적화가 아니라 추세필터 자체가 강건</strong>합니다(점선=필터 없는 원배분 낙폭, 원화 기준).</p>
+        <label class="period-note" data-adv>프리셋
           <select id="reco-ma-preset">
             <option value="rebal">글로벌 분산(귀금속)</option>
             <option value="us6040">US 60/40</option>
@@ -238,9 +244,11 @@
             <option value="balanced">균형</option>
           </select>
         </label>
-        <div id="reco-ma-host"></div>
+        <div id="reco-ma-host" data-adv></div>
         <h3 class="reco-presets-title">큐레이션 조합 (전략 블렌딩)</h3>
+        <details class="intro"><summary>ℹ️ 조합은 어떻게 쓰나요?</summary>
         <p class="period-note">여러 전략을 비중 결합한 조합입니다. “블렌딩에서 열기”를 누르면 <strong>전략 블렌딩</strong> 탭에서 비중이 적용된 채로 열려 바로 조정·재실행할 수 있습니다.</p>
+        </details>
         <div id="reco-fin-blends" class="reco-cards"></div>
       </section>
 
@@ -264,7 +272,9 @@
             <span><b>Calmar</b> = CAGR ÷ |MDD| — 낙폭 1단위당 수익 <em>(↑)</em></span>
           </div>
         </details>
+        <details class="intro"><summary>ℹ️ 표 사용법</summary>
         <p class="lb-hint">🔀 <strong>열 제목(CAGR · MDD · Sharpe · Sortino · Calmar …)을 클릭</strong>하면 그 지표 기준으로 정렬됩니다(<span class="sort-ind">↕</span> 표시된 열 전부 가능). <strong>행을 클릭</strong>하면 전체 백테스트로 이동하고, <strong>맨 앞 체크박스</strong>로 여러 개를 골라 한 화면에서 겹쳐 볼 수 있습니다.</p>
+        </details>
         <div id="reco-lb">
           <div class="bt-controls">
             <span class="muted">통화</span>
@@ -281,7 +291,9 @@
             <button type="button" id="lb-clear" class="lb-clear" disabled>선택 해제</button>
           </div>
           <div class="lb-wrap"><table id="reco-lb-table" class="lb-table"></table></div>
-          <p class="period-note">⚠️ 코인·레버리지 전략은 지표가 높아도 <strong>낙폭(MDD)이 −50%대 이상</strong>일 수 있습니다. 전략마다 검증 기간이 다르니(전기간 기준) 같은 기간·같은 분류끼리 비교하세요. 부동산은 기준이 달라 이 표에서 제외했습니다.</p>
+          <details class="intro"><summary>⚠️ 읽기 전 주의</summary>
+        <p class="period-note">⚠️ 코인·레버리지 전략은 지표가 높아도 <strong>낙폭(MDD)이 −50%대 이상</strong>일 수 있습니다. 전략마다 검증 기간이 다르니(전기간 기준) 같은 기간·같은 분류끼리 비교하세요. 부동산은 기준이 달라 이 표에서 제외했습니다.</p>
+        </details>
         </div>
       </section>
     </div>
@@ -1450,13 +1462,13 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="explain.js?v=cd5c114e" defer></script>
-  <script src="alloc.js?v=cd5c114e" defer></script>
-  <script src="re_apt.js?v=cd5c114e" defer></script>
-  <script src="analytics-live.js?v=cd5c114e" defer></script>
-  <script src="leverage.js?v=cd5c114e" defer></script>
-  <script src="dca.js?v=cd5c114e" defer></script>
-  <script src="lab.js?v=cd5c114e" defer></script>
-  <script src="app.js?v=cd5c114e" defer></script>
+  <script src="explain.js?v=20ce0c6a" defer></script>
+  <script src="alloc.js?v=20ce0c6a" defer></script>
+  <script src="re_apt.js?v=20ce0c6a" defer></script>
+  <script src="analytics-live.js?v=20ce0c6a" defer></script>
+  <script src="leverage.js?v=20ce0c6a" defer></script>
+  <script src="dca.js?v=20ce0c6a" defer></script>
+  <script src="lab.js?v=20ce0c6a" defer></script>
+  <script src="app.js?v=20ce0c6a" defer></script>
 </body>
 </html>
