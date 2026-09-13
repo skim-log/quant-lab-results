@@ -255,9 +255,17 @@ body.blend-mode #strategies, body.blend-mode .ctl-cur { display: none !important
 #blend-corr { min-height: 320px; }
 #blend-frontier { height: 420px; }
 .reco-presets-title { margin: 0.6rem 0 0.1rem; font-size: 1rem; }
-.reco-cards { display: flex; gap: 0.6rem; flex-wrap: wrap; margin: 0.2rem 0 0.8rem; }
+/* 카드 수가 섹션마다 2·3·5·8장으로 달라, flex + flex-grow 로는 마지막 줄에 홀로 남은 카드가 줄
+   전체로 늘어났다(개별 전략 5번째 카드). grid 로 칸 너비를 고정해 모든 섹션의 카드 폭을 맞춘다.
+   auto-fit 이 아니라 **auto-fill** 이어야 한다 — auto-fit 은 빈 트랙을 접어서 같은 증상이 재발한다.
+   minmax 의 min 을 min(16rem, 100%) 으로 둬야 좁은 화면(~400px)에서 가로 스크롤이 생기지 않는다. */
+.reco-cards {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr));
+  gap: 0.6rem; margin: 0.2rem 0 0.8rem;
+}
 .reco-card {
-  flex: 1 1 16rem; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  min-width: 0;              /* 긴 문구가 칸을 밀어내지 않도록(grid 아이템 기본 min-width:auto 해제) */
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: var(--surface-2); padding: 0.6rem 0.75rem;
 }
 .reco-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }

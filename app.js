@@ -1298,41 +1298,52 @@ function enterGuide() {
 // 카드 지표는 전략 dashboard JSON 의 metrics_raw 를 런타임 fetch(캐시)해 표시. 스파크라인은 CSS-var SVG.
 // ---------------------------------------------------------------------------
 // 개별 픽 = manifest id + 한 줄 근거. 통화 접미사·존재 여부는 렌더 시 manifest 로 확정(누락은 스킵).
+// **why 에는 성과지표 숫자(CAGR·MDD·Sharpe·순위)를 쓰지 않는다** — 지표는 metrics_raw 를 런타임
+// fetch 하는 뱃지가 항상 최신으로 표시하는데, 문구에 박은 숫자는 재백테스트 때 같이 안 바뀌어
+// 한 카드 안에서 서로 다른 숫자가 나란히 뜬다. 자산 구성비(4:4:2·5:5·200일선 등)는 지표가 아니라
+// 전략 정의이므로 문구에 남긴다.
 // 선정 = 원화(KRW) 기준 위험대비수익(Sharpe) 상위 + 성격 다양성(정적/방어/공격/고CAGR). 대상이 한국
 // 투자자라 원화 기준으로 뽑음 — 환헤지 효과로 순위가 USD와 다름(위기 때 원화 약세가 달러자산 낙폭 방어).
 // 코인·레버리지(TQQQ 등)는 MDD/투기성 이유로 진입탭 제외. 전체 순위는 아래 '전체 전략 랭킹' 참고.
 const RECO_FIN_PICKS = [   // 동적·모멘텀 계열(정적은 아래 MA200 섹션으로 분리)
-  { id: 'multi_dynamic_baa_g_krw', why: '카나리아 신호로 방어하는 공격형 듀얼모멘텀 — 원화 CAGR 14%대·낙폭 방어' },
+  { id: 'multi_dynamic_baa_g_krw', why: '카나리아 신호로 위험자산·안전자산을 전환하는 공격형 듀얼모멘텀 — 하락장 낙폭 방어' },
   { id: 'multi_dynamic_vaa_g4_krw', why: '카나리아로 공격/방어를 빠르게 전환하는 보호형 모멘텀' },
-  { id: 'multi_dynamic_kr_us_gold_core6_krw', why: '한미 주식 6개월 모멘텀 + 금 위성 — 원화 CAGR 15%대 고수익형(낙폭도 원화라 −20%대)' },
+  { id: 'multi_dynamic_kr_us_gold_core6_krw', why: '한미 주식 6개월 모멘텀 + 금 위성 — 성장 지향 고수익형(원화 환산이라 위기 때 낙폭이 완화됨)' },
   { id: 'multi_dynamic_gem_krw', why: '가장 유명한 입문 듀얼모멘텀(상대+절대) — 하락장 현금 회피' },
-  { id: 'multi_dynamic_daa_g12_krw', why: '방어형 자산배분(DAA-G12) — 낙폭 −15%대로 꾸준한 안정형' },
+  { id: 'multi_dynamic_daa_g12_krw', why: '방어형 자산배분(DAA-G12) — 낙폭을 억제하며 꾸준한 안정형' },
 ];
 // 정적 배분 + 200일선(MA200) 추세 필터 변형 — 각 정적 데이터셋 안의 별도 시리즈(series 지정). 필터가 낙폭을 크게 줄임.
 const RECO_MA200_PICKS = [
   { id: 'multi_allocation_rebal_krw', series: '글로벌 분산 (귀금속 강화) · 분기 · 밴드 20% · MA200',
-    label: '글로벌 분산(귀금속) + 200일선', why: '원화 위험대비수익 1위 — 200일선 필터로 낙폭 −22%→−12%' },
+    label: '글로벌 분산(귀금속) + 200일선', why: '원화 기준 위험대비수익 상위 — 200일선 필터가 낙폭을 크게 줄임' },
   { id: 'multi_allocation_us6040_krw', series: 'US 60/40 · 분기 · 밴드 20% · MA200',
-    label: 'US 60/40 + 200일선', why: '고전 60/40 — 필터로 낙폭 −65%→−22% 급감(하락장 회피)' },
+    label: 'US 60/40 + 200일선', why: '고전 60/40 — 추세 필터로 하락장을 회피해 낙폭이 크게 줄어듦' },
   { id: 'multi_allocation_allweather_full_krw', series: '올웨더 (Dalio, 충실판) · 분기 · 밴드 20% · MA200',
-    label: '올웨더(Dalio) + 200일선', why: 'Dalio 올웨더 — 필터로 낙폭 −14%대 방어하며 꾸준' },
+    label: '올웨더(Dalio) + 200일선', why: 'Dalio 올웨더 — 필터로 낙폭을 억제하며 꾸준' },
   { id: 'multi_allocation_balanced_krw', series: '균형 · 분기 · 밴드 20% · MA200',
-    label: '균형 배분 + 200일선', why: '균형 분산 — 필터로 낙폭 −20%→−13%, 안정적' },
+    label: '균형 배분 + 200일선', why: '균형 분산 — 필터로 낙폭을 줄인 안정형' },
   // 미국 ETF 고정배분(정적 전략으로 승격) — run_etf_allocation. 별도 카드로 빼지 않고 정적+MA200 로 흡수.
   // 카드는 MA200 시리즈 지표를 표시(섹션 주제). '자세히 보기'에서 필터 ON/OFF·밴드·벤치마크 전 시리즈 비교.
   { id: 'multi_allocation_us_etf_schdqqqgld_krw', series: '미국ETF SCHD·QQQ·금 4:4:2 · 분기 · 밴드 20% · MA200',
-    label: 'SCHD·QQQ·금 4:4:2 (미국 ETF)', why: 'SCHD·QQQ에 금 20% — 금 분산으로 이 조합 그룹 최고 위험대비수익(Sharpe 1.3), 필터로 낙폭 −14%→−10%' },
+    label: 'SCHD·QQQ·금 4:4:2 (미국 ETF)', why: 'SCHD·QQQ에 금 20% — 금 분산으로 이 미국 ETF 조합 중 위험대비수익이 가장 높고, 필터로 낙폭이 더 줄어듦' },
   { id: 'multi_allocation_us_etf_schdqqq55_krw', series: '미국ETF SCHD+QQQ 5:5 · 분기 · 밴드 20% · MA200',
-    label: 'SCHD+QQQ 5:5 (미국 ETF)', why: '배당(SCHD)+성장(QQQ) 저상관 반반 — 유튜브 대표 조합. 필터로 낙폭 −21%→−18%' },
+    label: 'SCHD+QQQ 5:5 (미국 ETF)', why: '배당(SCHD)+성장(QQQ) 저상관 반반 — 유튜브 대표 조합. 필터로 낙폭 완화' },
   { id: 'multi_allocation_us_etf_3way_krw', series: '미국ETF SCHD·SPY·QQQ 3분할 · 분기 · 밴드 20% · MA200',
-    label: 'SCHD·SPY·QQQ 3분할 (미국 ETF)', why: '미국 대형주·나스닥·배당 균등 3분할 — 가장 단순한 시작점. 필터로 낙폭 −21%→−15%' },
+    label: 'SCHD·SPY·QQQ 3분할 (미국 ETF)', why: '미국 대형주·나스닥·배당 균등 3분할 — 가장 단순한 시작점. 필터로 낙폭 완화' },
   { id: 'multi_allocation_us_etf_schdqqq73_krw', series: '미국ETF SCHD+QQQ 7:3 · 분기 · 밴드 20% · MA200',
-    label: 'SCHD+QQQ 7:3 (미국 ETF)', why: 'SCHD 비중↑ 방어형 — 필터로 낙폭 −20%→−13%로 이 그룹 중 가장 크게 축소' },
+    label: 'SCHD+QQQ 7:3 (미국 ETF)', why: 'SCHD 비중↑ 방어형 — 이 그룹에서 필터의 낙폭 축소 효과가 가장 큼' },
 ];
+// 부동산은 데이터셋 첫 시리즈가 '무레버 매수' 같은 **비교용 기준선**이라 자동 추론(_recoPrimaryName)에
+// 맡기면 기준선 지표가 전략 지표인 척 표시된다(갭투자·전세vs매매 카드가 같은 숫자를 보이던 버그).
+// MA200 픽처럼 series 를 명시해 고정한다. 대표값 선정 근거는 docs/realestate_backtest.md 의
+// "비용 차감 후 살아남는 엣지" 표(정적 갭60 2.5x · 갭60×추세).
 const RECO_RE_PICKS = [
-  { id: 're_rentbuy', why: '전세 살까 vs 집 살까 — 국내 핵심 질문의 백테스트' },
-  { id: 're_gap', why: '전세 무이자 레버리지(갭투자)를 무레버 매수와 비교 — 문서상 유일하게 살아남은 엣지' },
-  { id: 're_gaptiming', why: '갭 × 실거래지수 추세 타이밍' },
+  { id: 're_rentbuy', series: '자가 매수', label: '전세 vs 매매 (자가 매수 기준)',
+    why: '전세 살까 vs 집 살까 — 국내 핵심 질문의 백테스트' },
+  { id: 're_gap', series: '갭투자 전세가율 60% (레버 2.5x)', label: '갭투자 (전세가율 60% · 2.5x)',
+    why: '전세 보증금을 무이자 레버리지로 쓰는 갭투자 — 비용 차감 후에도 살아남은 엣지(무레버 매수 대비는 자세히 보기에서 비교)' },
+  { id: 're_gaptiming', series: '전국 갭60×추세', label: '갭 × 추세 타이밍 (전국)',
+    why: '갭 레버리지 × 실거래지수 추세 타이밍 — 하락 구간엔 레버리지를 끄고 회피' },
 ];
 // 미국 ETF 조합은 별도 카드가 아니라 '정적 배분 + MA200' 랭킹 전략으로 흡수됨(RECO_MA200_PICKS 참조).
 // 인터랙티브 비중 탐색은 미국 ETF 조합 플레이그라운드(etf_playground_*) + 정량분석 상호링크로 계속 제공.
@@ -1349,11 +1360,21 @@ function enterReco() {
 function _recoPrimaryName(d) {
   const names = Object.keys(d.metrics_raw || {});
   if (!names.length) return (d.series && d.series[0] && d.series[0].name) || null;
-  const isBench = n => /KOSPI|코스피|S&P|벤치|benchmark|buy\s*&?\s*hold|매수후보유|바이앤홀드/i.test(n);
+  const isBench = n => /KOSPI|코스피|S&P|벤치|benchmark|buy\s*&?\s*hold|매수후보유|바이앤홀드|무레버/i.test(n);
   return names.find(n => !isBench(n)) || names[0];
 }
 function _recoMetrics(d, seriesName) {              // {name, cagr, mdd, sharpe, period} (raw) 또는 null. seriesName 지정 시 그 시리즈 사용.
-  const name = (seriesName && (d.metrics_raw || {})[seriesName]) ? seriesName : _recoPrimaryName(d);
+  // seriesName 을 명시했는데 못 찾으면 **폴백하지 않는다** — 자동 추론으로 넘어가면 다른 전략(대개
+  // 비교용 기준선) 숫자를 그 전략인 척 보여 주게 된다. 틀린 숫자보다 빈 칸(—)이 낫다.
+  if (seriesName) {
+    if (!(d.metrics_raw || {})[seriesName]) return null;
+    const mm = (d.metrics_raw || {})[seriesName];
+    const tdd = (d.table_display || {})[seriesName] || {};
+    const sm = (d.series || []).find(x => x.name === seriesName);
+    return { name: seriesName, cagr: mm.CAGR, mdd: mm.mdd, sharpe: mm.sharpe,
+             period: tdd['기간'] || (sm && sm.period) || '' };
+  }
+  const name = _recoPrimaryName(d);
   if (!name) return null;
   const m = (d.metrics_raw || {})[name] || {};
   const td = (d.table_display || {})[name] || {};
@@ -1409,7 +1430,9 @@ async function _recoRenderInto(elId, picks) {
   const html = results.map(({ r, p }) => {
     if (!r || !r.data) return '';                   // 데이터셋 누락 시 우아하게 스킵
     const met = _recoMetrics(r.data, p.series);      // p.series 지정 시 그 변형(예: MA200) 지표 표시
-    const s = (r.data.series || []).find(x => met && x.name === met.name) || (r.data.series || [])[0];
+    // 지표를 특정하지 못했으면 스파크라인도 그리지 않는다 — 첫 시리즈로 폴백하면 위와 같은 이유로
+    // 다른 전략의 곡선이 이 카드 제목 아래 붙는다.
+    const s = met ? (r.data.series || []).find(x => x.name === met.name) : null;
     return _recoCardHtml(r.entry, met, s && _sparkline(s.nav), p.why, p.label);
   }).filter(Boolean).join('');
   el.innerHTML = html || '<p class="period-note">표시할 추천 데이터가 없습니다(빌드 전이거나 데이터셋 누락).</p>';
@@ -1421,7 +1444,7 @@ function renderRecoBlendCards() {                   // 큐레이션 조합(블�
     `<button type="button" class="reco-apply" data-reco-blend="${r.key}">블렌딩에서 열기 →</button></div>` +
     `<div class="reco-why">${r.desc}</div>` +
     `<div class="reco-w">${r.legs.map(l => `${RECO_LABEL[l.base] || l.base} ${l.w}%`).join(' · ')}</div>` +
-    `<div class="reco-period">${r.statKrw} · 원화 기준 참고치</div></div>`;
+    `<div class="reco-period">지표는 「블렌딩에서 열기」에서 확인</div></div>`;
   el.innerHTML = RECO_BLENDS.map(card).join('');
 }
 function renderRecoTab() {
@@ -5315,12 +5338,13 @@ const RECO_LABEL = {
   multi_dynamic_baa_b: 'BAA 균형', multi_dynamic_daa_g12: 'DAA-G12',
   multi_dynamic_nrp: '리스크패리티', multi_dynamic_baa_g: 'BAA 공격', multi_dynamic_adm: 'ADM(가속듀얼)',
 };
+// 지표(statKrw)를 문자열로 들고 있던 필드는 뺐다 — 이 카드들은 런타임 지표 뱃지가 없어서 그 문자열이
+// 곧 화면 숫자인데, 재백테스트 때 같이 안 바뀌어 실제와 어긋난 채 남아 있었다. 조합 지표는 블렌딩이
+// 실제로 합성해 내는 값이므로 그쪽으로 안내한다(카드에 런타임 계산을 다시 넣는 건 별도 작업).
 const RECO_BLENDS = [
   { key: 'safe', title: '🛡 안전형', rebal: 'quarterly', desc: '낮은 MDD 우선',
-    statKrw: 'CAGR≈9.9% · MDD≈−13.4% · Sharpe 0.93',
     legs: [{ base: 'multi_dynamic_baa_b', w: 40 }, { base: 'multi_dynamic_daa_g12', w: 30 }, { base: 'multi_dynamic_nrp', w: 30 }] },
-  { key: 'balanced', title: '⚖ 균형형 (~15%)', rebal: 'quarterly', desc: '적당한 수익·적당한 MDD',
-    statKrw: 'CAGR≈15.2% · MDD≈−17.8% · Sharpe 1.10',
+  { key: 'balanced', title: '⚖ 균형형', rebal: 'quarterly', desc: '적당한 수익·적당한 MDD',
     legs: [{ base: 'multi_dynamic_baa_g', w: 60 }, { base: 'multi_dynamic_adm', w: 40 }] },
 ];
 function renderRecoPresets() {                   // 추천 카드 렌더(통화 무관 정적 텍스트)
@@ -5329,7 +5353,7 @@ function renderRecoPresets() {                   // 추천 카드 렌더(통화 
     `<span class="reco-title">${r.title}</span>` +
     `<button type="button" class="reco-apply" data-reco-preset="${r.key}">적용</button></div>` +
     `<div class="reco-w">${r.legs.map(l => `${RECO_LABEL[l.base] || l.base} ${l.w}%`).join(' · ')}</div>` +
-    `<div class="reco-stat">${r.desc} · ${r.statKrw}</div></div>`;
+    `<div class="reco-stat">${r.desc} · 적용하면 지표가 계산됩니다</div></div>`;
   el.innerHTML = RECO_BLENDS.map(card).join('');
 }
 function applyRecoPreset(key) {                   // 추천 조합을 블렌드 입력에 채우고 실행
