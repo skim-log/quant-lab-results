@@ -1101,7 +1101,275 @@
     return out;
   }
 
-  const API = { DPY, CLIP, sliceRange, monthFirstIndices, leverReturns, assetReturns, simulate, lumpSum, cashGlide, compareDcaLump, xirr, dcaMetrics, lumpMetrics, sweep, optimal, constrainedOptimal, downsampleIdx, rollingStarts, sensitivitySummary, expandingPctRank, vixMultiplier, poolSimulate, compareFundingModes, vixEpisodes, leaveOneEpisodeOut,
+  // ── 이평 필터 전환 적립 — src/strategies/us/dca_switch.py 미러 ─────────────────
+  // 위 엔진들과 달리 **매도·세금이 있다**. 규약(신호 시점·비용·양도세·세후 청산가치)은 파이썬
+  // 모듈 독스트링이 정본이고, 여기서는 연산 순서까지 그대로 따라간다(패리티 테스트가 강제).
+  const SWITCH_COSTS = {
+    commission: 0.001, slippage: 0.0005, sec_fee: 0.0000206, fx_spread: 0.0005,
+    cgt_rate: 0.22, exemption_krw: 2500000, pay_month: 5, interest_tax: 0.154,
+  };
+  const SWITCH_STRATEGIES = ['hold_risk', 'hold_safe', 'all', 'new'];
+
+  /** on[i] = price[i−1] > SMA_w(price)[i−1]. 판정 불가면 NaN. dca_switch.ma_signal 미러(순차 합산). */
+  function maSignal(price, w) {
+    const n = price.length, out = new Float64Array(n).fill(NaN);
+    let run = 0, valid = 0;
+    for (let j = 0; j < n; j++) {
+      if (price[j] > 0) { run += price[j]; valid++; }
+      if (j - w >= 0 && price[j - w] > 0) { run -= price[j - w]; valid--; }
+      if (j + 1 < n && valid === w) out[j + 1] = price[j] > run / w ? 1 : 0;
+    }
+    return out;
+  }
+
+  /** 일간수익(마스터 축) → 가격 프록시. start 이전은 0(= 신호 판정 불가). */
+  function priceFromReturns(ret, start) {
+    const out = new Float64Array(ret.length);
+    let v = 1;
+    for (let i = start || 0; i < ret.length; i++) { v *= 1 + ret[i]; out[i] = v; }
+    return out;
+  }
+
+  /**
+   * 전환 적립 한 경로. retR/retS 는 창 [offset, offset+n) 의 일간수익, 나머지 배열은 마스터 축 전체.
+   * opts: {offset, on, mode:'hold'|'all'|'new', safe:'asset'|'cash', rf, krw, costs, scale, harvest, dpy}
+   * 원화 적립(krw)이면 적립·표시 통화 환율 = fx, 아니면 1. 세금은 언제나 실제 fx 로 원화 계산.
+   */
+  function switchSimulate(dates, retR, retS, fx, buyIdx, monthly, opts) {
+    opts = opts || {};
+    const c = Object.assign({}, SWITCH_COSTS, opts.costs || {});
+    const off = opts.offset || 0, mode = opts.mode || 'hold', safe = opts.safe || 'asset';
+    const krw = opts.krw !== false, dpy = opts.dpy || DPY, harvest = !!opts.harvest;
+    const on = opts.on || null, rf = opts.rf || null, scale = opts.scale || null;
+    const n = retR.length;
+    const cash = safe === 'cash';
+    const navR = new Float64Array(n), navS = new Float64Array(n);
+    let vr = 1, vs = 1;
+    for (let i = 0; i < n; i++) {
+      vr *= 1 + retR[i];
+      vs *= 1 + ((retS && !cash) ? retS[i] : 0);
+      navR[i] = vr; navS[i] = vs;
+    }
+    const buy = new Uint8Array(n);
+    let firstBuy = -1;
+    for (const b of buyIdx) {
+      const j = b - off;
+      if (j >= 0 && j < n) { buy[j] = 1; if (firstBuy < 0 || j < firstBuy) firstBuy = j; }
+    }
+    let base = 1;
+    if (scale && firstBuy >= 0) { const v0 = scale[off + firstBuy]; base = v0 > 0 ? v0 : 1; }
+
+    const cm = c.commission, sl = c.slippage, sec = c.sec_fee, fxs = c.fx_spread;
+    const rate = c.cgt_rate, ex = c.exemption_krw, payM = c.pay_month | 0, itax = c.interest_tax;
+    const buyCost = cm + sl, sellCost = cm + sl + sec;
+    const st = { uR: 0, uS: 0, bR: 0, bS: 0, cash: 0 };
+    const acc = { fees: 0, taxPaid: 0, realized: 0, liab: 0, switches: 0, harvests: 0, sells: 0, exUsed: 0 };
+    const byYear = [];
+    let holding = 'R', riskDays = 0, paid = 0;
+    const equity = new Float64Array(n), liq = new Float64Array(n), cost = new Float64Array(n);
+    const flows = [];
+    let curYear = n ? +dates[off].slice(0, 4) : 0;
+    const F = i => (krw ? fx[off + i] : 1), FT = i => fx[off + i];
+
+    const doBuy = (side, usd, i) => {
+      if (usd <= 0) return;
+      if (side === 'S' && cash) { st.cash += usd; return; }
+      const nav = side === 'R' ? navR[i] : navS[i];
+      st['u' + side] += usd * (1 - buyCost) / nav;
+      st['b' + side] += usd * FT(i);
+      acc.fees += usd * buyCost * F(i);
+    };
+    const doSell = (side, frac, i) => {
+      if (frac <= 0) return 0;
+      if (side === 'S' && cash) { const amt = st.cash * frac; st.cash -= amt; return amt; }
+      const u = st['u' + side];
+      if (u <= 0) return 0;
+      const nav = side === 'R' ? navR[i] : navS[i];
+      const units = u * frac, gross = units * nav, net = gross * (1 - sellCost);
+      const basis = st['b' + side] * frac;
+      acc.realized += net * FT(i) - basis;
+      st['u' + side] = frac < 1 ? u - units : 0;
+      st['b' + side] = frac < 1 ? st['b' + side] - basis : 0;
+      acc.fees += gross * sellCost * F(i);
+      acc.sells++;
+      return net;
+    };
+
+    for (let i = 0; i < n; i++) {
+      const iso = dates[off + i];
+      const y = +iso.slice(0, 4), mth = +iso.slice(5, 7);
+      if (y !== curYear) {
+        const g = acc.realized, tax = Math.max(0, g - ex) * rate;
+        acc.exUsed += Math.min(Math.max(g, 0), ex);
+        byYear.push({ year: curYear, realized: g, tax });
+        acc.liab += tax; acc.realized = 0; curYear = y;
+      }
+      if (cash && i > 0 && st.cash > 0) st.cash *= 1 + ((rf ? rf[off + i] : 0) / dpy) * (1 - itax);
+      if (acc.liab > 0 && mth >= payM) {
+        const needKrw = acc.liab;
+        let needUsd = needKrw / (FT(i) * (1 - fxs));
+        if (cash) { const take = Math.min(st.cash, needUsd); st.cash -= take; needUsd -= take; }
+        if (needUsd > 0) {
+          const vR = st.uR * navR[i], vS = cash ? 0 : st.uS * navS[i];
+          const netAll = (vR + vS) * (1 - sellCost);
+          const frac = netAll <= needUsd ? 1 : needUsd / netAll;
+          if (vR > 0) doSell('R', frac, i);
+          if (vS > 0) doSell('S', frac, i);
+        }
+        acc.fees += (needKrw / (1 - fxs)) * fxs * (F(i) / FT(i));
+        acc.taxPaid += needKrw * (F(i) / FT(i));
+        acc.liab = 0;
+      }
+      if (buy[i]) {
+        let tgt = 'R';
+        if (mode !== 'hold' && on && on[off + i] === 0) tgt = 'S';
+        if (mode === 'all' && tgt !== holding) {
+          const net = doSell(holding, 1, i);
+          doBuy(tgt, net, i);
+          holding = tgt;
+          if (net > 0) acc.switches++;   // 빈 계좌의 '전환'은 거래가 아니다
+        }
+        const amt = scale ? monthly * (scale[off + i] / base) : monthly;
+        let usd;
+        if (krw) { usd = F(i) ? amt / F(i) * (1 - fxs) : 0; acc.fees += amt * fxs; }
+        else usd = amt;
+        doBuy(mode === 'all' ? holding : tgt, usd, i);
+        paid += amt;
+        flows.push([off + i, -amt]);
+      }
+      if (harvest && i + 1 < n && dates[off + i + 1].slice(0, 4) !== iso.slice(0, 4)) {
+        let room = ex - acc.realized;
+        for (const side of ['R', 'S']) {
+          if (room <= 0 || (side === 'S' && cash)) continue;
+          const u = st['u' + side];
+          if (u <= 0) continue;
+          const nav = side === 'R' ? navR[i] : navS[i];
+          const gainAll = u * nav * (1 - sellCost) * FT(i) - st['b' + side];
+          if (gainAll <= 0) continue;
+          const frac = Math.min(1, room / gainAll);
+          const before = acc.realized;
+          const net = doSell(side, frac, i);
+          doBuy(side, net, i);
+          room -= acc.realized - before;
+          acc.harvests++;
+        }
+      }
+      const vR = st.uR * navR[i], vS = st.uS * navS[i] + (cash ? st.cash : 0);
+      equity[i] = (vR + vS) * F(i);
+      cost[i] = paid;
+      if (vR > vS) riskDays++;
+      const netR = vR * (1 - sellCost);
+      const netS = st.uS * navS[i] * (1 - sellCost) + (cash ? st.cash : 0);
+      let gain = acc.realized;
+      if (st.uR > 0) gain += netR * FT(i) - st.bR;
+      if (st.uS > 0) gain += st.uS * navS[i] * (1 - sellCost) * FT(i) - st.bS;
+      const owedKrw = acc.liab + Math.max(0, gain - ex) * rate;
+      const krwOut = (netR + netS) * FT(i) * (1 - fxs) - owedKrw;
+      liq[i] = krw ? krwOut : krwOut * (F(i) / FT(i));
+    }
+    let gLast = acc.realized;
+    if (n) {
+      const i = n - 1;
+      if (st.uR > 0) gLast += st.uR * navR[i] * (1 - sellCost) * FT(i) - st.bR;
+      if (st.uS > 0) gLast += st.uS * navS[i] * (1 - sellCost) * FT(i) - st.bS;
+    }
+    const taxTermKrw = Math.max(0, gLast - ex) * rate;
+    const toDisp = (n && !krw) ? F(n - 1) / FT(n - 1) : 1;
+    byYear.push({ year: curYear, realized: gLast, tax: taxTermKrw, terminal: true });
+    return {
+      equity, liq, cost, flows, offset: off,
+      fees: acc.fees, taxPaid: acc.taxPaid, taxTerminal: (taxTermKrw + acc.liab) * toDisp,
+      exUsed: acc.exUsed + Math.min(Math.max(gLast, 0), ex),
+      switches: acc.switches, harvests: acc.harvests, sells: acc.sells,
+      riskShare: n ? riskDays / n : NaN, byYear,
+    };
+  }
+
+  /** dca_switch.switch_metrics 미러. dates 는 마스터 축 전체. */
+  function switchMetrics(dates, sim) {
+    const eq = sim.equity, liq = sim.liq, cost = sim.cost, n = eq.length, off = sim.offset;
+    if (!n || cost[n - 1] <= 0) return null;
+    let peak = -Infinity, mdd = 0, run = 0, best = 0;
+    for (let i = 0; i < n; i++) {
+      if (eq[i] > peak) peak = eq[i];
+      if (peak > 0) { const dd = eq[i] / peak - 1; if (dd < mdd) mdd = dd; }
+      if (eq[i] < cost[i]) { run++; if (run > best) best = run; } else run = 0;
+    }
+    return {
+      totalCost: cost[n - 1], finalPre: eq[n - 1], final: liq[n - 1], multiple: liq[n - 1] / cost[n - 1],
+      xirr: xirr(dates, sim.flows, off + n - 1, liq[n - 1]),
+      xirrPre: xirr(dates, sim.flows, off + n - 1, eq[n - 1]),
+      mdd, underDays: best, fees: sim.fees, taxPaid: sim.taxPaid, taxTerminal: sim.taxTerminal,
+      taxTotal: sim.taxPaid + sim.taxTerminal, exUsed: sim.exUsed,
+      switches: sim.switches, harvests: sim.harvests, sells: sim.sells, riskShare: sim.riskShare,
+      months: sim.flows.length, start: dates[off], end: dates[off + n - 1],
+    };
+  }
+
+  /** 4파전 — dca_switch.compare_switch 미러. hold_safe = 신호가 늘 '안전'인 new. */
+  function compareSwitch(dates, retR, retS, fx, buyIdx, monthly, on, opts) {
+    const base = Object.assign({}, opts || {});
+    const zeros = new Float64Array(fx.length);
+    const sims = {
+      hold_risk: switchSimulate(dates, retR, retS, fx, buyIdx, monthly, Object.assign({}, base, { mode: 'hold', on: null })),
+      hold_safe: switchSimulate(dates, retR, retS, fx, buyIdx, monthly, Object.assign({}, base, { mode: 'new', on: zeros })),
+      all: switchSimulate(dates, retR, retS, fx, buyIdx, monthly, Object.assign({}, base, { mode: 'all', on })),
+      new: switchSimulate(dates, retR, retS, fx, buyIdx, monthly, Object.assign({}, base, { mode: 'new', on })),
+    };
+    const metrics = {};
+    for (const k of SWITCH_STRATEGIES) metrics[k] = switchMetrics(dates, sims[k]);
+    return { sims, metrics };
+  }
+
+  /**
+   * 롤링 창 — dca_switch.rolling_switch 미러(창 규약은 rollingStarts 와 동일).
+   * retR/retS 는 [lo,hi] 창 수익, 나머지는 마스터 축 전체. monthly 가 결과를 바꾼다(고정 공제 때문).
+   */
+  function rollingSwitch(dates, retR, retS, fx, lo, hi, on, years, monthly, opts) {
+    opts = opts || {};
+    const step = Math.max(1, opts.step || 1);
+    let starts = monthFirstIndices(dates, lo, hi);
+    if (step > 1) starts = starts.filter((_, i) => i % step === 0);
+    const winDays = Math.round(years * 365.25);
+    const out = [];
+    for (const s of starts) {
+      const endMs = Date.parse(dates[s]) + winDays * 86400000;
+      if (Date.parse(dates[hi]) < endMs) continue;
+      let e = s;
+      while (e + 1 <= hi && Date.parse(dates[e + 1]) <= endMs) e++;
+      if (e - s < 200) continue;
+      const segR = retR.subarray(s - lo, e - lo + 1);
+      const segS = retS ? retS.subarray(s - lo, e - lo + 1) : null;
+      const buy = monthFirstIndices(dates, s, e);
+      const cmp = compareSwitch(dates, segR, segS, fx, buy, monthly, on, Object.assign({}, opts, { offset: s }));
+      const m = cmp.metrics;
+      if (!SWITCH_STRATEGIES.every(k => m[k])) continue;
+      const b = m.hold_risk.final;
+      const row = { start: dates[s], end: dates[e] };
+      for (const k of SWITCH_STRATEGIES) { row[k + '_final'] = m[k].final; row[k + '_mdd'] = m[k].mdd; }
+      row.all_vs_risk = b > 0 ? m.all.final / b : NaN;
+      row.new_vs_risk = b > 0 ? m.new.final / b : NaN;
+      row.safe_vs_risk = b > 0 ? m.hold_safe.final / b : NaN;
+      out.push(row);
+    }
+    return out;
+  }
+
+  /** dca_switch.rolling_summary 미러(최근접 순위 분위수). */
+  function rollingSwitchSummary(rows) {
+    const out = { n: rows.length };
+    for (const key of ['all_vs_risk', 'new_vs_risk', 'safe_vs_risk']) {
+      const v = rows.map(r => r[key]).filter(x => isFinite(x)).sort((a, b) => a - b);
+      if (!v.length) continue;
+      const q = p => v[Math.min(v.length - 1, Math.max(0, Math.round(p * (v.length - 1))))];
+      out[key] = { win_rate: v.filter(x => x > 1).length / v.length, p10: q(0.10), p50: q(0.50), p90: q(0.90) };
+    }
+    return out;
+  }
+
+  const API = { DPY, CLIP, sliceRange,
+    SWITCH_COSTS, SWITCH_STRATEGIES, maSignal, priceFromReturns, switchSimulate, switchMetrics, compareSwitch,
+    rollingSwitch, rollingSwitchSummary, monthFirstIndices, leverReturns, assetReturns, simulate, lumpSum, cashGlide, compareDcaLump, xirr, dcaMetrics, lumpMetrics, sweep, optimal, constrainedOptimal, downsampleIdx, rollingStarts, sensitivitySummary, expandingPctRank, vixMultiplier, poolSimulate, compareFundingModes, vixEpisodes, leaveOneEpisodeOut,
     flexAmounts, flexSimulate, dollarWeightedYears, tiltAmounts, timeTiltSimulate, signalBucketForward, thresholdGrid };
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
   root.DCASIM = API;

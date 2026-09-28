@@ -463,6 +463,75 @@ for (const vc of (fix.vix_cases || [])) {
     (vc.basis === 'flex' ? ` VIX/시간대조군=${cmp.vsTilt.finalRatio.toFixed(3)}` : ''));
 }
 
+// ── 이평 필터 전환 적립(dca_switch) — 매도·양도세·환전·공제 리셋 경로 ────────────────
+const SW_METRIC_KEYS = [['final', 'final'], ['finalPre', 'final_pre'], ['totalCost', 'total_cost'],
+  ['xirr', 'xirr'], ['xirrPre', 'xirr_pre'], ['mdd', 'mdd'], ['fees', 'fees'], ['taxPaid', 'tax_paid'],
+  ['taxTerminal', 'tax_terminal'], ['exUsed', 'ex_used'], ['riskShare', 'risk_share']];
+const SW_INT_KEYS = [['switches', 'switches'], ['harvests', 'harvests'], ['sells', 'sells'], ['underDays', 'under_days']];
+let nSwitch = 0;
+if ((fix.switch_cases || []).length) {
+  // 기본 비용이 파이썬과 같아야 화면의 '토스 기본값'이 픽스처와 같은 뜻이 된다.
+  for (const [k, v] of Object.entries(fix.switch_costs || {})) checkNum(`SWITCH_COSTS.${k}`, DCA.SWITCH_COSTS[k], v, 0);
+  const qqq = byKey.qqq;
+  const qRet = DCA.assetReturns(d, qqq, lo, hi, 'mixed').ret;
+  const qPrice = DCA.priceFromReturns(qRet, qqq.hist_start_idx);
+  for (const sc of fix.switch_cases) {
+    const before = fails;
+    const on = DCA.maSignal(qPrice, sc.window);
+    let bad = 0;
+    for (let i = 0; i < on.length; i++) {
+      const e = sc.on[i];
+      if ((e == null) !== isNaN(on[i]) || (e != null && e !== on[i])) bad++;
+    }
+    if (bad) { console.error(`✗ ${sc.name} 신호 불일치 ${bad}일`); fails++; }
+    const rRet = DCA.assetReturns(d, byKey[sc.risk], lo, hi, 'mixed').ret;
+    const krw = sc.currency === 'krw';
+    const scale = sc.price === 'real' ? (krw ? d.cpi_krw : d.cpi_usd) : null;
+    const buy = DCA.monthFirstIndices(dates, lo, hi);
+    const cmp = DCA.compareSwitch(dates, rRet, qRet, d.fx, buy, sc.monthly, on,
+      { offset: lo, safe: sc.safe, rf: d.rf, krw, scale, harvest: sc.harvest, dpy: d.dpy });
+    for (const k of DCA.SWITCH_STRATEGIES) {
+      const E = sc.strategies[k], sim = cmp.sims[k], m = cmp.metrics[k];
+      checkArr(`${sc.name}.${k} liq`, sim.liq, E.liq);
+      checkArr(`${sc.name}.${k} equity`, sim.equity, E.equity);
+      for (const [jk, pk] of SW_METRIC_KEYS) checkNum(`${sc.name}.${k} ${jk}`, m[jk], E.metrics[pk], 1e-8);
+      for (const [jk, pk] of SW_INT_KEYS) {
+        if (m[jk] !== E.metrics[pk]) { console.error(`✗ ${sc.name}.${k} ${jk}: ${m[jk]} ≠ ${E.metrics[pk]}`); fails++; }
+      }
+      if (sim.byYear.length !== E.by_year.length) {
+        console.error(`✗ ${sc.name}.${k} 연도 수 ${sim.byYear.length} ≠ ${E.by_year.length}`); fails++;
+      } else sim.byYear.forEach((y, i) => {
+        checkNum(`${sc.name}.${k} ${y.year} 실현`, y.realized, E.by_year[i].realized, 1e-8);
+        checkNum(`${sc.name}.${k} ${y.year} 세액`, y.tax, E.by_year[i].tax, 1e-8);
+      });
+    }
+    nSwitch++;
+    if (fails === before) {
+      const m = cmp.metrics;
+      console.log(`✓ ${sc.name}  세후 ` + DCA.SWITCH_STRATEGIES.map(k =>
+        `${k}=${Math.round(m[k].final).toLocaleString('en-US')}(전환 ${m[k].switches})`).join(' · '));
+    }
+  }
+  const R = fix.switch_roll;
+  if (R) {
+    const on = DCA.maSignal(qPrice, R.window);
+    const rRet = DCA.assetReturns(d, byKey[R.risk], lo, hi, 'mixed').ret;
+    const rows = DCA.rollingSwitch(dates, rRet, qRet, d.fx, lo, hi, on, R.years, R.monthly,
+      { step: R.step, safe: R.safe, rf: d.rf, krw: R.currency === 'krw', dpy: d.dpy });
+    if (rows.length !== R.rows.length) { console.error(`✗ switch roll 창 수 ${rows.length} ≠ ${R.rows.length}`); fails++; }
+    else rows.forEach((r, i) => {
+      if (r.start !== R.rows[i].start || r.end !== R.rows[i].end) { console.error(`✗ switch roll[${i}] 구간`); fails++; }
+      for (const k of ['all_vs_risk', 'new_vs_risk', 'safe_vs_risk']) checkNum(`switch roll[${i}] ${k}`, r[k], R.rows[i][k], 1e-8);
+    });
+    const s = DCA.rollingSwitchSummary(rows);
+    for (const k of ['all_vs_risk', 'new_vs_risk', 'safe_vs_risk']) {
+      if (!R.summary[k]) continue;
+      for (const q of ['win_rate', 'p10', 'p50', 'p90']) checkNum(`switch roll summary ${k}.${q}`, s[k][q], R.summary[k][q], 1e-8);
+    }
+    if (!fails) console.log(`✓ switch roll ${R.risk} MA${R.window} ${R.years}년 — 창 ${rows.length}개, 전량전환 승률 ${(s.all_vs_risk.win_rate * 100).toFixed(0)}%`);
+  }
+}
+
 const nReal = (fix.cases || []).filter(c => c.real_equity).length
   + (fix.sweeps || []).filter(s => s.sweep_real).length
   + (fix.rolls || []).filter(r => (r.basis || '') === 'real').length;
@@ -474,4 +543,4 @@ if (fails) {
   process.exit(1);
 }
 console.log(`\n✓ 적립식 패리티 통과 — ${fix.cases.length}개 케이스 + ${fix.sweeps.length}개 스윕 + ` +
-  `${(fix.rolls || []).length}개 롤링(시작 시점 민감도), 최대 상대오차 ${maxRel.toExponential(3)} (허용 ${TOL_REL.toExponential(0)})`);
+  `${(fix.rolls || []).length}개 롤링(시작 시점 민감도) + ${nSwitch}개 이평 전환, 최대 상대오차 ${maxRel.toExponential(3)} (허용 ${TOL_REL.toExponential(0)})`);

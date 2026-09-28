@@ -162,8 +162,7 @@ const CAT_BLURB = {
   dynamic: '신호(모멘텀·추세)로 매달 비중을 바꾸는 동적 자산배분.',
   static: '고정 비중 정적 자산배분(주기 리밸런싱 + 표류 밴드).',
   momentum: '개별 시장 모멘텀·레버리지 전략 비교(위험=TWR, 수익=XIRR).',
-  dca: '미국 ETF(QQQ·QLD·TQQQ·SPY·SCHD 등)에 매달 일정액을 넣었다면? 적립금·기간·종목을 직접 바꿔 즉석 재계산 + 적립식 기준 최적 레버리지.',
-  lab_vixdca: 'VIX(공포지수)에 따라 매달 넣는 금액을 바꾸면 단순 적립식·거치식을 이길까? 주식 투입 총액을 고정하고 시점만 바꾼다 — 이득이 신호 덕인지 그냥 앞당긴 덕인지 대조군으로 가른다.',
+  dca: '미국 ETF(QQQ·QLD·TQQQ·SPY·SCHD 등)에 매달 일정액을 넣었다면? 서브탭 3개 — ① 기본 적립(적립금·기간·종목 즉석 재계산 + 적립식 기준 최적 레버리지) ② VIX 연동 적립(공포에 더 사면?) ③ 이평 필터 전환(QQQ가 이평선 아래면 QLD·TQQQ를 QQQ로 — 수수료·양도세 반영 세후 비교).',
   crypto: '암호화폐 전략: 매수후보유·DCA·이동평균선 추세(20/60/120/200일 × 달러·원화 신호). 곡선=TWR(위험비교), 적립 수익=XIRR.',
   analytics: '8자산 월수익 기반 정량분석 — 상관·효율적 프론티어·리스크패리티·위험수익(무위험 2%).',
   compare: '여러 전략을 한 곡선에 오버레이 비교(통화 토글 + 지표 열 클릭 정렬 리더보드).',
@@ -219,7 +218,7 @@ function renderDescription() {
 // 백테스트 전략 뷰에서만 표시. 분석/도구 모드는 render()를 안 거치므로 CSS로도 숨김(style.css).
 const _EXPLAIN_SKIP = new Set(['analytics', 'compare', 'blend', 'paradise', 'sentiment',
   'trend', 'reliability', 'reco', 'guide', 'lab_rotation', 'lab_rebal', 'lab_blend',
-  'lab_dailyrisk', 'lab_vixdca', 'molit_explore', 'molit_apt']);
+  'lab_dailyrisk', 'molit_explore', 'molit_apt']);
 function _explainTypeKey(d, cat, sel) {
   if (cat && cat.indexOf('re') === 0 && cat !== 'reco' && cat !== 'reliability') return 'realestate';
   if (cat === 'static') return 'static';
@@ -1104,7 +1103,8 @@ function applyTheme(theme, persist) {
     else if (t.kind === 'molit_explore') renderMolitExplore(t.data);   // 테마 토글 시 차트 재채색
     else if (t.kind === 'molit_apt') { renderAptAll(); _renderAptSelect(_aptBundle()); }
     else if (t.kind === 'dca' && state.dca) _dcaFull();               // 적립식 차트 4종 재채색
-    else if (t.kind === 'lab_vixdca' && state.vx) _vxFull();           // VIX 연동 적립 차트 재채색
+    else if (t.kind === 'dca_vix' && state.vx) _vxFull();              // VIX 연동 적립 차트 재채색
+    else if (t.kind === 'dca_switch' && state.sw) _swFull();           // 이평 필터 전환 차트 재채색
   } else if (state.data) {
     if (state.data.kind === 'analytics') renderAnalytics(state.data);
     else { render(); if (state.sweep) renderSweep(); if (state.blendFrontier) _drawBlendFrontier(); }   // 스윕·블렌드 프론티어도 새 테마로 재색
@@ -1264,19 +1264,18 @@ function clearPresetActive() {
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
 const CAT_ORDER = { reco: -2, guide: -1, dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, dca: 2.5, crypto: 3,
-  realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10, lab_rotation: 12, lab_rebal: 13, lab_blend: 14, lab_dailyrisk: 15, lab_vixdca: 16 };
+  realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10, lab_rotation: 12, lab_rebal: 13, lab_blend: 14, lab_dailyrisk: 15 };
 const CAT_LABEL_NAV = { reco: '추천 전략', guide: '초보자 가이드', dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
   dca: '적립식 시뮬레이터',
   crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩', realestate: '부동산',
   paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도',
-  lab_rotation: '전략 로테이션', lab_rebal: '리밸 주기 민감도', lab_blend: '고정 블렌드 최적화', lab_dailyrisk: '일별 vs 월별 위험',
-  lab_vixdca: 'VIX 연동 적립' };
+  lab_rotation: '전략 로테이션', lab_rebal: '리밸 주기 민감도', lab_blend: '고정 블렌드 최적화', lab_dailyrisk: '일별 vs 월별 위험' };
 // 4대분류: 자산배분(8자산) / 주식(한국 모멘텀·미국 TQQQ·지수 모멘텀) / 코인(BTC/ETH/XRP) /
 //          도구·지표(계산기·심리·경보·데이터정확도). 코인은 전통자산과 위험특성이 달라 독립 영역.
 const SUPER_OF = { reco: 'reco', guide: 'guide', dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
   momentum: 'strat', dca: 'strat', crypto: 'coin', realestate: 're',
   paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools',
-  lab_rotation: 'lab', lab_rebal: 'lab', lab_blend: 'lab', lab_dailyrisk: 'lab', lab_vixdca: 'lab' };
+  lab_rotation: 'lab', lab_rebal: 'lab', lab_blend: 'lab', lab_dailyrisk: 'lab' };
 const SUPER_ORDER = { reco: -2, guide: -1, alloc: 0, strat: 1, coin: 2, re: 3, tools: 4, lab: 5 };
 const SUPER_LABEL = { reco: '⭐ 추천', guide: '📖 가이드', alloc: '자산배분', strat: '주식', coin: '코인', re: '부동산', tools: '도구·지표', lab: '🧪 실험실' };
 // 부동산 분류 칩 = 지역(전국·지수 먼저, 그다음 도시). 카테고리 re_index/re_<도시>를 네비 맵에 등록.
@@ -1420,7 +1419,8 @@ function setCurrency(cur) {
   if (entry.mode === 'lab_rebal') return loadTool(entry, 'lab_rebal');          // 🧪 실험실: 리밸 주기 민감도
   if (entry.mode === 'lab_blend') return loadTool(entry, 'lab_blend');          // 🧪 실험실: 고정 블렌드 최적화
   if (entry.mode === 'lab_dailyrisk') return loadTool(entry, 'lab_dailyrisk');  // 🧪 실험실: 일별 vs 월별 위험 렌즈
-  if (entry.mode === 'lab_vixdca') return loadTool(entry, 'lab_vixdca');        // 🧪 실험실: VIX 연동 적립
+  if (entry.mode === 'dca_vix') return loadTool(entry, 'dca_vix');              // 적립식 서브탭: VIX 연동 적립
+  if (entry.mode === 'dca_switch') return loadTool(entry, 'dca_switch');        // 적립식 서브탭: 이평 필터 전환(세후)
   // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
   if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
   else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
@@ -1439,10 +1439,34 @@ function setAnalyticsMode(on) {
 function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
   document.body.classList.toggle('tools-mode', !!on);
   if (on) document.body.classList.remove('analytics-mode');
-  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage', 'dca', 'lab_rotation', 'lab_rebal', 'lab_blend', 'lab_dailyrisk', 'lab_vixdca'].forEach(t => {
+  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage', 'dca', 'dca_vix', 'dca_switch', 'lab_rotation', 'lab_rebal', 'lab_blend', 'lab_dailyrisk'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.classList.toggle('hidden', !(on && t === tool));
   });
+  _syncDcaSubtabs(on && DCA_SUBTAB_MODES.includes(tool) ? tool : null);
+}
+
+// 적립식 시뮬레이터 서브탭 — 분류 'dca' 의 그룹 3개를 화면 상단 탭 줄로도 보여 준다.
+// 그룹 드롭다운과 같은 상태(state.nav.group)를 움직이므로 딥링크·새로고침 규약이 그대로 산다.
+const DCA_SUBTAB_MODES = ['dca', 'dca_vix', 'dca_switch'];
+const DCA_SUBTAB_LABEL = { dca: '① 기본 적립', dca_vix: '② VIX 연동 적립', dca_switch: '③ 이평 필터 전환 · 세후' };
+function _syncDcaSubtabs(mode) {
+  const box = document.getElementById('dca-subtabs');
+  if (!box) return;
+  box.classList.toggle('hidden', !mode);
+  if (!mode) return;
+  const ents = state.manifest.filter(m => m.category === 'dca' && DCA_SUBTAB_MODES.includes(m.mode));
+  box.innerHTML = ents.map(m =>
+    `<button type="button" data-mode="${m.mode}" title="${m.group}"${m.mode === mode ? ' class="active"' : ''}>` +
+    `${DCA_SUBTAB_LABEL[m.mode] || m.group}</button>`).join('');
+  if (!box._wired) {
+    box.addEventListener('click', e => {
+      const b = e.target.closest('button[data-mode]'); if (!b || b.classList.contains('active')) return;
+      const m = state.manifest.find(x => x.category === 'dca' && x.mode === b.dataset.mode);
+      if (m) setGroup(m.group);
+    });
+    box._wired = true;
+  }
 }
 
 // 📖 초보자 가이드 — 순수 정적 콘텐츠 뷰(데이터 파일 없음). 낙원계산기/블렌딩과 동일하게 mode 분기로 진입.
@@ -2159,8 +2183,13 @@ async function loadTool(entry, kind) {
   setStatus('불러오는 중…');
   const token = ++state._navToken;   // 로드 시작 = 최신 표식(우회 호출부 포함)
   try {
-    const d = await fetch('data/' + entry.file, { cache: 'no-cache' })
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    // 적립식 서브탭 3개는 **같은 dca.json(≈1.3MB)** 을 쓴다 — 탭을 오갈 때마다 다시 받지 않게
+    // 세션 동안만 기억한다(새로고침하면 다시 받으므로 신선도 규약은 그대로다).
+    const shared = DCA_SUBTAB_MODES.includes(kind);
+    const d = (shared && state._dcaJson && state._dcaJson.file === entry.file) ? state._dcaJson.d
+      : await fetch('data/' + entry.file, { cache: 'no-cache' })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    if (shared) state._dcaJson = { file: entry.file, d };
     if (token !== state._navToken) return;   // 더 최신 내비게이션 시작됨 → 폐기
     state.tool = { kind, data: d };
     setStatus('');
@@ -2175,7 +2204,8 @@ async function loadTool(entry, kind) {
     else if (kind === 'lab_rebal') enterRebal(d);
     else if (kind === 'lab_blend') enterBlendOpt(d);
     else if (kind === 'lab_dailyrisk') enterDailyRisk(d);
-    else if (kind === 'lab_vixdca') enterVixDca(d);
+    else if (kind === 'dca_vix') enterVixDca(d);
+    else if (kind === 'dca_switch') enterSwitchDca(d);
     else renderTrend(d);
   } catch (e) { setStatus(entry.group + ' 로딩 실패: ' + e.message, true); }
 }
@@ -5867,7 +5897,8 @@ function applyBlendWeights(which) {              // 추천 비중을 블렌드 �
 }
 
 // ---------------------------------------------------------------------------
-// 🧪 실험실 · VIX 연동 적립 — dca.json 을 그대로 재사용한다(마스터 날짜축 공유).
+// 적립식 시뮬레이터 ② VIX 연동 적립 — dca.json 을 그대로 재사용한다(마스터 날짜축 공유).
+// (예전엔 🧪 실험실의 독립 분류였다 — 지금은 분류 'dca' 의 서브탭이다. 화면·엔진 분리 원칙은 그대로.)
 //
 // **총액 기준 3택(basis)** — 무엇을 같게 두고 비교하느냐가 결론을 가른다.
 //   flex   : 현금을 아예 안 들고 매달 전액을 주식에 넣되 금액만 VIX 로 바꾼다(기본).
@@ -5879,7 +5910,7 @@ function applyBlendWeights(which) {              // 추천 비중을 블렌드 �
 // 늘어난다. 그 이득은 신호가 아니라 '앞당김'이므로, VIX 를 전혀 안 보면서 같은 달러가중 보유기간을
 // 갖는 **시간기울기 대조군**을 함께 돌리고 그 대비 성과를 결론으로 쓴다(vsTilt).
 //
-// **왜 적립식 시뮬레이터 화면과 분리했나** — 그쪽 엔진의 전제는 "적립식엔 신호가 없다 →
+// **왜 기본 적립 서브탭과 화면을 나눴나** — 그쪽 엔진의 전제는 "적립식엔 신호가 없다 →
 // 룩어헤드가 원천적으로 없다"(dca_sim.py 모듈 독스트링)이다. VIX 규칙은 신호 기반이라 그 전제를
 // 깬다. 같은 화면에 섞으면 기존 7개 패널(종목비교·최적레버리지·롤링·민감도)이 전부 '월 고정액'
 // 전제 위에 서 있는 것과도 충돌한다. 데이터·엔진은 공유하되 화면만 나눈다.
@@ -5890,7 +5921,7 @@ function applyBlendWeights(which) {              // 추천 비중을 블렌드 �
 const VX_COL = { pool: '#2563eb', fixed: '#9ca3af', lump: '#ea580c', cash: '#16a34a' };
 
 function enterVixDca(d) {
-  setToolsMode(true, 'lab_vixdca');
+  setToolsMode(true, 'dca_vix');
   state.playground = false; state.analyticsActive = false; state.data = null; state.allocCtx = null;
   const df = d.vix_defaults || {};
   state.vx = {
@@ -5909,7 +5940,7 @@ function enterVixDca(d) {
   };
   if (!state.vx.picks.size && d.assets.length) state.vx.picks.add(d.assets[0].key);
   document.getElementById('meta').textContent =
-    `🧪 실험실 · VIX 연동 적립 · 생성일 ${d.generated_at || '-'}`;
+    `적립식 시뮬레이터 · VIX 연동 적립 · 생성일 ${d.generated_at || '-'}`;
 
   // VIX 가 없으면(번들·라이브·야후 전부 실패) 이 화면은 계산할 게 없다 — 조용히 고정 적립으로
   // 퇴각해 "결과가 나왔다"고 보이게 하는 쪽이 훨씬 나쁘다. 이유를 적고 멈춘다.
@@ -6633,6 +6664,446 @@ function _vxRenderThresholds(r, monthly) {
     `고VIX 달이 이 표본의 앞쪽(1999~2002·2008)에 몰려 있어 예산을 앞으로 당긴 효과이고, 배수를 매수 횟수만큼 ` +
     `키우면 결국 <b>거치식</b>이 됩니다. 괄호 숫자가 그 몫을 걷어낸 값입니다. ` +
     `'해당 월수'가 한 자릿수~수십인 행은 <b>사건 서너 개</b> 위에 선 결론이라는 점도 같이 보세요.`;
+}
+
+// ---------------------------------------------------------------------------
+// 적립식 시뮬레이터 ③ 이평 필터 전환 — QLD·TQQQ 를 적립하되 QQQ 가 N일선 아래면 QQQ/현금으로 갈아탄다.
+// 이 서브탭만 **매도·수수료·양도세**가 있다. 그래서 모든 금액을 세후 청산가치(오늘 전부 팔아 원화로
+// 찾으면 손에 쥐는 돈)로 비교한다 — 그냥 보유도 마지막 청산 때 세금을 낸다(과세 '이연'일 뿐 면제가 아니다).
+// 계산 정본은 src/strategies/us/dca_switch.py 이고 web/dca.js(switchSimulate·compareSwitch·
+// rollingSwitch)가 미러한다 — 패리티 테스트가 강제한다. 데이터는 dca.json 공유(① ② 와 같은 마스터 축).
+// ---------------------------------------------------------------------------
+const SW_COL = { hold_risk: '#dc2626', hold_safe: '#9ca3af', all: '#2563eb', new: '#16a34a' };
+// 비용 입력칸: [키, 화면 배율(%면 100), 소수 자리]
+const SW_COST_FIELDS = [['commission', 100, 3], ['slippage', 100, 3], ['sec_fee', 100, 5], ['fx_spread', 100, 3],
+  ['cgt_rate', 100, 1], ['exemption_krw', 1, 0], ['interest_tax', 100, 1]];
+
+function enterSwitchDca(d) {
+  setToolsMode(true, 'dca_switch');
+  state.playground = false; state.analyticsActive = false; state.data = null; state.allocCtx = null;
+  const prev = state.sw && state.sw.d === d ? state.sw : null;   // 서브탭을 오가도 고른 조건은 유지
+  state.sw = prev || {
+    d, ccy: (d.defaults && d.defaults.currency) || 'krw', source: 'real', price: 'real',
+    risk: 'qld', safe: 'asset', window: 200, harvest: 'off', period: 'max', start: null, end: null,
+    rollYears: 10, costs: Object.assign({}, DCASIM.SWITCH_COSTS), _sig: {}, _roll: new Map(), _q: null,
+  };
+  document.getElementById('meta').textContent =
+    `적립식 시뮬레이터 · 이평 필터 전환(세후) · 생성일 ${d.generated_at || '-'}`;
+  _swSyncToggles();
+  _swSyncAmountUnit(!prev);
+  _swFillCosts();
+  _swBuildPeriods();
+  if (prev) _swClampRange(); else _swApplyPreset(state.sw.period);
+
+  if (!state._swWired) {
+    const tg = (id, field, after) => document.getElementById(id).addEventListener('click', e => {
+      const b = e.target.closest('button[data-' + field + ']'); if (!b) return;
+      const v = b.dataset[field];
+      state.sw[field] = field === 'window' || field === 'years' ? +v : v;
+      b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+      after && after();
+    });
+    const rebuild = () => {
+      _swBuildPeriods();
+      if (state.sw.period) _swApplyPreset(state.sw.period); else _swClampRange();
+      _swFull();
+    };
+    tg('sw-ccy', 'ccy', () => { _swSyncAmountUnit(true); _swFull(); });
+    tg('sw-source', 'source', rebuild);
+    tg('sw-price', 'price', _swFull);
+    tg('sw-risk', 'risk', rebuild);
+    tg('sw-safe', 'safe', rebuild);
+    tg('sw-window', 'window', rebuild);
+    tg('sw-harvest', 'harvest', _swFull);
+    document.getElementById('sw-roll-years').addEventListener('click', e => {
+      const b = e.target.closest('button[data-years]'); if (!b) return;
+      state.sw.rollYears = +b.dataset.years;
+      b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+      _swRenderRoll();
+    });
+    let t;
+    _attachComma('sw-amount', () => { clearTimeout(t); t = setTimeout(_swFull, 260); });
+    _attachComma('sw-c-exemption_krw', () => { clearTimeout(t); t = setTimeout(() => { _swReadCosts(); _swFull(); }, 260); });
+    SW_COST_FIELDS.forEach(([k]) => {
+      if (k === 'exemption_krw') return;
+      document.getElementById('sw-c-' + k).addEventListener('change', () => { _swReadCosts(); _swFull(); });
+    });
+    document.getElementById('sw-c-reset').addEventListener('click', () => {
+      state.sw.costs = Object.assign({}, DCASIM.SWITCH_COSTS); _swFillCosts(); _swFull();
+    });
+    document.getElementById('sw-period').addEventListener('click', e => {
+      const b = e.target.closest('button[data-period]'); if (!b) return;
+      _swApplyPreset(b.dataset.period); _swFull();
+    });
+    ['sw-start', 'sw-end'].forEach(id => document.getElementById(id).addEventListener('change', () => {
+      const sp = _swSpan(); if (!sp) return;
+      const sv = document.getElementById('sw-start').value, ev = document.getElementById('sw-end').value;
+      state.sw.start = (sv && sv >= sp[0] && sv <= sp[1]) ? sv : sp[0];
+      state.sw.end = (ev && ev >= sp[0] && ev <= sp[1]) ? ev : sp[1];
+      if (state.sw.start >= state.sw.end) { state.sw.start = sp[0]; state.sw.end = sp[1]; }
+      state.sw.period = null;
+      _swSyncPeriodUI(); _swFull();
+    }));
+    state._swWired = true;
+  }
+  _swFull();
+}
+
+function _swSyncToggles() {
+  const s = state.sw;
+  [['sw-ccy', 'ccy'], ['sw-source', 'source'], ['sw-price', 'price'], ['sw-risk', 'risk'], ['sw-safe', 'safe'],
+    ['sw-window', 'window'], ['sw-harvest', 'harvest'], ['sw-roll-years', 'years']].forEach(([id, f]) => {
+    const v = String(f === 'years' ? s.rollYears : s[f]);
+    document.querySelectorAll(`#${id} button`).forEach(b => b.classList.toggle('active', b.dataset[f] === v));
+  });
+}
+function _swCcy() { return state.sw.ccy === 'usd' ? 'usd' : 'krw'; }
+function _swMoney(v) { return _moneyCompact(v, _swCcy()); }
+function _swSyncAmountUnit(resetValue) {
+  const usd = _swCcy() === 'usd';
+  document.getElementById('sw-amount-unit').textContent = usd ? '달러' : '원';
+  if (!resetValue) return;
+  const df = state.sw.d.defaults || {};
+  document.getElementById('sw-amount').value = (usd ? (df.monthly_usd || 1000) : (df.monthly_krw || 1000000)).toLocaleString('en-US');
+}
+function _swMonthly() {
+  const v = parseFloat(String(document.getElementById('sw-amount').value).replace(/,/g, ''));
+  return (isNaN(v) || v <= 0) ? (_swCcy() === 'usd' ? 1000 : 1000000) : v;
+}
+function _swFillCosts() {
+  const c = state.sw.costs;
+  SW_COST_FIELDS.forEach(([k, mul, dp]) => {
+    const el = document.getElementById('sw-c-' + k);
+    const v = c[k] * mul;
+    el.value = k === 'exemption_krw' ? Math.round(v).toLocaleString('en-US') : +v.toFixed(dp);
+  });
+  _swCostsSummary();
+}
+function _swReadCosts() {
+  const c = state.sw.costs;
+  SW_COST_FIELDS.forEach(([k, mul]) => {
+    const raw = String(document.getElementById('sw-c-' + k).value).replace(/,/g, '');
+    const v = parseFloat(raw);
+    if (isFinite(v) && v >= 0) c[k] = v / mul;
+  });
+  _swCostsSummary();
+}
+function _swCostsSummary() {
+  const c = state.sw.costs, p = x => +(x * 100).toFixed(4) + '%';
+  document.getElementById('sw-costs-sum').textContent =
+    `— 수수료 ${p(c.commission)} · 슬리피지 ${p(c.slippage)} · 환전 ${p(c.fx_spread)} · 양도세 ${p(c.cgt_rate)}` +
+    ` (공제 ${_krwCompact(c.exemption_krw)}/년)`;
+}
+function _swAsset(key) { return state.sw.d.assets.find(a => a.key === key); }
+function _swStartIdx(a) { return state.sw.source === 'real' ? a.real_start_idx : a.hist_start_idx; }
+/** QQQ 신호용 가격(마스터 축) — 데이터 소스 토글과 무관하게 **가장 긴 이력**(지수 연결)으로 만든다. */
+function _swQ() {
+  const s = state.sw;
+  if (s._q) return s._q;
+  const d = s.d, q = _swAsset('qqq'), n = d.dates.length;
+  const lo = q.hist_start_idx;
+  const ar = DCASIM.assetReturns(d, q, lo, n - 1, 'mixed').ret;
+  const full = new Float64Array(n);
+  full.set(ar, lo);
+  s._q = { lo, price: DCASIM.priceFromReturns(full, lo) };
+  return s._q;
+}
+function _swSignal(w) {
+  const s = state.sw;
+  if (!s._sig[w]) s._sig[w] = DCASIM.maSignal(_swQ().price, w);
+  return s._sig[w];
+}
+/** 가용 [시작, 종료] — 적립 종목 · (QQQ로 전환 시) QQQ · 신호 판정 가능일 중 가장 늦은 날부터. */
+function _swSpan() {
+  const s = state.sw, d = s.d, n = d.dates.length;
+  const r = _swAsset(s.risk), q = _swAsset('qqq');
+  if (!r || !q) return null;
+  const on = _swSignal(s.window);
+  let sigLo = 0; while (sigLo < n && isNaN(on[sigLo])) sigLo++;
+  const lo = Math.max(_swStartIdx(r), s.safe === 'asset' ? _swStartIdx(q) : 0, sigLo);
+  if (lo >= n - 260) return null;
+  return [d.dates[lo], d.dates[n - 1]];
+}
+function _swBuildPeriods() {
+  const d = state.sw.d, sp = _swSpan(), el = document.getElementById('sw-period');
+  if (!sp) { el.innerHTML = ''; return; }
+  el.innerHTML = (d.presets || []).map(p => {
+    const st = _vxPresetStart(p, sp);
+    if (!st || st >= sp[1]) return '';
+    return `<button type="button" data-period="${p.key}"${p.key === state.sw.period ? ' class="active"' : ''}>${p.label}</button>`;
+  }).join('');
+}
+function _swApplyPreset(key) {
+  const d = state.sw.d, sp = _swSpan(); if (!sp) return;
+  const p = (d.presets || []).find(x => x.key === key);
+  const st = p ? _vxPresetStart(p, sp) : null;
+  state.sw.period = (p && st) ? key : 'max';
+  state.sw.start = st || sp[0];
+  state.sw.end = sp[1];
+  _swSyncPeriodUI();
+}
+function _swClampRange() {
+  const sp = _swSpan(); if (!sp) return;
+  if (!state.sw.start || state.sw.start < sp[0]) state.sw.start = sp[0];
+  if (!state.sw.end || state.sw.end > sp[1]) state.sw.end = sp[1];
+  _swSyncPeriodUI();
+}
+function _swSyncPeriodUI() {
+  document.querySelectorAll('#sw-period button').forEach(b =>
+    b.classList.toggle('active', b.dataset.period === state.sw.period));
+  document.getElementById('sw-start').value = state.sw.start || '';
+  document.getElementById('sw-end').value = state.sw.end || '';
+  const sp = _swSpan();
+  document.getElementById('sw-range').textContent = sp
+    ? `가용: ${sp[0]} ~ ${sp[1]} (적립 종목 상장 · QQQ ${state.sw.window}일선 판정 가능일 이후)` : '';
+}
+function _swScale() {
+  if (state.sw.price === 'nominal') return null;
+  const d = state.sw.d, cpi = _swCcy() === 'krw' ? d.cpi_krw : d.cpi_usd;
+  return (cpi && cpi.length) ? cpi : null;
+}
+function _swLabels() {
+  const s = state.sw, rk = _dcaTicker(_swAsset(s.risk)), safeTxt = s.safe === 'cash' ? '달러 현금' : 'QQQ';
+  return {
+    hold_risk: `${rk} 그냥 보유`,
+    hold_safe: s.safe === 'cash' ? '현금만 적립' : 'QQQ 그냥 보유',
+    all: `필터 · 전량 전환(${rk}↔${safeTxt})`,
+    new: `필터 · 신규분만(${rk}/${safeTxt})`,
+  };
+}
+function _swOpts(lo, costs) {
+  const s = state.sw;
+  return { offset: lo, safe: s.safe, rf: s.d.rf, krw: _swCcy() === 'krw', costs: costs || s.costs,
+    scale: _swScale(), harvest: s.harvest === 'on', dpy: s.d.dpy };
+}
+/** 선택 구간의 4파전 + 비용·세금 0 가정 4파전(세후 대비 '무엇이 빠졌나' 분해용). */
+function _swRun() {
+  const s = state.sw, d = s.d, sp = _swSpan();
+  const rng = DCASIM.sliceRange(d.dates, s.start, s.end);
+  if (!rng || !sp) return null;
+  const spLo = d.dates.indexOf(sp[0]);
+  const lo = Math.max(rng[0], spLo), hi = rng[1];
+  if (hi - lo < 40) return null;
+  const monthly = _swMonthly();
+  const rR = DCASIM.assetReturns(d, _swAsset(s.risk), lo, hi, s.source).ret;
+  const rS = DCASIM.assetReturns(d, _swAsset('qqq'), lo, hi, s.source).ret;
+  const buy = DCASIM.monthFirstIndices(d.dates, lo, hi);
+  const on = _swSignal(s.window);
+  const cmp = DCASIM.compareSwitch(d.dates, rR, rS, d.fx, buy, monthly, on, _swOpts(lo));
+  const zero = { commission: 0, slippage: 0, sec_fee: 0, fx_spread: 0, cgt_rate: 0, interest_tax: 0 };
+  const gross = DCASIM.compareSwitch(d.dates, rR, rS, d.fx, buy, monthly, on, _swOpts(lo, Object.assign({}, s.costs, zero)));
+  return Object.assign({ lo, hi, buy, on, monthly, gross }, cmp);
+}
+
+function _swFull() {
+  if (!state.sw) return;
+  const r = _swRun();
+  if (!r) { setStatus('선택한 조합·기간에 데이터가 부족합니다.', true); return; }
+  setStatus('');
+  state.sw._last = r;
+  _swRenderCards(r);
+  _swRenderEquity(r);
+  _swRenderSignal(r);
+  _swRenderTable(r);
+  _swRenderTax(r);
+  // 롤링은 창 수백 개 × 4파전이라 무겁다 — 위 패널을 먼저 그린 뒤 다음 틱에 계산한다.
+  clearTimeout(state.sw._rollT);
+  state.sw._rollT = setTimeout(_swRenderRoll, 0);
+}
+
+function _swRatio(a, b) { return (a && b && b.final > 0) ? a.final / b.final : NaN; }
+function _swRenderCards(r) {
+  const m = r.metrics, L = _swLabels();
+  const card = (l, v, s) => `<div class="ext-card"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s || ''}</div></div>`;
+  const years = Math.max((Date.parse(m.all.end) - Date.parse(m.all.start)) / 31557600000, 1e-9);
+  const xr = x => (isFinite(x) ? (x * 100).toFixed(1) + '%' : '—');
+  const rAll = _swRatio(m.all, m.hold_risk), rNew = _swRatio(m.new, m.hold_risk);
+  document.getElementById('sw-cards').innerHTML =
+    ['hold_risk', 'all', 'new', 'hold_safe'].map(k =>
+      card(L[k], _swMoney(m[k].final), `세후 XIRR ${xr(m[k].xirr)} · MDD ${fmtPct(m[k].mdd)}`)).join('') +
+    card('전량 전환 ÷ 그냥 보유', _vxVs(rAll), rAll > 1 ? '세후 기준 필터 승' : '세후 기준 그냥 보유 승') +
+    card('신규분만 ÷ 그냥 보유', _vxVs(rNew), '매도 없음 — 과세 이벤트 없음') +
+    card('전환 횟수', `${m.all.switches}회`,
+      `연 ${(m.all.switches / years).toFixed(1)}회 · ${_dcaTicker(_swAsset(state.sw.risk))} 보유 ${fmtPct(m.all.riskShare)}의 날`) +
+    card('세금+비용 (전량 전환)', _swMoney(m.all.taxTotal + m.all.fees),
+      `그냥 보유는 ${_swMoney(m.hold_risk.taxTotal + m.hold_risk.fees)} · 총 납입 ${_swMoney(m.all.totalCost)}`);
+
+  const vb = document.getElementById('sw-verdict');
+  const pc = g => (g >= 0 ? '+' : '') + (g * 100).toFixed(1) + '%';
+  const gain = rAll - 1, tie = Math.abs(gain) < 0.02;
+  vb.className = 'lab-verdict ' + (tie ? 'verdict-tie' : (gain > 0 ? 'verdict-win' : 'verdict-lose'));
+  const ddGap = m.all.mdd - m.hold_risk.mdd;
+  vb.innerHTML =
+    `<b>${m.all.start}~${m.all.end}</b> · 매달 ${_swMoney(r.monthly)}${_swScale() ? '(물가 연동)' : ''} — ` +
+    `QQQ ${state.sw.window}일선 필터(전량 전환)는 ${L.hold_risk} 대비 세후 <b>${pc(gain)}</b>, ` +
+    `평가액 MDD는 <b>${fmtPct(m.hold_risk.mdd)} → ${fmtPct(m.all.mdd)}</b>` +
+    `<div class="lab-verdict-sub">` +
+    (tie ? '세후 차이 2% 미만 — 사실상 무승부입니다. ' : '') +
+    `전량 전환은 ${m.all.switches}번 갈아탔습니다 — 수수료·환전 비용은 <b>${_swMoney(m.all.fees)}</b>, 중간에 낸 양도세는 ` +
+    `<b>${_swMoney(m.all.taxPaid)}</b>(그냥 보유는 ${_swMoney(m.hold_risk.taxPaid)}), 종료일에 청산하면 더 낼 양도세는 ` +
+    `<b>${_swMoney(m.all.taxTerminal)}</b>(그냥 보유는 <b>${_swMoney(m.hold_risk.taxTerminal)}</b>)입니다. ` +
+    (ddGap > 0.05 ? `낙폭을 ${(ddGap * 100).toFixed(0)}%p 줄인 대가가 위 수익률 차이입니다 — 수익이 아니라 <b>견딜 수 있는가</b>를 산 셈입니다. ` : '') +
+    `한 구간의 결론이니 맨 아래 <b>시작 시점 롤링</b>을 꼭 같이 보세요.</div>`;
+}
+
+function _swRenderEquity(r) {
+  const d = state.sw.d, L = _swLabels(), ccy = _swCcy();
+  const hov = ccy === 'usd' ? '$%{y:,.0f}' : '%{y:,.0f}원';
+  const n = r.hi - r.lo + 1, idx = DCASIM.downsampleIdx(n, 1200), x = idx.map(i => d.dates[r.lo + i]);
+  const traces = [{
+    type: 'scatter', mode: 'lines', name: '납입 누계(원금)', x, y: idx.map(i => r.sims.hold_risk.cost[i]),
+    line: { width: 1.4, color: DCA_COL.cost, dash: 'dot' }, hovertemplate: hov + '<extra>납입 누계</extra>',
+  }];
+  ['hold_risk', 'all', 'new', 'hold_safe'].forEach(k => traces.push({
+    type: 'scatter', mode: 'lines', name: L[k], x, y: idx.map(i => r.sims[k].liq[i]),
+    line: { width: k === 'all' ? 2.2 : 1.6, color: SW_COL[k], dash: k === 'hold_safe' ? 'dash' : 'solid' },
+    hovertemplate: hov + '<extra>' + L[k] + '</extra>',
+  }));
+  const layout = baseLayout('세후 청산가치 — 오늘 전부 팔아 원화로 찾으면', ccy === 'usd' ? '세후 청산가치 ($, 로그축)' : '세후 청산가치 (원, 로그축)');
+  layout.yaxis.type = 'log';
+  const rg = _dcaLogRange([].concat(...traces.map(t => t.y)), ccy);
+  if (rg) {
+    layout.yaxis.range = [Math.log10(rg.lo), Math.log10(rg.hi * 1.3)];
+    const tk = _dcaMoneyTicks(rg.lo, rg.hi, ccy);
+    if (tk) Object.assign(layout.yaxis, tk);
+  }
+  Plotly.react('sw-equity', traces, layout, PLOTCFG);
+  document.getElementById('sw-equity-note').innerHTML =
+    `곡선은 <b>세후 청산가치</b>입니다 — 매일 "오늘 전부 팔면" 내야 할 매도 비용·환전 비용·양도세(미납 전년도분 + ` +
+    `올해 실현·미실현 이익분)를 뺀 금액이라, <b>과세를 미루는 그냥 보유도 세금이 빠진 채</b> 그려집니다. ` +
+    `연초에 곡선이 살짝 튀는 것은 공제(연 ${_krwCompact(state.sw.costs.exemption_krw)})가 해마다 새로 생기기 때문입니다.`;
+}
+
+function _swRenderSignal(r) {
+  const d = state.sw.d, w = state.sw.window, q = _swQ();
+  const n = r.hi - r.lo + 1, idx = DCASIM.downsampleIdx(n, 1200);
+  // 표시용 SMA(엔진 판정과 같은 창) — 엔진은 전일까지로 판정하므로 이 선과 하루 어긋나 보일 수 있다.
+  const sma = new Float64Array(d.dates.length).fill(NaN);
+  let run = 0, valid = 0;
+  for (let j = 0; j < q.price.length; j++) {
+    if (q.price[j] > 0) { run += q.price[j]; valid++; }
+    if (j - w >= 0 && q.price[j - w] > 0) { run -= q.price[j - w]; valid--; }
+    if (valid === w) sma[j] = run / w;
+  }
+  const base = q.price[r.lo] || 1;
+  const x = idx.map(i => d.dates[r.lo + i]);
+  const traces = [
+    { type: 'scatter', mode: 'lines', name: 'QQQ(구간 시작=1)', x, y: idx.map(i => q.price[r.lo + i] / base),
+      line: { width: 1.5, color: cssVar('--accent') || '#2563eb' }, hovertemplate: '%{y:.2f}<extra>QQQ</extra>' },
+    { type: 'scatter', mode: 'lines', name: `${w}일선`, x, y: idx.map(i => sma[r.lo + i] / base),
+      line: { width: 1.3, color: '#ea580c', dash: 'dot' }, hovertemplate: '%{y:.2f}<extra>이평</extra>' },
+  ];
+  // 판정이 '안전'이었던 달(매수일 → 다음 매수일)을 음영으로. 연속된 달은 하나로 합친다.
+  const shapes = [];
+  let offMonths = 0, segStart = null;
+  r.buy.forEach((b, k) => {
+    const off = r.on[b] === 0, next = k + 1 < r.buy.length ? d.dates[r.buy[k + 1]] : d.dates[r.hi];
+    if (off) { offMonths++; if (segStart == null) segStart = d.dates[b]; }
+    if (segStart != null && (!off || k + 1 === r.buy.length)) {
+      shapes.push({ type: 'rect', xref: 'x', yref: 'paper', x0: segStart, x1: off ? next : d.dates[b], y0: 0, y1: 1,
+        fillcolor: 'rgba(220,38,38,0.12)', line: { width: 0 }, layer: 'below' });
+      segStart = null;
+    }
+  });
+  const layout = baseLayout(`QQQ vs ${w}일선 — 붉은 음영 = 그달 판정이 '안전'`, 'QQQ (로그축)');
+  layout.yaxis.type = 'log';
+  layout.shapes = shapes;
+  layout.height = 300;
+  Plotly.react('sw-signal', traces, layout, PLOTCFG);
+  document.getElementById('sw-signal-sub').textContent =
+    `(${r.buy.length}개월 중 ${offMonths}개월 '안전' · 판정은 매달 첫 거래일에 전일 종가로)`;
+}
+
+function _swRenderTable(r) {
+  const m = r.metrics, g = r.gross.metrics, L = _swLabels();
+  const xr = x => (isFinite(x) ? (x * 100).toFixed(2) + '%' : '—');
+  const head = ['전략', '비용·세금 0이었다면', '수수료·환전', '양도세(중간 납부)', '양도세(청산 시)', '세후 청산가치',
+    '세후 ÷ 비용0', '세전 XIRR', '세후 XIRR', '평가액 MDD', '원금 하회 최장', '전환', '매도 건수', '공제 활용'];
+  const rows = ['hold_risk', 'all', 'new', 'hold_safe'].map(k => {
+    const x = m[k], z = g[k];
+    const cells = [
+      `<span class="sw-dot" style="background:${SW_COL[k]}"></span>${L[k]}`,
+      _swMoney(z.final), _swMoney(x.fees), _swMoney(x.taxPaid), _swMoney(x.taxTerminal),
+      `<b>${_swMoney(x.final)}</b>`, fmtPct(x.final / z.final - 1), xr(x.xirrPre), `<b>${xr(x.xirr)}</b>`,
+      fmtPct(x.mdd), `${(x.underDays / 252).toFixed(1)}년`, `${x.switches}회`, `${x.sells}건`, _krwCompact(x.exUsed),
+    ];
+    return '<tr>' + cells.map((c, i) => `<td data-label="${head[i]}"${i === 0 ? ' class="name"' : ''}>${c}</td>`).join('') + '</tr>';
+  }).join('');
+  document.getElementById('sw-table').innerHTML =
+    `<thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>`;
+  const yrs = Math.max(1, Math.round((Date.parse(m.all.end) - Date.parse(m.all.start)) / 31557600000));
+  document.getElementById('sw-table-note').innerHTML =
+    `'비용·세금 0이었다면'은 같은 신호·같은 매매를 <b>수수료·환전·세금 없이</b> 돌린 값이고, '세후 ÷ 비용0'이 ` +
+    `그중 빠져나간 몫입니다. '세전 XIRR'은 청산 전 평가액 기준(이미 낸 중간 납부 세금은 빠져 있음), '세후 XIRR'은 ` +
+    `종료일에 전부 팔고 세금까지 낸 금액 기준입니다. '공제 활용'은 약 ${yrs}년 동안 연 ${_krwCompact(state.sw.costs.exemption_krw)} ` +
+    `공제를 실제로 쓴 합계 — 그냥 보유는 마지막 해 한 번밖에 못 씁니다` +
+    (state.sw.harvest === 'on' ? ' (공제 리셋이 켜져 있어 해마다 씁니다)' : ' (위의 <b>공제 리셋</b>을 켜면 해마다 씁니다)') + '.';
+}
+
+function _swRenderTax(r) {
+  const L = _swLabels();
+  const traces = ['hold_risk', 'all', 'new', 'hold_safe'].map(k => {
+    const ys = r.sims[k].byYear;
+    return { type: 'bar', name: L[k], x: ys.map(y => (y.terminal ? `${y.year}*` : String(y.year))),
+      // 축은 억원(Plotly 기본 SI 접두사 '2.5B' 대신), 호버는 원 단위 그대로.
+      y: ys.map(y => y.tax / 1e8), customdata: ys.map(y => y.tax), marker: { color: SW_COL[k] },
+      hovertemplate: '%{customdata:,.0f}원<extra>' + L[k] + '</extra>' };
+  });
+  const layout = baseLayout('연도별 양도세 (원화 · *=종료일 가상 청산)', '세액 (억원)');
+  layout.xaxis = Object.assign({}, layout.xaxis, { type: 'category' });
+  layout.barmode = 'group';
+  layout.height = 300;
+  Plotly.react('sw-tax', traces, layout, PLOTCFG);
+}
+
+function _swRenderRoll() {
+  const s = state.sw; if (!s) return;
+  const d = s.d, sp = _swSpan(); if (!sp) return;
+  const lo = d.dates.indexOf(sp[0]), hi = d.dates.length - 1;
+  const monthly = _swMonthly(), years = s.rollYears;
+  const key = JSON.stringify([s.risk, s.safe, s.window, s.source, s.price, s.ccy, s.harvest, years, monthly, s.costs]);
+  let rows = s._roll.get(key);
+  if (!rows) {
+    const rR = DCASIM.assetReturns(d, _swAsset(s.risk), lo, hi, s.source).ret;
+    const rS = DCASIM.assetReturns(d, _swAsset('qqq'), lo, hi, s.source).ret;
+    const o = _swOpts(lo); delete o.offset;
+    rows = DCASIM.rollingSwitch(d.dates, rR, rS, d.fx, lo, hi, _swSignal(s.window), years, monthly, o);
+    s._roll.set(key, rows);
+  }
+  const cards = document.getElementById('sw-roll-cards'), vb = document.getElementById('sw-roll-verdict');
+  if (!rows.length) {
+    cards.innerHTML = ''; Plotly.purge('sw-roll');
+    vb.className = 'lab-verdict verdict-tie';
+    vb.textContent = `가용 이력(${sp[0]}~)이 ${years}년 창을 하나도 채우지 못합니다 — 창 길이를 줄이거나 '합성 확장 포함'을 켜 보세요.`;
+    return;
+  }
+  const sum = DCASIM.rollingSwitchSummary(rows), L = _swLabels();
+  const card = (l, v, sub) => `<div class="ext-card"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${sub || ''}</div></div>`;
+  const q = o => o ? `중앙값 ${_vxVs(o.p50)} · p10~p90 ${_vxVs(o.p10)} ~ ${_vxVs(o.p90)}` : '';
+  cards.innerHTML =
+    card('창 수', `${sum.n}개`, `${years}년 창 · 시작 ${rows[0].start} ~ ${rows[rows.length - 1].start}`) +
+    card('전량 전환 승률', fmtPct(sum.all_vs_risk.win_rate).replace(/\.\d+%/, '%'), q(sum.all_vs_risk)) +
+    card('신규분만 승률', fmtPct(sum.new_vs_risk.win_rate).replace(/\.\d+%/, '%'), q(sum.new_vs_risk)) +
+    card(`${L.hold_safe} 승률`, fmtPct(sum.safe_vs_risk.win_rate).replace(/\.\d+%/, '%'), q(sum.safe_vs_risk));
+  const x = rows.map(r => r.start);
+  const traces = [
+    { type: 'scatter', mode: 'lines', name: '전량 전환 ÷ 그냥 보유', x, y: rows.map(r => r.all_vs_risk),
+      line: { width: 2, color: SW_COL.all }, hovertemplate: '%{y:.2f}배<extra>전량 전환</extra>' },
+    { type: 'scatter', mode: 'lines', name: '신규분만 ÷ 그냥 보유', x, y: rows.map(r => r.new_vs_risk),
+      line: { width: 1.6, color: SW_COL.new }, hovertemplate: '%{y:.2f}배<extra>신규분만</extra>' },
+    { type: 'scatter', mode: 'lines', name: `${L.hold_safe} ÷ 그냥 보유`, x, y: rows.map(r => r.safe_vs_risk),
+      line: { width: 1.3, color: SW_COL.hold_safe, dash: 'dash' }, hovertemplate: '%{y:.2f}배<extra>안전자산</extra>' },
+  ];
+  const layout = baseLayout(`시작 월별 세후 성과비 (${years}년 적립 · 1.0 위 = 필터 승)`, `÷ ${L.hold_risk} (로그축)`);
+  layout.yaxis.type = 'log';
+  layout.xaxis.title = { text: '창 시작 월', font: { color: cssVar('--chart-muted') } };
+  layout.shapes = [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: 1, y1: 1, line: { color: cssVar('--chart-muted'), width: 1, dash: 'dash' } }];
+  Plotly.react('sw-roll', traces, layout, PLOTCFG);
+  const w = sum.all_vs_risk.win_rate;
+  vb.className = 'lab-verdict ' + (Math.abs(w - 0.5) < 0.1 ? 'verdict-tie' : (w > 0.5 ? 'verdict-win' : 'verdict-lose'));
+  vb.innerHTML = `${years}년 적립 창 ${sum.n}개 중 전량 전환이 그냥 보유를 세후로 이긴 창은 <b>${Math.round(w * sum.n)}개(${(w * 100).toFixed(0)}%)</b>` +
+    `<div class="lab-verdict-sub">이긴 창과 진 창이 <b>시기별로 뭉쳐</b> 있다면(예: 닷컴·금융위기를 품은 창만 승) 그건 규칙의 일반적 우위가 아니라 ` +
+    `<b>사건 몇 개</b>에 달린 결과입니다. 매달 적립금(${_swMoney(monthly)})을 바꾸면 공제 비중이 달라져 이 분포도 움직입니다.</div>`;
 }
 
 async function init() {

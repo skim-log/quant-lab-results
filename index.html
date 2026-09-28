@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=f8a0f69a" />
+  <link rel="stylesheet" href="style.css?v=a28854ff" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -759,6 +759,8 @@
       </section>
     </div>
 
+    <!-- 적립식 시뮬레이터 서브탭 줄(① 기본 · ② VIX 연동 · ③ 이평 필터 전환) — app.js _syncDcaSubtabs -->
+    <div id="dca-subtabs" class="bt-toggle dca-subtabs hidden" role="tablist" aria-label="적립식 시뮬레이터 서브탭"></div>
     <!-- 적립식(DCA) 시뮬레이터: 월 적립금·기간·종목을 직접 입력 → web/dca.js 가 브라우저에서 즉석 재계산 -->
     <div id="dca-section" class="hidden">
       <section class="panel">
@@ -1042,10 +1044,10 @@
       </section>
     </div>
 
-    <!-- 🧪 실험실 · VIX 연동 적립(현금풀) — dca.json 을 그대로 재사용(마스터 축 공유) -->
-    <div id="lab_vixdca-section" class="hidden">
+    <!-- 적립식 ② VIX 연동 적립(현금풀) — dca.json 을 그대로 재사용(마스터 축 공유) -->
+    <div id="dca_vix-section" class="hidden">
       <section class="panel">
-        <h2>🧪 공포에 더 사면 유리할까? <span class="muted">(VIX 연동 적립 · 과최적화 점검)</span></h2>
+        <h2>공포에 더 사면 유리할까? <span class="muted">(VIX 연동 적립 · 과최적화 점검)</span></h2>
         <p class="period-note">주식에 넣을 <strong>총액을 먼저 고정</strong>하고, 매달 그 예산에서 <strong>VIX에 따라 다른 금액</strong>을 넣습니다 — 기본값인 <strong>현금 미보유</strong> 모드는 현금을 한 푼도 들지 않고 <strong>매달 전액을 주식에 넣되 금액만</strong> 바꿉니다. 같은 총액을 첫날 한 번에 넣는 <strong>거치식</strong>, 매달 똑같이 나눠 넣는 <strong>단순 적립식</strong>과 주식 투입 총액이 정확히 같아 최종 평가액을 그대로 나란히 놓을 수 있습니다.</p>
         <p class="period-note">⚠️ <strong>이 화면에서 가장 중요한 숫자는 '÷ 시간기울기 대조군'입니다.</strong> 공포 달에 앞당겨 넣으면 총액이 같아도 <strong>돈이 시장에 머문 기간 자체가 늘어납니다</strong> — 그 이득은 "싸게 샀다"가 아니라 "일찍 넣었다"입니다. 그래서 <strong>VIX를 전혀 보지 않으면서 같은 기간만큼 앞당긴</strong> 스케줄을 대조군으로 함께 돌리고, 그 대비 성과를 결론으로 씁니다.</p>
         <p class="period-note" style="border-left:3px solid var(--warn-fg);padding-left:.55rem;color:var(--warn-fg)">⚠️ 실험·교육용. VIX 최상위 구간은 1990년 이후를 다 써도 <strong>대여섯 개 사건</strong>(1998·2001~02·2008~09·2011·2020·2022)에 뭉쳐 있습니다. 거래일이 수천 개여도 <strong>독립 관측은 그 사건 수</strong>에 가깝습니다 — 맨 아래 <strong>사건 분해</strong> 표를 반드시 함께 보세요.</p>
@@ -1153,6 +1155,122 @@
             <p><strong>② 임계값이 이미 사후정보입니다.</strong> "VIX 30이면 공포"라는 감각은 VIX의 장기 분포를 <strong>지나고 나서</strong> 알기 때문에 생긴 것입니다. 1990년의 투자자는 그 분포를 몰랐습니다. 그래서 이 화면의 정본은 <strong>확장창 백분위</strong>(그 시점까지 관측된 VIX만 사용)이고, 고정 임계(20/30/40)는 대조군으로만 둡니다.</p>
             <p><strong>③ 레버리지에선 역풍이 더 셉니다.</strong> 고VIX = 고변동성이고, 일별 리밸런싱 레버리지 ETF(QLD·TQQQ)의 <strong>변동성 감쇠가 가장 심한 구간</strong>이 바로 거기입니다. "무서울 때 2배로 담기"가 감쇠와 정면으로 부딪힙니다.</p>
             <p><strong>④ 그래도 의미 있는 지점.</strong> 최종 평가액이 비슷하더라도 <strong>평균 매수단가</strong>는 대개 내려갑니다. 그리고 현금풀은 정의상 하락장에 현금을 들고 있어 <strong>평가액 낙폭(MDD)이 얕아지는</strong> 경향이 있습니다 — 수익이 아니라 <strong>견딜 수 있는가</strong>를 사는 셈입니다. 위 표의 MDD 열을 함께 보세요.</p>
+          </div>
+        </details>
+      </section>
+    </div>
+
+    <!-- 적립식 ③ 이평 필터 전환 — 매도·수수료·양도세가 있는 유일한 서브탭(엔진 src/strategies/us/dca_switch.py ↔ web/dca.js switchSimulate) -->
+    <div id="dca_switch-section" class="hidden">
+      <section class="panel">
+        <h2>이평선 아래면 갈아탈까? <span class="muted">(레버리지 적립 + QQQ 이평 필터 · 수수료·양도세 반영 세후 비교)</span></h2>
+        <p class="period-note">QLD·TQQQ를 매달 적립하되, <strong>QQQ가 N일 이동평균선 아래</strong>면 안전자산(QQQ 또는 달러 현금)으로 갈아탑니다. 판정·전환은 <strong>월 1회</strong>(매달 첫 거래일, <strong>전일 종가</strong> 기준)뿐입니다. 갈아타려면 <strong>팔아야 하고, 팔면 세금</strong>이 생깁니다 — 그래서 이 화면의 모든 금액은 <strong>세후 청산가치</strong>(오늘 전부 팔아 원화로 찾으면 손에 쥐는 돈)입니다. 그냥 보유한 쪽도 <strong>마지막에 팔 때 세금을 낸다고 보고</strong> 똑같이 뺍니다.</p>
+        <div class="bt-controls dca-controls">
+          <label>월 적립금
+            <input type="text" id="sw-amount" inputmode="numeric" value="1,000,000" />
+            <span id="sw-amount-unit">원</span>
+          </label>
+          <div id="sw-ccy" class="bt-toggle">
+            <button type="button" data-ccy="krw" class="active">원화 적립</button>
+            <button type="button" data-ccy="usd">달러 적립</button>
+          </div>
+          <span class="muted">데이터</span>
+          <div id="sw-source" class="bt-toggle">
+            <button type="button" data-source="real" class="active">실제 ETF만</button>
+            <button type="button" data-source="mixed">합성 확장 포함</button>
+          </div>
+          <span class="muted">물가</span>
+          <div id="sw-price" class="bt-toggle">
+            <button type="button" data-price="real" class="active">실질 고정</button>
+            <button type="button" data-price="nominal">명목 고정</button>
+          </div>
+        </div>
+        <div class="bt-controls dca-controls">
+          <span class="muted">적립 종목</span>
+          <div id="sw-risk" class="bt-toggle">
+            <button type="button" data-risk="qld" class="active">QLD (2배)</button>
+            <button type="button" data-risk="tqqq">TQQQ (3배)</button>
+          </div>
+          <span class="muted">이평선 아래면</span>
+          <div id="sw-safe" class="bt-toggle">
+            <button type="button" data-safe="asset" class="active">QQQ로</button>
+            <button type="button" data-safe="cash">달러 현금으로</button>
+          </div>
+          <span class="muted">QQQ 이평</span>
+          <div id="sw-window" class="bt-toggle">
+            <button type="button" data-window="60">60일</button>
+            <button type="button" data-window="120">120일</button>
+            <button type="button" data-window="200" class="active">200일</button>
+          </div>
+          <span class="muted">공제 리셋</span>
+          <div id="sw-harvest" class="bt-toggle">
+            <button type="button" data-harvest="off" class="active">끄기</button>
+            <button type="button" data-harvest="on" title="12월 마지막 거래일에 그해 실현이익이 250만원에 못 미치면, 모자란 만큼 팔고 같은 날 다시 사서 취득가를 올린다">켜기</button>
+          </div>
+        </div>
+        <div class="bt-controls">
+          <span class="muted">기간</span><div id="sw-period" class="bt-toggle"></div>
+          <label>시작 <input type="date" id="sw-start" /></label>
+          <label>종료 <input type="date" id="sw-end" /></label>
+          <span id="sw-range" class="muted"></span>
+        </div>
+        <details class="theory sw-costs">
+          <summary>💸 비용·세금 가정 <span class="muted" id="sw-costs-sum"></span></summary>
+          <div class="theory-body">
+            <div class="bt-controls sw-cost-grid">
+              <label>매매 수수료(편도) <input type="number" id="sw-c-commission" step="0.01" min="0" /> %</label>
+              <label>슬리피지(편도) <input type="number" id="sw-c-slippage" step="0.01" min="0" /> %</label>
+              <label>SEC fee(매도) <input type="number" id="sw-c-sec_fee" step="0.00001" min="0" /> %</label>
+              <label>환전 스프레드 <input type="number" id="sw-c-fx_spread" step="0.01" min="0" /> %</label>
+              <label>양도세율 <input type="number" id="sw-c-cgt_rate" step="0.1" min="0" /> %</label>
+              <label>기본공제 <input type="text" id="sw-c-exemption_krw" inputmode="numeric" /> 원/년</label>
+              <label>이자소득세 <input type="number" id="sw-c-interest_tax" step="0.1" min="0" /> %</label>
+              <button type="button" id="sw-c-reset">토스증권 기본값</button>
+            </div>
+            <p class="period-note">기본값 = <strong>토스증권 해외주식(미국)</strong> 가정(2026-09 확인): 매매 수수료 <strong>0.1%</strong>(매수·매도 각각) · SEC fee <strong>매도금액의 0.00206%</strong>(2026-04-02 체결분부터) · 환전 <strong>0.05%</strong>(평일 09:00~15:30 정규시간 95% 우대 기준 — 그 외 시간은 0.5%). 슬리피지 0.05%는 수수료가 아니라 <strong>체결가 불리분</strong> 추정입니다. 수수료 이벤트·우대율은 자주 바뀌니 <strong>본인 계좌 조건으로 고쳐 넣으세요</strong>. API 주문이어도 요율은 같다고 가정합니다.</p>
+            <p class="period-note"><strong>양도소득세</strong> — 연도별(1~12월) 실현손익을 <strong>모든 종목 합산</strong>(손익통산) → <strong>기본공제 250만원</strong> 차감 → <strong>22%</strong>(지방세 포함), <strong>이듬해 5월</strong>에 냅니다. 손실 이월공제는 없습니다. 양도차익(원화) = 순매도대금 × <strong>매도일 환율</strong> − 취득가액(총매수금액 × <strong>매수일 환율</strong>) — 환차익도 과세됩니다. 세금은 <strong>보유 자산을 팔아서</strong> 냅니다(외부 돈으로 내면 전략마다 납입 총액이 달라져 비교가 안 되므로). 그 매도도 다시 그해 과세 대상입니다.</p>
+          </div>
+        </details>
+        <div id="sw-verdict" class="lab-verdict"></div>
+        <div id="sw-cards" class="ext-cards"></div>
+      </section>
+
+      <section class="panel">
+        <h2>네 방식 나란히 <span class="muted">(같은 돈 · 같은 달 적립 — 세후 청산가치)</span></h2>
+        <p class="period-note" id="sw-equity-note"></p>
+        <div id="sw-equity" class="chart"></div>
+        <h3 class="dca-sub">신호는 언제 켜졌나 <span class="muted" id="sw-signal-sub"></span></h3>
+        <div id="sw-signal" class="chart"></div>
+      </section>
+
+      <section class="panel">
+        <h2>세전 → 세후 <span class="muted">(수익을 누가 가져갔나 — 수수료·환전·양도세)</span></h2>
+        <div class="table-wrap"><table id="sw-table" class="diag-table"></table></div>
+        <p class="period-note" id="sw-table-note"></p>
+        <h3 class="dca-sub">연도별 양도세 <span class="muted">(그해 실현손익에 대한 세액 · 마지막 막대 = 종료일 가상 청산분)</span></h3>
+        <div id="sw-tax" class="chart"></div>
+      </section>
+
+      <section class="panel">
+        <h2>이 결론은 시작 시점 운인가? <span class="muted">(같은 길이 창을 이력 전체에서 굴려본 결과 · 세후 기준)</span></h2>
+        <p class="period-note">위 숫자는 시작 월 하나에 달린 <strong>추첨 한 번</strong>입니다. 시작 월을 한 달씩 밀며 같은 길이로 반복해 <strong>필터 전략이 그냥 보유를 이긴 비율</strong>을 봅니다. <span class="muted">연 250만원 공제가 고정 금액이라 이 분포는 <strong>월 적립금에 따라 달라집니다</strong>(적립금이 작을수록 공제의 비중이 커집니다).</span></p>
+        <div class="bt-controls">
+          <span class="muted">창 길이</span>
+          <div id="sw-roll-years" class="bt-toggle">
+            <button type="button" data-years="5">5년</button>
+            <button type="button" data-years="10" class="active">10년</button>
+            <button type="button" data-years="15">15년</button>
+          </div>
+        </div>
+        <div id="sw-roll-cards" class="ext-cards"></div>
+        <div id="sw-roll" class="chart"></div>
+        <div id="sw-roll-verdict" class="lab-verdict"></div>
+        <details class="theory">
+          <summary>💡 읽는 법 · 한계</summary>
+          <div class="theory-body">
+            <p><strong>① 필터는 수익을 사는 게 아니라 낙폭을 줄이는 장치입니다.</strong> 이평 필터는 추세가 꺾인 뒤에야 반응하므로 급락의 앞부분은 그대로 맞고, 반등 초입은 놓칩니다. 추세가 길게 이어진 구간(2009~2021)에선 대개 그냥 보유에 지고, <strong>길고 깊은 하락</strong>(2000~2002·2008·2022)이 포함될 때 이깁니다. 그래서 '실제 ETF만'(2006~ 또는 2010~)과 '합성 확장 포함'(1985~)의 결론이 뒤집힐 수 있습니다.</p>
+            <p><strong>② 전환은 공짜가 아닙니다.</strong> 전량 전환은 매번 보유분 전체를 팔고 사므로 왕복 수수료·슬리피지가 계좌 전체에 붙고, <strong>그때까지 쌓인 이익이 한꺼번에 실현</strong>돼 세금이 앞당겨집니다. 과세이연(그냥 보유)의 이득 — 낼 세금을 굴려서 불리는 효과 — 을 포기하는 셈입니다. '신규분만 전환'은 매도가 없어 이 비용이 없는 대신 기존 보유분은 하락을 그대로 맞습니다.</p>
+            <p><strong>③ 가정과 한계.</strong> 취득가는 <strong>총평균(이동평균)</strong>으로 계산합니다 — 전량 매도에서는 선입선출과 같고, 세금 납부·공제 리셋 같은 부분 매도에서만 차이가 납니다. 세법(250만원 공제·22%)은 <strong>현행 규정을 과거 전 구간에 그대로</strong> 적용했습니다. 공제 리셋은 한국 해외주식에 워시세일 규정이 없다는 가정입니다. 신호용 QQQ는 1999-03 이전을 나스닥100 지수로 잇고(배당 미반영), 이후는 수정종가(배당 포함)입니다. 달러 현금은 미국 3개월 국채금리에서 이자소득세 15.4%를 뗀 이자를 받습니다.</p>
           </div>
         </details>
       </section>
@@ -1462,13 +1580,13 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="explain.js?v=f8a0f69a" defer></script>
-  <script src="alloc.js?v=f8a0f69a" defer></script>
-  <script src="re_apt.js?v=f8a0f69a" defer></script>
-  <script src="analytics-live.js?v=f8a0f69a" defer></script>
-  <script src="leverage.js?v=f8a0f69a" defer></script>
-  <script src="dca.js?v=f8a0f69a" defer></script>
-  <script src="lab.js?v=f8a0f69a" defer></script>
-  <script src="app.js?v=f8a0f69a" defer></script>
+  <script src="explain.js?v=a28854ff" defer></script>
+  <script src="alloc.js?v=a28854ff" defer></script>
+  <script src="re_apt.js?v=a28854ff" defer></script>
+  <script src="analytics-live.js?v=a28854ff" defer></script>
+  <script src="leverage.js?v=a28854ff" defer></script>
+  <script src="dca.js?v=a28854ff" defer></script>
+  <script src="lab.js?v=a28854ff" defer></script>
+  <script src="app.js?v=a28854ff" defer></script>
 </body>
 </html>

@@ -701,6 +701,25 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
 /* 🧪 VIX 연동 적립 — 위와 같은 이유로 ID 별 높이가 필요하다(없으면 18px 로 접힌 채 굳는다) */
 #vx-equity { min-height: 360px; }
 #vx-flow { min-height: 280px; }
+/* 적립식 서브탭 줄(① 기본 · ② VIX · ③ 이평 전환) — 폭이 좁으면 줄바꿈(가로 스크롤 금지) */
+.dca-subtabs { display: flex; flex-wrap: wrap; margin: 0 0 0.9rem; border-radius: var(--radius-sm); }
+.dca-subtabs button { flex: 1 1 auto; padding: 0.55rem 0.9rem; font-size: 0.9rem; }
+/* ③ 이평 필터 전환 — 차트 높이 공급원(없으면 autosize 가 붕괴한다) · 비용 입력칸 */
+#sw-equity { min-height: 360px; }
+#sw-signal, #sw-tax { min-height: 300px; }
+#sw-roll { min-height: 320px; }
+.sw-cost-grid { gap: 0.6rem 1rem; }
+.sw-cost-grid label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; }
+.sw-cost-grid input {
+  width: 6.5rem; padding: 0.3rem 0.45rem; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); background: var(--card); color: var(--fg); text-align: right;
+}
+.sw-cost-grid button {
+  padding: 0.3rem 0.7rem; border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--fg); cursor: pointer; font-size: 0.82rem;
+}
+.sw-costs summary .muted { font-weight: 400; font-size: 0.8rem; }
+.sw-dot { display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; margin-right: 0.35rem; vertical-align: middle; }
 /* 한 패널 안의 소제목(시작 시점 민감도·창 길이별 승률) — 패널 h3 보다 위 여백을 더 준다 */
 .dca-sub { border-top: 1px solid var(--border); padding-top: 0.9rem; margin-top: 1.3rem !important; }
 

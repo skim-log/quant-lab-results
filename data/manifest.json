@@ -1257,19 +1257,28 @@
   {
     "id": "us_dca",
     "category": "dca",
-    "group": "적립식 시뮬레이터 (미국 ETF 월 적립)",
+    "group": "기본 적립 (미국 ETF 월 적립)",
     "currency": "",
     "mode": "dca",
     "label": "주식 · 적립식 시뮬레이터",
     "file": "dca.json"
   },
   {
-    "id": "lab_vixdca",
-    "category": "lab_vixdca",
-    "group": "🧪 실험실 · VIX 연동 적립",
+    "id": "dca_vix",
+    "category": "dca",
+    "group": "VIX 연동 적립 (공포에 더 사면?)",
     "currency": "",
-    "mode": "lab_vixdca",
-    "label": "🧪 실험실 · 공포에 더 사면 유리할까",
+    "mode": "dca_vix",
+    "label": "주식 · 적립식 · VIX 연동 적립",
+    "file": "dca.json"
+  },
+  {
+    "id": "dca_switch",
+    "category": "dca",
+    "group": "이평 필터 전환 (세후·수수료 반영)",
+    "currency": "",
+    "mode": "dca_switch",
+    "label": "주식 · 적립식 · 이평 필터 전환",
     "file": "dca.json"
   },
   {
