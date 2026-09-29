@@ -708,6 +708,11 @@ details.theory[open] > summary { border-bottom: 1px solid var(--border); }
 #sw-equity { min-height: 360px; }
 #sw-signal, #sw-tax { min-height: 300px; }
 #sw-roll { min-height: 320px; }
+/* ④ 9-Sig — 차트 높이 공급원 */
+#sg-equity { min-height: 360px; }
+#sg-line { min-height: 340px; }
+#sg-tax { min-height: 300px; }
+#sg-roll { min-height: 320px; }
 .sw-cost-grid { gap: 0.6rem 1rem; }
 .sw-cost-grid label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; }
 .sw-cost-grid input {

@@ -477,7 +477,8 @@ if ((fix.switch_cases || []).length) {
   const qPrice = DCA.priceFromReturns(qRet, qqq.hist_start_idx);
   for (const sc of fix.switch_cases) {
     const before = fails;
-    const on = DCA.maSignal(qPrice, sc.window);
+    // 엔벨로프 밴드 케이스는 삼값 신호(1/0/NaN=직전 유지) — band=0 은 기존 maSignal 이 정본
+    const on = sc.band > 0 ? DCA.maBandSignal(qPrice, sc.window, sc.band) : DCA.maSignal(qPrice, sc.window);
     let bad = 0;
     for (let i = 0; i < on.length; i++) {
       const e = sc.on[i];
@@ -532,6 +533,70 @@ if ((fix.switch_cases || []).length) {
   }
 }
 
+// ── 9-Sig(dca_sig) — 시그널 라인·분기 리밸·30-down·채권 레그 ─────────────────────
+let nSig = 0;
+if ((fix.sig_cases || []).length) {
+  const bond = (d.bond && d.bond.length === dates.length) ? Float64Array.from(d.bond) : null;
+  for (const sc of fix.sig_cases) {
+    const before = fails;
+    const rRet = DCA.assetReturns(d, byKey[sc.risk], lo, hi, 'mixed').ret;
+    const krw = sc.currency === 'krw';
+    const scale = sc.price === 'real' ? (krw ? d.cpi_krw : d.cpi_usd) : null;
+    const buy = DCA.monthFirstIndices(dates, lo, hi);
+    const cmp = DCA.compareSig(dates, rRet, bond, d.fx, buy, sc.monthly, {
+      offset: lo, growth: sc.growth, contribWeight: sc.contrib_weight, down30: sc.down30,
+      safe: sc.safe, rf: d.rf, krw, scale, dpy: d.dpy });
+    for (const k of DCA.SIG_STRATEGIES) {
+      const E = sc.strategies[k], sim = cmp.sims[k], m = cmp.metrics[k];
+      checkArr(`${sc.name}.${k} liq`, sim.liq, E.liq);
+      checkArr(`${sc.name}.${k} equity`, sim.equity, E.equity);
+      for (const [jk, pk] of SW_METRIC_KEYS) checkNum(`${sc.name}.${k} ${jk}`, m[jk], E.metrics[pk], 1e-8);
+      for (const [jk, pk] of SW_INT_KEYS) {
+        if (m[jk] !== E.metrics[pk]) { console.error(`✗ ${sc.name}.${k} ${jk}: ${m[jk]} ≠ ${E.metrics[pk]}`); fails++; }
+      }
+      if (sim.byYear.length !== E.by_year.length) {
+        console.error(`✗ ${sc.name}.${k} 연도 수 ${sim.byYear.length} ≠ ${E.by_year.length}`); fails++;
+      } else sim.byYear.forEach((yy, i) => {
+        checkNum(`${sc.name}.${k} ${yy.year} 실현`, yy.realized, E.by_year[i].realized, 1e-8);
+        checkNum(`${sc.name}.${k} ${yy.year} 세액`, yy.tax, E.by_year[i].tax, 1e-8);
+      });
+    }
+    // ④ 차트 경로 — 시그널 라인과 거래 마커까지 파이썬과 같아야 화면 서사가 같다
+    checkArr(`${sc.name} target`, cmp.sims.sig.target, sc.target);
+    const tr = cmp.sims.sig.trades;
+    if (tr.length !== sc.trades.length) { console.error(`✗ ${sc.name} 거래 수 ${tr.length} ≠ ${sc.trades.length}`); fails++; }
+    else tr.forEach((t, i) => {
+      if (t[0] !== sc.trades[i][0] || t[1] !== sc.trades[i][1]) {
+        console.error(`✗ ${sc.name} 거래[${i}]: ${t[0]}/${t[1]} ≠ ${sc.trades[i][0]}/${sc.trades[i][1]}`); fails++;
+      } else checkNum(`${sc.name} 거래[${i}] 금액`, t[2], sc.trades[i][2], 1e-8);
+    });
+    nSig++;
+    if (fails === before) {
+      const m = cmp.metrics;
+      console.log(`✓ ${sc.name}  세후 ` + DCA.SIG_STRATEGIES.map(k =>
+        `${k}=${Math.round(m[k].final).toLocaleString('en-US')}`).join(' · ') +
+        ` (리밸 ${m.sig.switches})`);
+    }
+  }
+  const R = fix.sig_roll;
+  if (R && bond) {
+    const rRet = DCA.assetReturns(d, byKey[R.risk], lo, hi, 'mixed').ret;
+    const rows = DCA.rollingSig(dates, rRet, bond, d.fx, lo, hi, R.years, R.monthly,
+      { step: R.step, growth: R.growth, safe: R.safe, rf: d.rf, krw: R.currency === 'krw', dpy: d.dpy });
+    if (rows.length !== R.rows.length) { console.error(`✗ sig roll 창 수 ${rows.length} ≠ ${R.rows.length}`); fails++; }
+    else rows.forEach((r, i) => {
+      if (r.start !== R.rows[i].start || r.end !== R.rows[i].end) { console.error(`✗ sig roll[${i}] 구간`); fails++; }
+      for (const k of ['sig_vs_risk', 'fixed_vs_risk', 'safe_vs_risk']) checkNum(`sig roll[${i}] ${k}`, r[k], R.rows[i][k], 1e-8);
+    });
+    const sm = DCA.rollingSigSummary(rows);
+    for (const k of ['sig_vs_risk', 'fixed_vs_risk', 'safe_vs_risk']) {
+      if (!R.summary[k]) continue;
+      for (const q of ['win_rate', 'p10', 'p50', 'p90']) checkNum(`sig roll summary ${k}.${q}`, sm[k][q], R.summary[k][q], 1e-8);
+    }
+    if (!fails) console.log(`✓ sig roll ${R.risk} g${R.growth * 100} ${R.years}년 — 창 ${rows.length}개, 9-Sig 승률 ${(sm.sig_vs_risk.win_rate * 100).toFixed(0)}%`);
+  }
+}
+
 const nReal = (fix.cases || []).filter(c => c.real_equity).length
   + (fix.sweeps || []).filter(s => s.sweep_real).length
   + (fix.rolls || []).filter(r => (r.basis || '') === 'real').length;
@@ -543,4 +608,4 @@ if (fails) {
   process.exit(1);
 }
 console.log(`\n✓ 적립식 패리티 통과 — ${fix.cases.length}개 케이스 + ${fix.sweeps.length}개 스윕 + ` +
-  `${(fix.rolls || []).length}개 롤링(시작 시점 민감도) + ${nSwitch}개 이평 전환, 최대 상대오차 ${maxRel.toExponential(3)} (허용 ${TOL_REL.toExponential(0)})`);
+  `${(fix.rolls || []).length}개 롤링(시작 시점 민감도) + ${nSwitch}개 이평 전환 + ${nSig}개 9-Sig, 최대 상대오차 ${maxRel.toExponential(3)} (허용 ${TOL_REL.toExponential(0)})`);

@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=a28854ff" />
+  <link rel="stylesheet" href="style.css?v=df31df3e" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -1202,6 +1202,13 @@
             <button type="button" data-window="120">120일</button>
             <button type="button" data-window="200" class="active">200일</button>
           </div>
+          <span class="muted">버퍼</span>
+          <div id="sw-band" class="bt-toggle" title="이평선 ±밴드(엔벨로프) — 상단 위로 올라와야 위험자산 복귀, 하단 아래로 내려가야 안전자산 전환. 밴드 안에서는 직전 상태 유지(가짜 신호 감소)">
+            <button type="button" data-band="0" class="active">없음</button>
+            <button type="button" data-band="0.01">±1%</button>
+            <button type="button" data-band="0.03">±3%</button>
+            <button type="button" data-band="0.05">±5%</button>
+          </div>
           <span class="muted">공제 리셋</span>
           <div id="sw-harvest" class="bt-toggle">
             <button type="button" data-harvest="off" class="active">끄기</button>
@@ -1271,6 +1278,115 @@
             <p><strong>① 필터는 수익을 사는 게 아니라 낙폭을 줄이는 장치입니다.</strong> 이평 필터는 추세가 꺾인 뒤에야 반응하므로 급락의 앞부분은 그대로 맞고, 반등 초입은 놓칩니다. 추세가 길게 이어진 구간(2009~2021)에선 대개 그냥 보유에 지고, <strong>길고 깊은 하락</strong>(2000~2002·2008·2022)이 포함될 때 이깁니다. 그래서 '실제 ETF만'(2006~ 또는 2010~)과 '합성 확장 포함'(1985~)의 결론이 뒤집힐 수 있습니다.</p>
             <p><strong>② 전환은 공짜가 아닙니다.</strong> 전량 전환은 매번 보유분 전체를 팔고 사므로 왕복 수수료·슬리피지가 계좌 전체에 붙고, <strong>그때까지 쌓인 이익이 한꺼번에 실현</strong>돼 세금이 앞당겨집니다. 과세이연(그냥 보유)의 이득 — 낼 세금을 굴려서 불리는 효과 — 을 포기하는 셈입니다. '신규분만 전환'은 매도가 없어 이 비용이 없는 대신 기존 보유분은 하락을 그대로 맞습니다.</p>
             <p><strong>③ 가정과 한계.</strong> 취득가는 <strong>총평균(이동평균)</strong>으로 계산합니다 — 전량 매도에서는 선입선출과 같고, 세금 납부·공제 리셋 같은 부분 매도에서만 차이가 납니다. 세법(250만원 공제·22%)은 <strong>현행 규정을 과거 전 구간에 그대로</strong> 적용했습니다. 공제 리셋은 한국 해외주식에 워시세일 규정이 없다는 가정입니다. 신호용 QQQ는 1999-03 이전을 나스닥100 지수로 잇고(배당 미반영), 이후는 수정종가(배당 포함)입니다. 달러 현금은 미국 3개월 국채금리에서 이자소득세 15.4%를 뗀 이자를 받습니다.</p>
+          </div>
+        </details>
+      </section>
+    </div>
+
+
+    <!-- 적립식 ④ 9-Sig 분기 리밸런싱 — 엔진 src/strategies/us/dca_sig.py ↔ web/dca.js sigSimulate (③과 세후 원장 공유) -->
+    <div id="dca_sig-section" class="hidden">
+      <section class="panel">
+        <h2>9-Sig — 분기마다 목표에 맞춰 사고팔기 <span class="muted">(Jason Kelly · TQQQ 60/채권 40 · 수수료·양도세 반영 세후)</span></h2>
+        <p class="period-note">TQQQ(또는 QLD) 잔고의 <strong>목표액(시그널 라인)을 분기 +9%씩</strong> 올려 두고, 분기 첫 거래일마다 잔고가 목표보다 <strong>많으면 초과분을 팔아 채권으로, 모자라면 채권을 팔아 채웁니다</strong>. 월 적립금은 채권 쪽에 쌓입니다(매수 실탄). 상승장에선 이익을 실현해 쌓고, 폭락 뒤엔 채권을 털어 물타기하는 <strong>기계식 리밸런싱</strong>입니다. 매도가 있으므로 ③과 같은 <strong>세후 청산가치</strong>로 비교합니다.</p>
+        <p class="period-note">⚠️ 뉴스레터 원규칙(The Kelly Letter)은 유료·비공개라, 이 화면은 <strong>공개 소개와 제3자 정밀 재현이 문서화한 규칙</strong>을 따릅니다 — 재현 범위와 미구현 밸브는 아래 '읽는 법 · 한계'에 명시합니다.</p>
+        <div class="bt-controls dca-controls">
+          <label>월 적립금
+            <input type="text" id="sg-amount" inputmode="numeric" value="1,000,000" />
+            <span id="sg-amount-unit">원</span>
+          </label>
+          <div id="sg-ccy" class="bt-toggle">
+            <button type="button" data-ccy="krw" class="active">원화 적립</button>
+            <button type="button" data-ccy="usd">달러 적립</button>
+          </div>
+          <span class="muted">데이터</span>
+          <div id="sg-source" class="bt-toggle">
+            <button type="button" data-source="real" class="active">실제 ETF만</button>
+            <button type="button" data-source="mixed">합성 확장 포함</button>
+          </div>
+          <span class="muted">물가</span>
+          <div id="sg-price" class="bt-toggle">
+            <button type="button" data-price="real" class="active">실질 고정</button>
+            <button type="button" data-price="nominal">명목 고정</button>
+          </div>
+        </div>
+        <div class="bt-controls dca-controls">
+          <span class="muted">위험자산</span>
+          <div id="sg-risk" class="bt-toggle">
+            <button type="button" data-risk="qld">QLD (2배)</button>
+            <button type="button" data-risk="tqqq" class="active">TQQQ (3배)</button>
+          </div>
+          <span class="muted">안전자산</span>
+          <div id="sg-safe" class="bt-toggle">
+            <button type="button" data-safe="asset" class="active">종합채권(AGG)</button>
+            <button type="button" data-safe="cash">달러 현금</button>
+          </div>
+          <span class="muted">분기 성장률</span>
+          <div id="sg-growth" class="bt-toggle" title="시그널 라인이 분기마다 자라는 비율 — 3Sig·6Sig·9Sig">
+            <button type="button" data-growth="0.03">3%</button>
+            <button type="button" data-growth="0.06">6%</button>
+            <button type="button" data-growth="0.09" class="active">9%</button>
+          </div>
+          <span class="muted">30-down 규칙</span>
+          <div id="sg-down30" class="bt-toggle" title="위험자산이 2년 최고 종가의 70% 이하로 마감하면 다음 매도 신호 2회를 건너뛴다(폭락 직후 반등분을 너무 일찍 파는 것을 방지)">
+            <button type="button" data-down30="on" class="active">켬</button>
+            <button type="button" data-down30="off">끔</button>
+          </div>
+          <span class="muted">납입 신호선 반영</span>
+          <div id="sg-cw" class="bt-toggle" title="새로 넣는 돈의 일부를 시그널 라인에도 가산 — 신규 자금이 주식 목표에 반영되는 서적(The 3% Signal) 방식">
+            <button type="button" data-cw="0.5" class="active">50%</button>
+            <button type="button" data-cw="0">0%</button>
+          </div>
+        </div>
+        <div class="bt-controls">
+          <span class="muted">기간</span><div id="sg-period" class="bt-toggle"></div>
+          <label>시작 <input type="date" id="sg-start" /></label>
+          <label>종료 <input type="date" id="sg-end" /></label>
+          <span id="sg-range" class="muted"></span>
+        </div>
+        <p class="period-note" id="sg-costs-note"></p>
+        <div id="sg-verdict" class="lab-verdict"></div>
+        <div id="sg-cards" class="ext-cards"></div>
+      </section>
+
+      <section class="panel">
+        <h2>네 방식 나란히 <span class="muted">(같은 돈 · 같은 달 적립 — 세후 청산가치)</span></h2>
+        <p class="period-note" id="sg-equity-note"></p>
+        <div id="sg-equity" class="chart"></div>
+        <h3 class="dca-sub">시그널 라인 vs 잔고 <span class="muted" id="sg-line-sub">(USD — 전략이 실제로 보는 판)</span></h3>
+        <p class="period-note">파란 선(위험자산 잔고)이 주황 계단(시그널 라인)보다 <strong>위면 분기에 판다(▼), 아래면 산다(▲)</strong>. 폭락 뒤 라인이 잔고보다 한참 위로 달아나면 채권이 바닥날 때까지 사들이는 구간이 생깁니다 — 그때 회색 음영(채권 비중)이 0으로 붕괴하는지 함께 보세요.</p>
+        <div id="sg-line" class="chart"></div>
+      </section>
+
+      <section class="panel">
+        <h2>세전 → 세후 <span class="muted">(수익을 누가 가져갔나 — 수수료·환전·양도세)</span></h2>
+        <div class="table-wrap"><table id="sg-table" class="diag-table"></table></div>
+        <p class="period-note" id="sg-table-note"></p>
+        <h3 class="dca-sub">연도별 양도세 <span class="muted">(그해 실현손익에 대한 세액 · 마지막 막대 = 종료일 가상 청산분)</span></h3>
+        <div id="sg-tax" class="chart"></div>
+      </section>
+
+      <section class="panel">
+        <h2>이 결론은 시작 시점 운인가? <span class="muted">(같은 길이 창을 이력 전체에서 굴려본 결과 · 세후 기준)</span></h2>
+        <p class="period-note">위 숫자는 시작 월 하나에 달린 <strong>추첨 한 번</strong>입니다. 시작 월을 한 달씩 밀며 같은 길이로 반복해 <strong>9-Sig 가 그냥 적립을 이긴 비율</strong>을 봅니다 — <strong>60/40 고정비중(분기 리밸) 대조군</strong>을 같이 굴려, 이긴 몫이 시그널 라인 덕인지 그냥 리밸런싱 덕인지 가릅니다. <span class="muted">연 250만원 공제가 고정 금액이라 이 분포는 월 적립금에 따라 달라집니다.</span></p>
+        <div class="bt-controls">
+          <span class="muted">창 길이</span>
+          <div id="sg-roll-years" class="bt-toggle">
+            <button type="button" data-years="5">5년</button>
+            <button type="button" data-years="10" class="active">10년</button>
+            <button type="button" data-years="15">15년</button>
+          </div>
+        </div>
+        <div id="sg-roll-cards" class="ext-cards"></div>
+        <div id="sg-roll" class="chart"></div>
+        <div id="sg-roll-verdict" class="lab-verdict"></div>
+        <details class="theory">
+          <summary>💡 읽는 법 · 한계 · 재현 범위</summary>
+          <div class="theory-body">
+            <p><strong>① 이 화면이 재현하는 규칙</strong> — 시작 60/40 · 월 적립금은 채권으로 · 시그널 라인 분기 +9%(복리, 하향 없음) · 납입액의 50%를 라인에 가산(서적 The 3% Signal 방식, 토글로 끔) · 분기 첫 거래일에 초과 매도/부족 매수(채권 잔고 한도, 신용 없음) · <strong>30-down</strong>(2년 최고 종가의 70% 이하로 마감 시 다음 매도 2회 스킵, 회복·8분기 경과로 해제). 출처: jasonkelly.com 공개 소개 + bestfolio.app 의 정밀 재현. <strong>미구현</strong>: 재현자가 자체 추가한 '채권 30% 초과 시 60/40 리셋'과 '매수를 채권 잔고의 90%로 제한' — Kelly 공개 자료에 없는 밸브라 뺐습니다.</p>
+            <p><strong>② 라인의 함정</strong> — 시그널 라인은 <strong>절대 내려가지 않습니다</strong>. 큰 폭락 뒤엔 라인이 잔고보다 한참 위로 달아나 <strong>채권이 바닥날 때까지 분기마다 전액 매수</strong>가 이어지고, 그 후로는 사실상 레버리지 100% 보유와 같아집니다(위 채권 비중 음영이 0인 구간). "리밸런싱 전략"이라는 인상과 달리 하락 방어는 채권이 남아 있는 동안만 작동합니다.</p>
+            <p><strong>③ 대조군을 보는 법</strong> — 9-Sig 가 <strong>고정비중 60/40</strong>을 크게 이기는 건 대부분 시그널 라인이 상승장에서 주식 비중을 훨씬 높게 유지하기 때문입니다(위험을 더 졌다는 뜻이기도 합니다 — MDD 열을 같이 보세요). 세금 관점에서는 분기 매도가 이익을 <strong>해마다 실현</strong>시켜 과세이연을 포기하는 대신 연 250만원 공제를 매년 씁니다.</p>
+            <p><strong>④ 채권 데이터</strong> — AGG(2003-09~) 이전은 같은 지수 계열의 뮤추얼펀드 VBMFX(1986-12~) 일별 NAV로 확장했습니다(분배금 재투자 총수익). '합성 확장 포함'을 켜면 위험자산도 지수+레버리지 공식 합성이라 1986-12까지 열립니다. 세법(250만원 공제·22%)은 현행 규정을 과거 전 구간에 소급 적용한 반사실입니다.</p>
           </div>
         </details>
       </section>
@@ -1580,13 +1696,13 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="explain.js?v=a28854ff" defer></script>
-  <script src="alloc.js?v=a28854ff" defer></script>
-  <script src="re_apt.js?v=a28854ff" defer></script>
-  <script src="analytics-live.js?v=a28854ff" defer></script>
-  <script src="leverage.js?v=a28854ff" defer></script>
-  <script src="dca.js?v=a28854ff" defer></script>
-  <script src="lab.js?v=a28854ff" defer></script>
-  <script src="app.js?v=a28854ff" defer></script>
+  <script src="explain.js?v=df31df3e" defer></script>
+  <script src="alloc.js?v=df31df3e" defer></script>
+  <script src="re_apt.js?v=df31df3e" defer></script>
+  <script src="analytics-live.js?v=df31df3e" defer></script>
+  <script src="leverage.js?v=df31df3e" defer></script>
+  <script src="dca.js?v=df31df3e" defer></script>
+  <script src="lab.js?v=df31df3e" defer></script>
+  <script src="app.js?v=df31df3e" defer></script>
 </body>
 </html>

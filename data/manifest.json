@@ -1282,6 +1282,15 @@
     "file": "dca.json"
   },
   {
+    "id": "dca_sig",
+    "category": "dca",
+    "group": "9-Sig 리밸런싱 (세후·분기)",
+    "currency": "",
+    "mode": "dca_sig",
+    "label": "주식 · 적립식 · 9-Sig 리밸런싱",
+    "file": "dca.json"
+  },
+  {
     "id": "lab_rotation",
     "category": "lab_rotation",
     "group": "전략 로테이션은 왜 잘 안 되는가",
