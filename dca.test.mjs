@@ -597,6 +597,79 @@ if ((fix.sig_cases || []).length) {
   }
 }
 
+// ── ⑤ 신호 연동 적립(dca_signal) — 깊이·배수·네 다리·요약·롤링 ─────────────────────
+let nSignal = 0;
+function sigFamRet(fam) {
+  const out = new Float64Array(dates.length);
+  for (let i = 0; i < fam.ret.length && fam.start_idx + i < dates.length; i++) out[fam.start_idx + i] = fam.ret[i];
+  return out;
+}
+function sigDepth(a, kind, ddRef) {
+  if (kind === 'vix') return DCA.depthVix(d.vix && d.vix.length ? d.vix : new Float64Array(dates.length));
+  if (kind === 'ma_gap') { const f = d.families[a.family]; return DCA.depthMaGap(sigFamRet(f), f.start_idx); }
+  const ret = DCA.assetReturns(d, a, lo, hi, 'mixed').ret;
+  if (kind === 'drawdown') return DCA.depthDrawdown(ret, ddRef === 'listing' ? a.real_start_idx : a.hist_start_idx);
+  return DCA.depthCrash(ret, a.hist_start_idx);
+}
+const SN_METRIC_KEYS = [['final', 'final'], ['totalCost', 'total_cost'], ['xirr', 'xirr'], ['mdd', 'mdd'],
+  ['maxLoss', 'max_loss'], ['minPnl', 'min_pnl'], ['dwYears', 'dw_years'], ['cheapness', 'cheapness']];
+const SN_SUM_KEYS = [['boostShare', 'boost_share'], ['cutShare', 'cut_share'], ['extraRatio', 'extra_ratio'],
+  ['maxMonth', 'max_month'], ['plainMaxMonth', 'plain_max_month'], ['vsPlain', 'vs_plain'], ['vsSame', 'vs_same'],
+  ['vsTilt', 'vs_tilt'], ['dxirr', 'dxirr'], ['dmdd', 'dmdd'], ['tiltLam', 'tilt_lam']];
+if (JSON.stringify(DCA.SIGNAL_DEFAULTS) !== JSON.stringify(fix.signal_defaults || DCA.SIGNAL_DEFAULTS)) {
+  // 숫자 표기(0.2 vs 0.20)는 JSON 에서 같아진다 — 다르면 기본 구간표가 파이썬과 갈린 것
+  console.error('✗ SIGNAL_DEFAULTS 가 파이썬 dca_signal.SIGNAL_DEFAULTS 와 다릅니다'); fails++;
+}
+for (const sc of (fix.signal_cases || [])) {
+  const before = fails, a = byKey[sc.asset];
+  const dep = sigDepth(a, sc.kind, sc.dd_ref);
+  checkArr(`${sc.name} depth`, Array.from(dep, v => (isFinite(v) ? v : 0)), sc.depth.map(v => (v == null ? 0 : v)));
+  let nanMis = 0;
+  for (let i = 0; i < dep.length; i++) if (isFinite(dep[i]) !== (sc.depth[i] != null)) nanMis++;
+  if (nanMis) { console.error(`✗ ${sc.name} depth 결측 위치 ${nanMis}곳 불일치`); fails++; }
+  const df = DCA.SIGNAL_DEFAULTS[sc.kind];
+  const mult = DCA.tierMultiplier(dep, df.edges, df.mults);
+  checkArr(`${sc.name} mult`, mult, sc.mult);
+  const krw = sc.currency === 'krw';
+  const scale = sc.price === 'real' ? (krw ? d.cpi_krw : d.cpi_usd) : null;
+  const ret = DCA.assetReturns(d, a, lo, hi, 'mixed').ret;
+  const cmp = DCA.signalCompare(dates, ret, krw ? d.fx : fxOne, DCA.signalBuyIdx(dates, lo, hi, sc.freq),
+    sc.monthly, mult, { offset: lo, freq: sc.freq, basis: sc.basis, fee: fix.fee, scale, dpy: d.dpy });
+  for (const k of DCA.SIGNAL_LEGS) {
+    const E = sc.legs[k];
+    checkArr(`${sc.name}.${k} equity`, cmp.sims[k].equity, E.equity);
+    checkArr(`${sc.name}.${k} cost`, cmp.sims[k].cost, E.cost);
+    for (const [jk, pk] of SN_METRIC_KEYS) checkNum(`${sc.name}.${k} ${jk}`, cmp.metrics[k][jk], E.metrics[pk], 1e-8);
+    if (cmp.metrics[k].underDays !== E.metrics.under_days) { console.error(`✗ ${sc.name}.${k} underDays`); fails++; }
+  }
+  for (const [jk, pk] of SN_SUM_KEYS) checkNum(`${sc.name} summary.${jk}`, cmp.summary[jk], sc.summary[pk], 1e-8);
+  nSignal++;
+  if (fails === before) {
+    const s = cmp.summary;
+    console.log(`✓ ${sc.name}  ÷단순 ${s.vsPlain.toFixed(3)} · ÷같은총액 ${s.vsSame.toFixed(3)} · ÷시간대조 ${s.vsTilt.toFixed(3)}`);
+  }
+}
+for (const R of (fix.signal_rolls || [])) {
+  const before = fails, a = byKey[R.asset];
+  const df = DCA.SIGNAL_DEFAULTS[R.kind];
+  const mult = DCA.tierMultiplier(sigDepth(a, R.kind, 'listing'), df.edges, df.mults);
+  const ret = DCA.assetReturns(d, a, lo, hi, 'mixed').ret;
+  const rows = DCA.rollingSignal(dates, ret, R.currency === 'krw' ? d.fx : fxOne, lo, hi, mult, R.years, R.monthly,
+    { step: R.step, freq: R.freq, basis: R.basis, fee: fix.fee, dpy: d.dpy });
+  if (rows.length !== R.rows.length) { console.error(`✗ signal roll ${R.kind} 창 수 ${rows.length} ≠ ${R.rows.length}`); fails++; }
+  else rows.forEach((r, i) => {
+    if (r.start !== R.rows[i].start || r.end !== R.rows[i].end) { console.error(`✗ signal roll[${i}] 구간`); fails++; }
+    for (const k of ['vs_tilt', 'vs_same', 'vs_plain', 'dxirr', 'dmdd', 'extra_ratio', 'boost_share'])
+      checkNum(`signal roll ${R.kind}[${i}] ${k}`, r[k], R.rows[i][k], 1e-8);
+  });
+  const sm = DCA.rollingSignalSummary(rows);
+  for (const k of ['vs_tilt', 'vs_same', 'vs_plain']) {
+    if (!R.summary[k]) continue;
+    for (const q of ['win_rate', 'p10', 'p50', 'p90']) checkNum(`signal roll summary ${k}.${q}`, sm[k][q], R.summary[k][q], 1e-8);
+  }
+  if (fails === before) console.log(`✓ signal roll ${R.asset} ${R.kind} ${R.freq} ${R.basis} ${R.years}년 — 창 ${rows.length}개, 시간대조군 승률 ${(sm.vs_tilt.win_rate * 100).toFixed(0)}%`);
+}
+
 const nReal = (fix.cases || []).filter(c => c.real_equity).length
   + (fix.sweeps || []).filter(s => s.sweep_real).length
   + (fix.rolls || []).filter(r => (r.basis || '') === 'real').length;
@@ -608,4 +681,4 @@ if (fails) {
   process.exit(1);
 }
 console.log(`\n✓ 적립식 패리티 통과 — ${fix.cases.length}개 케이스 + ${fix.sweeps.length}개 스윕 + ` +
-  `${(fix.rolls || []).length}개 롤링(시작 시점 민감도) + ${nSwitch}개 이평 전환 + ${nSig}개 9-Sig, 최대 상대오차 ${maxRel.toExponential(3)} (허용 ${TOL_REL.toExponential(0)})`);
+  `${(fix.rolls || []).length}개 롤링(시작 시점 민감도) + ${nSwitch}개 이평 전환 + ${nSig}개 9-Sig + ${nSignal}개 신호 연동, 최대 상대오차 ${maxRel.toExponential(3)} (허용 ${TOL_REL.toExponential(0)})`);

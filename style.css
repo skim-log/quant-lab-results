@@ -898,3 +898,10 @@ html[data-mode="basic"] #reco-section .panel { padding-top: 0.9rem; padding-bott
 html[data-mode="basic"] #reco-section > section.panel:first-child {
   background: none; border: none; box-shadow: none; padding: 0.2rem 0 0; margin-bottom: 0.1rem;
 }
+
+/* 적립식 ⑤ 신호 연동 적립 — 차트 높이 · 신호 비교표의 선택 행 */
+#sn-equity { min-height: 360px; }
+#sn-signal { min-height: 320px; }
+#sn-roll { min-height: 320px; }
+.diag-table tr.active-row td { background: var(--surface-2); }
+.diag-table tr[data-kind]:hover td { background: var(--surface-2); }

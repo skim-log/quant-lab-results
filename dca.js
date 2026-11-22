@@ -1604,7 +1604,175 @@
     return rollingSwitchSummary(rows, ['sig_vs_risk', 'fixed_vs_risk', 'safe_vs_risk']);
   }
 
+  // ── ⑤ 신호 연동 적립 — dca_signal.py 미러 ───────────────────────────────────
+  // 신호 4종을 '공포 깊이'(클수록 무서움)로 통일 → 구간 배수(전일 종가 판단). 매도 없음 —
+  // 네 다리(전략·단순·같은총액·시간대조군)를 전부 amountSimulate 한 회계로 돌린다.
+  const SIGNAL_KINDS = ['vix', 'drawdown', 'ma_gap', 'crash'];
+  const SIGNAL_DEFAULTS = {
+    vix: { edges: [30, 40], mults: [1, 1.5, 2] },
+    drawdown: { edges: [0.2, 0.4], mults: [1, 1.4, 1.8] },
+    ma_gap: { edges: [0, 0.1], mults: [1, 1.5, 2] },
+    crash: { edges: [0.03], mults: [1, 3] },
+  };
+  const SIGNAL_LAG = 1, SIGNAL_MA_WINDOW = 200;
+  const SIGNAL_LEGS = ['strat', 'plain', 'same', 'tilt'];
+
+  /** VIX 수준(0 = 관측 없음 → NaN). */
+  function depthVix(vix) {
+    const n = vix.length, out = new Float64Array(n);
+    for (let i = 0; i < n; i++) out[i] = vix[i] > 0 ? vix[i] : NaN;
+    return out;
+  }
+  /** start 부터 쌓은 가격의 '그때까지 최고점' 대비 낙폭(0~1). 이전은 NaN. */
+  function depthDrawdown(ret, start) {
+    const n = ret.length, out = new Float64Array(n).fill(NaN);
+    let v = 1, peak = 1;
+    for (let i = Math.max(0, start || 0); i < n; i++) {
+      v *= 1 + ret[i];
+      if (v > peak) peak = v;
+      out[i] = 1 - v / peak;
+    }
+    return out;
+  }
+  /** 1 − P/SMA_w(P) (그날 종가 기준). 순차 합산 루프 — dca_switch.ma_signal 과 같은 부동소수 순서. */
+  function depthMaGap(ret, start, w) {
+    w = w || SIGNAL_MA_WINDOW;
+    const n = ret.length, out = new Float64Array(n).fill(NaN), p = new Float64Array(n);
+    let v = 1;
+    for (let i = Math.max(0, start || 0); i < n; i++) { v *= 1 + ret[i]; p[i] = v; }
+    let run = 0, valid = 0;
+    for (let j = 0; j < n; j++) {
+      if (p[j] > 0) { run += p[j]; valid++; }
+      if (j - w >= 0 && p[j - w] > 0) { run -= p[j - w]; valid--; }
+      if (valid === w && p[j] > 0) out[j] = 1 - p[j] / (run / w);
+    }
+    return out;
+  }
+  /** 그날 하락률 −r (start 이전 NaN). */
+  function depthCrash(ret, start) {
+    const n = ret.length, out = new Float64Array(n).fill(NaN);
+    for (let i = Math.max(0, start || 0); i < n; i++) out[i] = -ret[i];
+    return out;
+  }
+  /** 공포 깊이 → 배수. m[i] = mults[#{edge ≤ depth[i−lag]}] · 관측 없음/i<lag 는 1. */
+  function tierMultiplier(depth, edges, mults, lag) {
+    lag = (lag == null) ? SIGNAL_LAG : lag;
+    if (mults.length !== edges.length + 1) throw new Error('mults 는 edges 보다 하나 많아야 한다');
+    const n = depth.length, m = new Float64Array(n).fill(1);
+    for (let i = lag; i < n; i++) {
+      const s = depth[i - lag];
+      if (!isFinite(s)) continue;
+      let b = 0;
+      for (const e of edges) if (e <= s) b++;
+      m[i] = mults[b];
+    }
+    return m;
+  }
+  /** 매수일(마스터 인덱스) — 'M' 매월 첫 거래일 · 'D' 매 거래일. */
+  function signalBuyIdx(dates, lo, hi, freq) {
+    if (freq === 'D') { const out = []; for (let i = lo; i <= hi; i++) out.push(i); return out; }
+    return monthFirstIndices(dates, lo, hi);
+  }
+  function perBuyBase(monthly, freq, dpy) { return freq === 'D' ? monthly * 12 / (dpy || DPY) : monthly; }
+
+  function signalLegMetrics(dates, sim, sortedJ, dpy) {
+    const m = dcaMetrics(dates, sim);
+    if (!m) return null;
+    let worst = 0;
+    for (let i = 0; i < sim.equity.length; i++) {
+      if (sim.cost[i] > 0) { const g = sim.equity[i] / sim.cost[i] - 1; if (g < worst) worst = g; }
+    }
+    m.minPnl = worst;
+    m.dwYears = dollarWeightedYears(sortedJ, sim.buyReals, sim.equity.length, dpy);
+    return m;
+  }
+  function signalMaxMonth(dates, off, sortedJ, amts) {
+    let best = 0, key = null, cur = 0;
+    for (let k = 0; k < sortedJ.length; k++) {
+      const ym = dates[off + sortedJ[k]].slice(0, 7);
+      if (ym !== key) { if (cur > best) best = cur; key = ym; cur = 0; }
+      cur += amts[k];
+    }
+    return Math.max(best, cur);
+  }
+
+  /**
+   * dca_signal.signal_compare 미러. ret = 창 [lo,hi] 수익, buyIdx·mult·fx·scale = 마스터 축 규약(offset=lo).
+   * opts: { offset, freq:'M'|'D', basis:'extra'|'flex', fee, scale, dpy, useFx }
+   */
+  function signalCompare(dates, ret, fx, buyIdx, monthly, mult, opts) {
+    opts = opts || {};
+    const off = opts.offset || 0, dpy = opts.dpy || DPY, n = ret.length;
+    const freq = opts.freq || 'M', basis = opts.basis || 'extra';
+    const sortedJ = [];
+    for (const b of buyIdx) { const j = b - off; if (j >= 0 && j < n) sortedJ.push(j); }
+    sortedJ.sort((a, b) => a - b);
+    const nb = sortedJ.length, base = perBuyBase(monthly, freq, dpy);
+    const mk = new Float64Array(nb);
+    for (let k = 0; k < nb; k++) { const x = mult ? mult[off + sortedJ[k]] : 1; mk[k] = (x == null) ? 1 : x; }
+    let reals;
+    if (basis === 'extra') { reals = new Float64Array(nb); for (let k = 0; k < nb; k++) reals[k] = base * mk[k]; }
+    else reals = flexAmounts(mk, base);
+    let tot = 0; for (let k = 0; k < nb; k++) tot += reals[k];
+    const even = nb ? tot / nb : 0;
+    const so = { offset: off, fee: opts.fee || 0, scale: opts.scale || null, useFx: opts.useFx };
+    const sims = {
+      strat: amountSimulate(ret, fx, sortedJ, reals, so),
+      plain: amountSimulate(ret, fx, sortedJ, new Float64Array(nb).fill(base), so),
+      same: amountSimulate(ret, fx, sortedJ, new Float64Array(nb).fill(even), so),
+    };
+    const target = dollarWeightedYears(sortedJ, reals, n, dpy);
+    sims.tilt = timeTiltSimulate(ret, fx, buyIdx, even, target, Object.assign({}, so, { dpy }));
+    const metrics = {};
+    for (const k of SIGNAL_LEGS) metrics[k] = signalLegMetrics(dates, sims[k], sortedJ, dpy);
+    const st = metrics.strat, pl = metrics.plain;
+    const ratio = (a, b) => (a && b && b.final > 0) ? a.final / b.final : NaN;
+    let boost = 0, cut = 0;
+    for (let k = 0; k < nb; k++) { if (mk[k] > 1 + 1e-12) boost++; if (mk[k] < 1 - 1e-12) cut++; }
+    const summary = {
+      nBuys: nb, base, mult: mk,
+      boostShare: nb ? boost / nb : NaN, cutShare: nb ? cut / nb : NaN,
+      extraRatio: (st && pl && pl.totalCost > 0) ? st.totalCost / pl.totalCost - 1 : NaN,
+      maxMonth: signalMaxMonth(dates, off, sortedJ, sims.strat.buyAmts),
+      plainMaxMonth: signalMaxMonth(dates, off, sortedJ, sims.plain.buyAmts),
+      vsPlain: ratio(st, pl), vsSame: ratio(st, metrics.same), vsTilt: ratio(st, metrics.tilt),
+      dxirr: (st && pl) ? st.xirr - pl.xirr : NaN,
+      dmdd: (st && pl) ? st.mdd - pl.mdd : NaN,
+      tiltLam: sims.tilt.lam,
+    };
+    return { sims, metrics, summary };
+  }
+
+  /** dca_signal.rolling_signal 미러. ret = 창 [lo,hi] 수익, mult·fx·scale = 마스터 축. */
+  function rollingSignal(dates, ret, fx, lo, hi, mult, years, monthly, opts) {
+    opts = opts || {};
+    const step = Math.max(1, opts.step || 1), freq = opts.freq || 'M';
+    let starts = monthFirstIndices(dates, lo, hi);
+    if (step > 1) starts = starts.filter((_, i) => i % step === 0);
+    const winDays = Math.round(years * 365.25);
+    const out = [];
+    for (const s of starts) {
+      const endMs = Date.parse(dates[s]) + winDays * 86400000;
+      if (Date.parse(dates[hi]) < endMs) continue;
+      let e = s;
+      while (e + 1 <= hi && Date.parse(dates[e + 1]) <= endMs) e++;
+      if (e - s < 200) continue;
+      const seg = ret.subarray(s - lo, e - lo + 1);
+      const cmp = signalCompare(dates, seg, fx, signalBuyIdx(dates, s, e, freq), monthly, mult,
+        Object.assign({}, opts, { offset: s }));
+      const m = cmp.metrics, sm = cmp.summary;
+      if (!SIGNAL_LEGS.every(k => m[k])) continue;
+      out.push({ start: dates[s], end: dates[e], vs_tilt: sm.vsTilt, vs_same: sm.vsSame, vs_plain: sm.vsPlain,
+        dxirr: sm.dxirr, dmdd: sm.dmdd, extra_ratio: sm.extraRatio, boost_share: sm.boostShare });
+    }
+    return out;
+  }
+  function rollingSignalSummary(rows) { return rollingSwitchSummary(rows, ['vs_tilt', 'vs_same', 'vs_plain']); }
+
   const API = { DPY, CLIP, sliceRange,
+    SIGNAL_KINDS, SIGNAL_DEFAULTS, SIGNAL_LAG, SIGNAL_MA_WINDOW, SIGNAL_LEGS,
+    depthVix, depthDrawdown, depthMaGap, depthCrash, tierMultiplier, signalBuyIdx, perBuyBase,
+    signalCompare, rollingSignal, rollingSignalSummary,
     SWITCH_COSTS, SWITCH_STRATEGIES, SIG_STRATEGIES, maSignal, maBandSignal, priceFromReturns,
     switchSimulate, switchMetrics, compareSwitch, rollingSwitch, rollingSwitchSummary,
     sigSimulate, compareSig, rollingSig, rollingSigSummary, monthFirstIndices, leverReturns, assetReturns, simulate, lumpSum, cashGlide, compareDcaLump, xirr, dcaMetrics, lumpMetrics, sweep, optimal, constrainedOptimal, downsampleIdx, rollingStarts, sensitivitySummary, expandingPctRank, vixMultiplier, poolSimulate, compareFundingModes, vixEpisodes, leaveOneEpisodeOut,

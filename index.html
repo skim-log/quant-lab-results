@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=7f686dd4" />
+  <link rel="stylesheet" href="style.css?v=d6fd284c" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -1392,6 +1392,126 @@
       </section>
     </div>
 
+    <!-- 적립식 ⑤ 신호 연동 적립 — 엔진 src/strategies/us/dca_signal.py ↔ web/dca.js signalCompare/rollingSignal -->
+    <div id="dca_signal-section" class="hidden">
+      <section class="panel">
+        <h2>신호 연동 적립 — 무서울 때 더 넣기 <span class="muted">(VIX · 고점 대비 낙폭 · 200일선 이격 · 급락일 · 매일/매월)</span></h2>
+        <p class="period-note">평소엔 정해진 금액을 넣다가, <strong>신호가 '공포'를 가리키면 배수만큼 더</strong> 넣습니다(예: QLD가 고점 대비 −20%면 1.4배, −40%면 1.8배). 판단은 언제나 <strong>전일 종가</strong>로 하고, 파는 일은 없습니다. 더 넣은 돈이 이득의 대부분일 수 있어서 <strong>같은 총액을 고르게 넣은 적립</strong>과 <strong>신호를 안 보고 같은 기간만큼 앞당긴 시간대조군</strong>을 함께 놓습니다. 시간대조군을 이긴 몫이 <strong>신호의 순수 기여</strong>입니다.</p>
+        <div class="bt-controls dca-controls">
+          <label>월 적립금
+            <input type="text" id="sn-amount" inputmode="numeric" value="500,000" />
+            <span id="sn-amount-unit">원</span>
+          </label>
+          <div id="sn-ccy" class="bt-toggle">
+            <button type="button" data-ccy="krw" class="active">원화 적립</button>
+            <button type="button" data-ccy="usd">달러 적립</button>
+          </div>
+          <span class="muted">데이터</span>
+          <div id="sn-source" class="bt-toggle">
+            <button type="button" data-source="real" class="active">실제 ETF만</button>
+            <button type="button" data-source="mixed">합성 확장 포함</button>
+          </div>
+          <span class="muted">금액</span>
+          <div id="sn-price" class="bt-toggle" title="명목 고정 = 매달 같은 금액 · 실질 고정 = 매달 같은 구매력(물가 연동)">
+            <button type="button" data-price="nominal" class="active">명목 고정</button>
+            <button type="button" data-price="real">실질 고정</button>
+          </div>
+        </div>
+        <div class="bt-controls dca-controls">
+          <span class="muted">종목</span>
+          <div id="sn-asset" class="bt-toggle"></div>
+          <span class="muted">매수 빈도</span>
+          <div id="sn-freq" class="bt-toggle" title="매일 적립의 1회 금액 = 월 적립금 × 12 ÷ 252">
+            <button type="button" data-freq="M" class="active">매월 첫 거래일</button>
+            <button type="button" data-freq="D">매 거래일</button>
+          </div>
+          <span class="muted">투입 기준</span>
+          <div id="sn-basis" class="bt-toggle" title="추가 투입 = 신호 때 그만큼 더 넣는다(총 납입이 늘어남) · 같은 총액 = 주식에 넣는 총액은 고정하고 시점만 바꾼다">
+            <button type="button" data-basis="extra" class="active">추가 투입</button>
+            <button type="button" data-basis="flex">같은 총액</button>
+          </div>
+        </div>
+        <div class="bt-controls">
+          <span class="muted">기간</span><div id="sn-period" class="bt-toggle"></div>
+          <label>시작 <input type="date" id="sn-start" /></label>
+          <label>종료 <input type="date" id="sn-end" /></label>
+          <span id="sn-range" class="muted"></span>
+        </div>
+        <div class="bt-controls dca-controls">
+          <span class="muted">신호</span>
+          <div id="sn-kind" class="bt-toggle">
+            <button type="button" data-kind="drawdown" class="active">고점 대비 낙폭</button>
+            <button type="button" data-kind="vix">VIX</button>
+            <button type="button" data-kind="ma_gap">200일선 아래</button>
+            <button type="button" data-kind="crash">급락일</button>
+          </div>
+          <label>구간 경계 <input type="text" id="sn-edges" size="10" /> <span id="sn-edges-unit" class="muted"></span></label>
+          <label>배수 <input type="text" id="sn-mults" size="12" /></label>
+          <button type="button" id="sn-reset">기본값</button>
+          <span id="sn-ddref-wrap">
+            <span class="muted">기준 고점</span>
+            <span id="sn-ddref" class="bt-toggle" title="낙폭을 잴 최고점 — 상장 이후 / 합성 포함 전체 역사(2x 나스닥은 2000년 고점을 2020-09에야 회복)">
+              <button type="button" data-ddref="listing" class="active">상장 이후</button>
+              <button type="button" data-ddref="history">전체 역사(합성 포함)</button>
+            </span>
+          </span>
+        </div>
+        <p class="period-note" id="sn-tier-note"></p>
+        <div id="sn-verdict" class="lab-verdict"></div>
+        <div id="sn-cards" class="ext-cards"></div>
+      </section>
+
+      <section class="panel">
+        <h2>신호 네 가지 나란히 <span class="muted">(같은 종목·기간·기준액 — 각 신호는 자기 구간표로)</span></h2>
+        <p class="period-note">행을 누르면 그 신호로 바뀝니다. 핵심 열은 <strong>÷ 시간대조군</strong>입니다. 공포 때 더 넣으면 돈이 시장에 일찍 들어가는데, 시장이 대체로 오르니 그것만으로도 성과가 좋아집니다. 그 효과를 뺀 값이 이 열입니다.</p>
+        <div class="table-wrap"><table id="sn-board" class="diag-table"></table></div>
+        <p class="period-note" id="sn-board-note"></p>
+      </section>
+
+      <section class="panel">
+        <h2>평가액 <span class="muted">(전략 · 단순 적립 · 같은 총액 균등 · 시간대조군)</span></h2>
+        <div id="sn-equity" class="chart"></div>
+        <h3 class="dca-sub">신호와 배수 <span class="muted">(공포 깊이 · 점선 = 구간 경계 · 음영 = 그날 매수 배수)</span></h3>
+        <div id="sn-signal" class="chart"></div>
+      </section>
+
+      <section class="panel">
+        <h2>이 결론은 시작 시점 운인가? <span class="muted">(같은 길이 창을 이력 전체에서 굴려본 결과)</span></h2>
+        <p class="period-note">시작 월을 밀며 같은 길이로 반복합니다(매일 적립은 3개월 간격). 창은 서로 겹치고 독립적인 하락장은 몇 번뿐이라, <strong>승률을 확률로 읽으면 안 됩니다</strong>.</p>
+        <div class="bt-controls">
+          <span class="muted">창 길이</span>
+          <div id="sn-roll-years" class="bt-toggle">
+            <button type="button" data-years="5">5년</button>
+            <button type="button" data-years="10" class="active">10년</button>
+          </div>
+        </div>
+        <div id="sn-roll-cards" class="ext-cards"></div>
+        <div id="sn-roll" class="chart"></div>
+        <div id="sn-roll-verdict" class="lab-verdict"></div>
+        <details class="theory">
+          <summary>💡 읽는 법 · 한계</summary>
+          <div class="theory-body">
+            <p><strong>① 공포 깊이</strong>: 네 신호를 모두 '클수록 무서움'으로 맞췄습니다.</p>
+            <ul>
+              <li>VIX: 수준 그대로</li>
+              <li>낙폭: 그때까지 최고점 대비 하락률(%)</li>
+              <li>200일선: 기초지수가 200일 이동평균보다 몇 % 아래인지. 0 = 이평선, 음수 = 이평 위</li>
+              <li>급락일: 그날 하락률(%)</li>
+            </ul>
+            <p>구간 경계값은 위 구간에 속하고, 판단은 항상 전일 종가로 합니다. 신호가 없는 날(VIX 1990년 이전, 이평 준비 기간)은 배수 1입니다.</p>
+            <p><strong>② 투입 기준</strong></p>
+            <ul>
+              <li><strong>추가 투입</strong>: 질문하신 그대로입니다. 신호가 오면 그날 지갑에서 더 나가고, 총 납입이 늘어납니다. 그래서 '÷ 단순 적립'은 대부분 더 넣은 돈의 효과입니다.</li>
+              <li><strong>같은 총액</strong>: 주식에 넣을 총액을 고정하고 남은 예산을 배수대로 당겨 씁니다(② VIX 탭 '현금 미보유'와 같은 규칙).</li>
+            </ul>
+            <p>추가로 넣을 돈을 현금으로 쌓아 두고 기다리는 방식은 이 화면에 없습니다. ② VIX 탭의 현금풀 모드에서 보듯, 노는 현금의 비용 때문에 대체로 집니다.</p>
+            <p><strong>③ 고점 기준</strong>: 2배 나스닥 합성 시리즈는 2000년 고점을 2020-09에야 회복합니다. '전체 역사' 기준으로 잡으면 20년 동안 계속 공포 신호가 켜져 사실상 "늘 더 넣기"가 됩니다. 그러면 시간대조군을 이기지 못합니다.</p>
+            <p><strong>④ MDD</strong>: 평가액 MDD는 신호와 거의 무관합니다. 같은 자산을 100% 들고 있기 때문입니다. 낙폭을 줄이려면 보유분을 줄여야 하고, 문서 <code>docs/us_dca.md</code>의 '변동성 타기팅' 절에 그 결과를 정리했습니다.</p>
+          </div>
+        </details>
+      </section>
+    </div>
+
     <!-- 시군구 조회 (molit_explore): 거래량·전세가율 추이 + 최근 실거래 상세표 -->
     <div id="molit_explore-section" class="hidden">
       <section class="panel">
@@ -1696,13 +1816,13 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="explain.js?v=7f686dd4" defer></script>
-  <script src="alloc.js?v=7f686dd4" defer></script>
-  <script src="re_apt.js?v=7f686dd4" defer></script>
-  <script src="analytics-live.js?v=7f686dd4" defer></script>
-  <script src="leverage.js?v=7f686dd4" defer></script>
-  <script src="dca.js?v=7f686dd4" defer></script>
-  <script src="lab.js?v=7f686dd4" defer></script>
-  <script src="app.js?v=7f686dd4" defer></script>
+  <script src="explain.js?v=d6fd284c" defer></script>
+  <script src="alloc.js?v=d6fd284c" defer></script>
+  <script src="re_apt.js?v=d6fd284c" defer></script>
+  <script src="analytics-live.js?v=d6fd284c" defer></script>
+  <script src="leverage.js?v=d6fd284c" defer></script>
+  <script src="dca.js?v=d6fd284c" defer></script>
+  <script src="lab.js?v=d6fd284c" defer></script>
+  <script src="app.js?v=d6fd284c" defer></script>
 </body>
 </html>

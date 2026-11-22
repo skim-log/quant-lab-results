@@ -162,7 +162,7 @@ const CAT_BLURB = {
   dynamic: '신호(모멘텀·추세)로 매달 비중을 바꾸는 동적 자산배분.',
   static: '고정 비중 정적 자산배분(주기 리밸런싱 + 표류 밴드).',
   momentum: '개별 시장 모멘텀·레버리지 전략 비교(위험=TWR, 수익=XIRR).',
-  dca: '미국 ETF(QQQ·QLD·TQQQ·SPY·SCHD 등)에 매달 일정액을 넣었다면? 서브탭 4개 — ① 기본 적립(즉석 재계산 + 적립식 기준 최적 레버리지) ② VIX 연동 적립(금액 조절 — 공포에 더 사면?) ③ 이평 필터 전환(추세 필터 — 이평선 아래면 QQQ/현금으로) ④ 9-Sig(분기 리밸런싱 — 목표액 맞춰 사고팔기). ③·④는 수수료·양도세 반영 세후 비교.',
+  dca: '미국 ETF(QQQ·QLD·TQQQ·SPY·SCHD 등)에 매달 일정액을 넣었다면? 서브탭 5개 — ① 기본 적립(즉석 재계산 + 적립식 기준 최적 레버리지) ② VIX 연동 적립(금액 조절 — 공포에 더 사면?) ③ 이평 필터 전환(추세 필터 — 이평선 아래면 QQQ/현금으로) ④ 9-Sig(분기 리밸런싱 — 목표액 맞춰 사고팔기) ⑤ 신호 연동 적립(VIX·낙폭·200일선·급락일 × 매일/매월 — 무서울 때 더 넣기). ③·④는 수수료·양도세 반영 세후 비교.',
   crypto: '암호화폐 전략: 매수후보유·DCA·이동평균선 추세(20/60/120/200일 × 달러·원화 신호). 곡선=TWR(위험비교), 적립 수익=XIRR.',
   analytics: '8자산 월수익 기반 정량분석 — 상관·효율적 프론티어·리스크패리티·위험수익(무위험 2%).',
   compare: '여러 전략을 한 곡선에 오버레이 비교(통화 토글 + 지표 열 클릭 정렬 리더보드).',
@@ -1106,6 +1106,7 @@ function applyTheme(theme, persist) {
     else if (t.kind === 'dca_vix' && state.vx) _vxFull();              // VIX 연동 적립 차트 재채색
     else if (t.kind === 'dca_switch' && state.sw) _swFull();           // 이평 필터 전환 차트 재채색
     else if (t.kind === 'dca_sig' && state.sg) _sgFull();              // 9-Sig 차트 재채색
+    else if (t.kind === 'dca_signal' && state.sn) _snFull();           // 신호 연동 적립 차트 재채색
   } else if (state.data) {
     if (state.data.kind === 'analytics') renderAnalytics(state.data);
     else { render(); if (state.sweep) renderSweep(); if (state.blendFrontier) _drawBlendFrontier(); }   // 스윕·블렌드 프론티어도 새 테마로 재색
@@ -1423,6 +1424,7 @@ function setCurrency(cur) {
   if (entry.mode === 'dca_vix') return loadTool(entry, 'dca_vix');              // 적립식 서브탭: VIX 연동 적립
   if (entry.mode === 'dca_switch') return loadTool(entry, 'dca_switch');        // 적립식 서브탭: 이평 필터 전환(세후)
   if (entry.mode === 'dca_sig') return loadTool(entry, 'dca_sig');              // 적립식 서브탭: 9-Sig 분기 리밸(세후)
+  if (entry.mode === 'dca_signal') return loadTool(entry, 'dca_signal');        // 적립식 서브탭: 신호 연동 적립(매일/매월)
   // 플레이그라운드: 통화 토글 시 재fetch/재빌드 없이 현 비중으로 재실행(통화만 변경).
   if (entry.mode === 'playground' && state.playground && state.panel) runPlayground();
   else if (entry.files) loadMultiDatasets(entry.files, entry.label);   // 전략 비교(다중 오버레이)
@@ -1441,7 +1443,7 @@ function setAnalyticsMode(on) {
 function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(백테스트 섹션 숨김)
   document.body.classList.toggle('tools-mode', !!on);
   if (on) document.body.classList.remove('analytics-mode');
-  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage', 'dca', 'dca_vix', 'dca_switch', 'dca_sig', 'lab_rotation', 'lab_rebal', 'lab_blend', 'lab_dailyrisk'].forEach(t => {
+  ['reco', 'guide', 'paradise', 'sentiment', 'trend', 'reliability', 'molit_explore', 'molit_apt', 'leverage', 'dca', 'dca_vix', 'dca_switch', 'dca_sig', 'dca_signal', 'lab_rotation', 'lab_rebal', 'lab_blend', 'lab_dailyrisk'].forEach(t => {
     const el = document.getElementById(t + '-section');
     if (el) el.classList.toggle('hidden', !(on && t === tool));
   });
@@ -1450,9 +1452,9 @@ function setToolsMode(on, tool) {                 // 도구·지표 전용 뷰(�
 
 // 적립식 시뮬레이터 서브탭 — 분류 'dca' 의 그룹 3개를 화면 상단 탭 줄로도 보여 준다.
 // 그룹 드롭다운과 같은 상태(state.nav.group)를 움직이므로 딥링크·새로고침 규약이 그대로 산다.
-const DCA_SUBTAB_MODES = ['dca', 'dca_vix', 'dca_switch', 'dca_sig'];
+const DCA_SUBTAB_MODES = ['dca', 'dca_vix', 'dca_switch', 'dca_sig', 'dca_signal'];
 const DCA_SUBTAB_LABEL = { dca: '① 기본 적립', dca_vix: '② VIX 연동 적립', dca_switch: '③ 이평 필터 전환 · 세후',
-  dca_sig: '④ 9-Sig 리밸런싱 · 세후' };
+  dca_sig: '④ 9-Sig 리밸런싱 · 세후', dca_signal: '⑤ 신호 연동 적립' };
 function _syncDcaSubtabs(mode) {
   const box = document.getElementById('dca-subtabs');
   if (!box) return;
@@ -2210,6 +2212,7 @@ async function loadTool(entry, kind) {
     else if (kind === 'dca_vix') enterVixDca(d);
     else if (kind === 'dca_switch') enterSwitchDca(d);
     else if (kind === 'dca_sig') enterSigDca(d);
+    else if (kind === 'dca_signal') enterSignalDca(d);
     else renderTrend(d);
   } catch (e) { setStatus(entry.group + ' 로딩 실패: ' + e.message, true); }
 }
@@ -7541,6 +7544,458 @@ function _sgRenderRoll() {
     `<div class="lab-verdict-sub">${_sgGrowthName()} 승률이 고정비중 승률과 비슷하다면 이긴 몫은 시그널 라인이 아니라 ` +
     `<b>그냥 리밸런싱(또는 레버리지 보유)</b>의 몫입니다. 이긴 창이 시기별로 뭉쳐 있으면 규칙의 일반적 우위가 아니라 ` +
     `<b>사건 몇 개</b>에 달린 결과입니다.</div>`;
+}
+
+// ---------------------------------------------------------------------------
+// 적립식 ⑤ 신호 연동 적립 — "무서울 때 더 넣기"를 신호 4종 × 매일/매월로 나란히 비교한다.
+// 계산 정본 src/strategies/us/dca_signal.py ↔ web/dca.js signalCompare/rollingSignal(패리티 강제).
+// 데이터는 dca.json 공유(VIX·family·실제 ETF·환율·CPI). 매도가 없어 세후 원장이 필요 없다.
+// 신호는 '정보'라 데이터 소스 토글과 무관하게 **가장 긴 이력(합성 포함)** 으로 만든다(③ 이평 신호와 같은 규약) —
+// 단 낙폭의 기준 고점만은 화면 토글(상장 이후 / 전체 역사)로 고른다(결론이 정반대로 갈리는 자리라서).
+// ---------------------------------------------------------------------------
+const SN_COL = { strat: '#2563eb', plain: '#dc2626', same: '#ea580c', tilt: '#16a34a', cost: '#9ca3af' };
+const SN_KIND = {
+  drawdown: { label: '고점 대비 낙폭', pct: true, unit: '% 하락 (예: 20, 40)', word: v => `고점 대비 −${v}%` },
+  vix: { label: 'VIX', pct: false, unit: 'VIX 수준 (예: 30, 40)', word: v => `VIX ${v}` },
+  ma_gap: { label: '200일선 아래', pct: true, unit: '% 아래 (0 = 이평선 아래면 · 음수 = 이평 위)', word: v => (v === 0 ? '200일선 아래' : (v > 0 ? `200일선 −${v}%` : `200일선 +${-v}% 이내`)) },
+  crash: { label: '급락일', pct: true, unit: '% 이상 하락한 날 (예: 3)', word: v => `전일 −${v}% 이상 급락` },
+};
+const SN_ASSETS = ['qqq', 'qld', 'tqqq', 'spy', 'sso', 'upro', 'soxl'];
+
+function enterSignalDca(d) {
+  setToolsMode(true, 'dca_signal');
+  state.playground = false; state.analyticsActive = false; state.data = null; state.allocCtx = null;
+  const prev = state.sn && state.sn.d === d ? state.sn : null;
+  state.sn = prev || {
+    d, ccy: (d.defaults && d.defaults.currency) || 'krw', source: 'real', price: 'nominal',
+    asset: 'qld', freq: 'M', basis: 'extra', kind: 'drawdown', ddref: 'listing',
+    tiers: JSON.parse(JSON.stringify(DCASIM.SIGNAL_DEFAULTS)),
+    period: 'max', start: null, end: null, rollYears: 10,
+    _depth: new Map(), _aret: new Map(), _roll: new Map(),
+  };
+  state.tool = { kind: 'dca_signal', data: d };
+  document.getElementById('meta').textContent =
+    `적립식 시뮬레이터 · 신호 연동 적립 · 생성일 ${d.generated_at || '-'}`;
+  _snBuildAssets();
+  _snSyncToggles();
+  _snSyncAmountUnit(!prev);
+  _snSyncTierInputs();
+  _snBuildPeriods();
+  if (prev) _snClampRange(); else _snApplyPreset(state.sn.period);
+
+  if (!state._snWired) {
+    const tg = (id, field, after) => document.getElementById(id).addEventListener('click', e => {
+      const b = e.target.closest('button[data-' + field + ']'); if (!b || b.disabled) return;
+      state.sn[field] = b.dataset[field];
+      b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+      after && after();
+    });
+    const rebuild = () => {
+      _snBuildPeriods();
+      if (state.sn.period) _snApplyPreset(state.sn.period); else _snClampRange();
+      _snFull();
+    };
+    tg('sn-ccy', 'ccy', () => { _snSyncAmountUnit(true); _snFull(); });
+    tg('sn-source', 'source', rebuild);
+    tg('sn-price', 'price', _snFull);
+    tg('sn-asset', 'asset', rebuild);
+    tg('sn-freq', 'freq', _snFull);
+    tg('sn-basis', 'basis', _snFull);
+    tg('sn-ddref', 'ddref', _snFull);
+    tg('sn-kind', 'kind', () => { _snSyncTierInputs(); _snFull(); });
+    document.getElementById('sn-roll-years').addEventListener('click', e => {
+      const b = e.target.closest('button[data-years]'); if (!b) return;
+      state.sn.rollYears = +b.dataset.years;
+      b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
+      _snRenderRoll();
+    });
+    let tt;
+    ['sn-edges', 'sn-mults'].forEach(id => document.getElementById(id).addEventListener('input', () => {
+      clearTimeout(tt); tt = setTimeout(() => { if (_snReadTierInputs()) _snFull(); }, 350);
+    }));
+    document.getElementById('sn-reset').addEventListener('click', () => {
+      const k = state.sn.kind;
+      state.sn.tiers[k] = JSON.parse(JSON.stringify(DCASIM.SIGNAL_DEFAULTS[k]));
+      _snSyncTierInputs(); _snFull();
+    });
+    document.getElementById('sn-board').addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-kind]'); if (!tr || tr.dataset.kind === state.sn.kind) return;
+      state.sn.kind = tr.dataset.kind;
+      _snSyncToggles(); _snSyncTierInputs(); _snFull();
+    });
+    let t;
+    _attachComma('sn-amount', () => { clearTimeout(t); t = setTimeout(_snFull, 260); });
+    document.getElementById('sn-period').addEventListener('click', e => {
+      const b = e.target.closest('button[data-period]'); if (!b) return;
+      _snApplyPreset(b.dataset.period); _snFull();
+    });
+    ['sn-start', 'sn-end'].forEach(id => document.getElementById(id).addEventListener('change', () => {
+      const sp = _snSpan(); if (!sp) return;
+      const sv = document.getElementById('sn-start').value, ev = document.getElementById('sn-end').value;
+      state.sn.start = (sv && sv >= sp[0] && sv <= sp[1]) ? sv : sp[0];
+      state.sn.end = (ev && ev >= sp[0] && ev <= sp[1]) ? ev : sp[1];
+      if (state.sn.start >= state.sn.end) { state.sn.start = sp[0]; state.sn.end = sp[1]; }
+      state.sn.period = null;
+      _snSyncPeriodUI(); _snFull();
+    }));
+    state._snWired = true;
+  }
+  _snFull();
+}
+
+function _snBuildAssets() {
+  const d = state.sn.d, el = document.getElementById('sn-asset');
+  const keys = SN_ASSETS.filter(k => d.assets.some(a => a.key === k));
+  if (!keys.includes(state.sn.asset)) state.sn.asset = keys.includes('qld') ? 'qld' : keys[0];
+  el.innerHTML = keys.map(k => `<button type="button" data-asset="${k}"${k === state.sn.asset ? ' class="active"' : ''}>` +
+    `${_dcaTicker(_snAsset(k))}</button>`).join('');
+}
+function _snSyncToggles() {
+  const s = state.sn;
+  [['sn-ccy', 'ccy'], ['sn-source', 'source'], ['sn-price', 'price'], ['sn-asset', 'asset'], ['sn-freq', 'freq'],
+    ['sn-basis', 'basis'], ['sn-ddref', 'ddref'], ['sn-kind', 'kind']].forEach(([id, f]) => {
+    document.querySelectorAll(`#${id} button`).forEach(b => b.classList.toggle('active', b.dataset[f] === String(s[f])));
+  });
+  document.querySelectorAll('#sn-roll-years button').forEach(b => b.classList.toggle('active', +b.dataset.years === s.rollYears));
+  document.getElementById('sn-ddref-wrap').style.display = s.kind === 'drawdown' ? '' : 'none';
+}
+function _snCcy() { return state.sn.ccy === 'usd' ? 'usd' : 'krw'; }
+function _snMoney(v) { return _moneyCompact(v, _snCcy()); }
+function _snSyncAmountUnit(resetValue) {
+  const usd = _snCcy() === 'usd';
+  document.getElementById('sn-amount-unit').textContent = usd ? '달러' : '원';
+  if (resetValue) document.getElementById('sn-amount').value = (usd ? 500 : 500000).toLocaleString('en-US');
+}
+function _snMonthly() {
+  const v = parseFloat(String(document.getElementById('sn-amount').value).replace(/,/g, ''));
+  return (isNaN(v) || v <= 0) ? (_snCcy() === 'usd' ? 500 : 500000) : v;
+}
+function _snAsset(key) { return state.sn.d.assets.find(a => a.key === (key || state.sn.asset)); }
+function _snStartIdx(a) { return state.sn.source === 'real' ? a.real_start_idx : a.hist_start_idx; }
+function _snScale() {
+  if (state.sn.price !== 'real') return null;
+  const d = state.sn.d, cpi = _snCcy() === 'krw' ? d.cpi_krw : d.cpi_usd;
+  return (cpi && cpi.length) ? cpi : null;
+}
+const _snFmtNum = v => String(+(+v).toFixed(4));
+function _snSyncTierInputs() {
+  const s = state.sn, k = s.kind, t = s.tiers[k], meta = SN_KIND[k];
+  document.getElementById('sn-edges').value = t.edges.map(v => _snFmtNum(meta.pct ? v * 100 : v)).join(', ');
+  document.getElementById('sn-mults').value = t.mults.map(_snFmtNum).join(', ');
+  document.getElementById('sn-edges-unit').textContent = meta.unit;
+  document.getElementById('sn-ddref-wrap').style.display = k === 'drawdown' ? '' : 'none';
+}
+/** 구간표 입력 → state. 잘못되면 이유를 밝히고 state 를 건드리지 않는다(조용한 폴백 금지). */
+function _snReadTierInputs() {
+  const s = state.sn, meta = SN_KIND[s.kind], note = document.getElementById('sn-tier-note');
+  const nums = id => String(document.getElementById(id).value).split(/[,\s]+/).filter(x => x !== '').map(Number);
+  const e = nums('sn-edges'), m = nums('sn-mults');
+  let err = '';
+  if (!e.length || e.some(x => !isFinite(x))) err = '구간 경계를 숫자로 적어 주세요(쉼표로 구분).';
+  else if (e.some((x, i) => i && x <= e[i - 1])) err = '구간 경계는 작은 값부터 커지게 적어 주세요.';
+  else if (m.length !== e.length + 1) err = `배수는 경계보다 하나 많아야 합니다(경계 ${e.length}개 → 배수 ${e.length + 1}개).`;
+  else if (m.some(x => !isFinite(x) || x < 0 || x > 20)) err = '배수는 0~20 사이 숫자여야 합니다.';
+  if (err) { note.innerHTML = `⚠️ ${err} <span class="muted">— 고칠 때까지 직전 구간표로 계산합니다.</span>`; return false; }
+  s.tiers[s.kind] = { edges: e.map(x => (meta.pct ? x / 100 : x)), mults: m };
+  return true;
+}
+function _snTierWords(kind) {
+  const t = state.sn.tiers[kind], meta = SN_KIND[kind];
+  const shown = t.edges.map(v => _snFmtNum(meta.pct ? v * 100 : v));
+  const parts = [`평소 ${_snFmtNum(t.mults[0])}배`];
+  shown.forEach((v, i) => parts.push(`${meta.word(+v)} → ${_snFmtNum(t.mults[i + 1])}배`));
+  return parts.join(' · ');
+}
+function _snSpan() {
+  const s = state.sn, d = s.d, n = d.dates.length, a = _snAsset();
+  if (!a) return null;
+  const lo = _snStartIdx(a);
+  if (lo >= n - 260) return null;
+  return [d.dates[lo], d.dates[n - 1]];
+}
+function _snBuildPeriods() {
+  const d = state.sn.d, sp = _snSpan(), el = document.getElementById('sn-period');
+  if (!sp) { el.innerHTML = ''; return; }
+  el.innerHTML = (d.presets || []).map(p => {
+    const st = _vxPresetStart(p, sp);
+    if (!st || st >= sp[1]) return '';
+    return `<button type="button" data-period="${p.key}"${p.key === state.sn.period ? ' class="active"' : ''}>${p.label}</button>`;
+  }).join('');
+}
+function _snApplyPreset(key) {
+  const d = state.sn.d, sp = _snSpan(); if (!sp) return;
+  const p = (d.presets || []).find(x => x.key === key);
+  const st = p ? _vxPresetStart(p, sp) : null;
+  state.sn.period = (p && st) ? key : 'max';
+  state.sn.start = st || sp[0];
+  state.sn.end = sp[1];
+  _snSyncPeriodUI();
+}
+function _snClampRange() {
+  const sp = _snSpan(); if (!sp) return;
+  if (!state.sn.start || state.sn.start < sp[0]) state.sn.start = sp[0];
+  if (!state.sn.end || state.sn.end > sp[1]) state.sn.end = sp[1];
+  _snSyncPeriodUI();
+}
+function _snSyncPeriodUI() {
+  document.querySelectorAll('#sn-period button').forEach(b => b.classList.toggle('active', b.dataset.period === state.sn.period));
+  document.getElementById('sn-start').value = state.sn.start || '';
+  document.getElementById('sn-end').value = state.sn.end || '';
+  const sp = _snSpan();
+  document.getElementById('sn-range').textContent = sp
+    ? `가용: ${sp[0]} ~ ${sp[1]} (${state.sn.source === 'real' ? '상장' : '합성 시작'} 이후)` : '';
+}
+/** 자산 일간수익 — 마스터 축 전체(합성 포함). 신호용이라 소스 토글과 무관하다. */
+function _snAssetRetFull(a) {
+  const s = state.sn;
+  if (!s._aret.has(a.key)) s._aret.set(a.key, DCASIM.assetReturns(s.d, a, 0, s.d.dates.length - 1, 'mixed').ret);
+  return s._aret.get(a.key);
+}
+function _snDepth(kind) {
+  const s = state.sn, d = s.d, a = _snAsset(), n = d.dates.length;
+  const key = kind === 'vix' ? 'vix' : kind === 'ma_gap' ? `ma|${a.family}` : `${kind}|${a.key}|${kind === 'drawdown' ? s.ddref : ''}`;
+  if (s._depth.has(key)) return s._depth.get(key);
+  let dep;
+  if (kind === 'vix') dep = (d.vix && d.vix.length === n) ? DCASIM.depthVix(d.vix) : new Float64Array(n).fill(NaN);
+  else if (kind === 'ma_gap') {
+    const fam = d.families[a.family], fr = new Float64Array(n);
+    for (let i = 0; i < fam.ret.length && fam.start_idx + i < n; i++) fr[fam.start_idx + i] = fam.ret[i];
+    dep = DCASIM.depthMaGap(fr, fam.start_idx);
+  } else if (kind === 'drawdown') dep = DCASIM.depthDrawdown(_snAssetRetFull(a), s.ddref === 'listing' ? a.real_start_idx : a.hist_start_idx);
+  else dep = DCASIM.depthCrash(_snAssetRetFull(a), a.hist_start_idx);
+  s._depth.set(key, dep);
+  return dep;
+}
+function _snMult(kind) {
+  const t = state.sn.tiers[kind];
+  return DCASIM.tierMultiplier(_snDepth(kind), t.edges, t.mults);
+}
+function _snOpts(lo) {
+  const s = state.sn;
+  return { offset: lo, freq: s.freq, basis: s.basis, fee: s.d.fee, scale: _snScale(), dpy: s.d.dpy, useFx: _snCcy() === 'krw' };
+}
+function _snRun() {
+  const s = state.sn, d = s.d, sp = _snSpan();
+  const rng = DCASIM.sliceRange(d.dates, s.start, s.end);
+  if (!rng || !sp) return null;
+  const lo = Math.max(rng[0], d.dates.indexOf(sp[0])), hi = rng[1];
+  if (hi - lo < 120) return null;
+  const monthly = _snMonthly(), a = _snAsset();
+  const ret = DCASIM.assetReturns(d, a, lo, hi, s.source).ret;
+  const buy = DCASIM.signalBuyIdx(d.dates, lo, hi, s.freq);
+  const all = {};
+  for (const k of DCASIM.SIGNAL_KINDS) {
+    all[k] = DCASIM.signalCompare(d.dates, ret, d.fx, buy, monthly, _snMult(k), _snOpts(lo));
+  }
+  return { lo, hi, buy, monthly, asset: a, all, cur: all[s.kind] };
+}
+
+function _snFull() {
+  if (!state.sn) return;
+  const r = _snRun();
+  if (!r) { setStatus('선택한 조합·기간에 데이터가 부족합니다.', true); return; }
+  setStatus('');
+  state.sn._last = r;
+  _snRenderTierNote(r);
+  _snRenderCards(r);
+  _snRenderBoard(r);
+  _snRenderEquity(r);
+  _snRenderSignal(r);
+  clearTimeout(state.sn._rollT);
+  state.sn._rollT = setTimeout(_snRenderRoll, 0);
+}
+
+function _snRenderTierNote(r) {
+  const s = state.sn, t = s.tiers[s.kind], base = r.cur.summary.base;
+  // 1회 금액은 축약하지 않는다 — 매일 적립(2.38만원)이 '2만'으로 뭉개지면 배수 차이가 안 보인다
+  const exact = v => (_snCcy() === 'usd' ? '$' + (+v).toLocaleString('en-US', { maximumFractionDigits: 2 })
+    : Math.round(v).toLocaleString('en-US') + '원');
+  const amts = t.mults.map(m => exact(base * m)).join(' · ');
+  const vixNote = s.kind === 'vix' && (s.d.vix_meta || {}).start && r.asset && s.d.dates[r.lo] < s.d.vix_meta.start
+    ? ` <b>VIX는 ${s.d.vix_meta.start}부터</b> 있어 그 이전 매수는 배수 1입니다.` : '';
+  document.getElementById('sn-tier-note').innerHTML =
+    `<b>${SN_KIND[s.kind].label}</b> — ${_snTierWords(s.kind)}. 1회 금액으로는 <b>${amts}</b>` +
+    `${s.freq === 'D' ? ` (매일 적립: 월 ${_snMoney(r.monthly)} × 12 ÷ 252)` : ''}` +
+    `${s.basis === 'flex' ? ' — <b>같은 총액</b> 모드에서는 배수가 금액이 아니라 남은 예산을 당겨 쓰는 속도입니다.' : '.'}` +
+    ` 판단은 전일 종가 기준입니다.${vixNote}`;
+}
+
+function _snRenderCards(r) {
+  const s = state.sn, c = r.cur, m = c.metrics, sm = c.summary;
+  const card = (l, v, sub) => `<div class="ext-card"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${sub || ''}</div></div>`;
+  const xr = x => (isFinite(x) ? (x * 100).toFixed(1) + '%' : '—');
+  const pp = x => (isFinite(x) ? (x >= 0 ? '+' : '') + (x * 100).toFixed(2) + '%p' : '—');
+  const label = SN_KIND[s.kind].label;
+  document.getElementById('sn-cards').innerHTML =
+    card(`${label} 연동`, _snMoney(m.strat.final), `납입 ${_snMoney(m.strat.totalCost)} · XIRR ${xr(m.strat.xirr)}`) +
+    card('단순 적립', _snMoney(m.plain.final), `납입 ${_snMoney(m.plain.totalCost)} · XIRR ${xr(m.plain.xirr)}`) +
+    card('÷ 시간대조군', _vxVs(sm.vsTilt), '신호의 순수 기여(앞당김 효과를 뺀 값)') +
+    card('÷ 같은 총액 균등', _vxVs(sm.vsSame), s.basis === 'extra' ? '같은 돈을 고르게 넣었다면' : '같은 총액 모드라 ÷단순과 같다') +
+    card('XIRR 차이', pp(sm.dxirr), '전략 − 단순 적립 (금액가중 연수익률)') +
+    card('평가액 MDD', `${fmtPct(m.strat.mdd)}`, `단순 적립 ${fmtPct(m.plain.mdd)} · 차이 ${pp(sm.dmdd)}`) +
+    card('원금 대비 최대 손실', fmtPct(m.strat.minPnl), `단순 적립 ${fmtPct(m.plain.minPnl)}`) +
+    card('증액된 매수', fmtPct(sm.boostShare), `${sm.nBuys.toLocaleString('en-US')}회 중 · 추가 투입 ${s.basis === 'extra' ? fmtPct(sm.extraRatio) : '0%(같은 총액)'}`) +
+    card('한 달 최대 지출', _snMoney(sm.maxMonth), `단순 적립은 최대 ${_snMoney(sm.plainMaxMonth)} — 필요한 지갑 여유`);
+  const vb = document.getElementById('sn-verdict');
+  const g = sm.vsTilt - 1, tie = Math.abs(g) < 0.02;
+  vb.className = 'lab-verdict ' + (tie ? 'verdict-tie' : (g > 0 ? 'verdict-win' : 'verdict-lose'));
+  const pc = v => (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  vb.innerHTML =
+    `<b>${_dcaTicker(r.asset)}</b> · ${m.strat.start}~${m.strat.end} · ${s.freq === 'D' ? '매일' : '매월'} 적립 — ` +
+    `${label} 연동은 단순 적립 대비 <b>${pc(sm.vsPlain - 1)}</b>, 같은 총액 균등 대비 <b>${pc(sm.vsSame - 1)}</b>, ` +
+    `<b>시간대조군 대비 ${pc(g)}</b>` +
+    `<div class="lab-verdict-sub">` +
+    (s.basis === 'extra'
+      ? `총 납입이 <b>${fmtPct(sm.extraRatio)}</b> 늘었으므로 '÷ 단순'의 대부분은 더 넣은 돈의 몫입니다. `
+      : '') +
+    (tie ? '시간대조군과의 차이가 2% 미만이라 신호의 기여는 사실상 없습니다. '
+      : g > 0 ? '시간대조군을 이겼습니다. 신호를 보지 않고 같은 기간만큼 앞당겨 넣기만 한 것보다 나았다는 뜻입니다. '
+        : '시간대조군에 졌습니다. 신호를 보지 않고 같은 기간만큼 앞당겨 넣기만 해도 같거나 더 나았다는 뜻입니다. ') +
+    `평가액 MDD는 ${fmtPct(m.plain.mdd)} → ${fmtPct(m.strat.mdd)}로 거의 그대로입니다(같은 자산을 100% 보유). ` +
+    `한 구간의 결론이니 맨 아래 <b>시작 시점 롤링</b>을 같이 보세요.</div>`;
+}
+
+function _snRenderBoard(r) {
+  const s = state.sn;
+  const xr = x => (isFinite(x) ? (x * 100).toFixed(1) + '%' : '—');
+  // 핵심 열(÷ 시간대조군)을 이름 바로 옆에 둔다 — 좁은 화면에서 가로 스크롤 뒤로 숨지 않게
+  const head = ['신호 (구간표)', '÷ 시간대조군', '÷ 같은 총액', '÷ 단순', '증액된 매수', '추가 투입', '한 달 최대',
+    '최종 평가액', 'XIRR', '평가액 MDD', '원금 대비 최대손실'];
+  const cls = v => (isFinite(v) ? (v > 1.02 ? ' class="pos"' : v < 0.98 ? ' class="neg"' : '') : '');
+  const p0 = r.all[DCASIM.SIGNAL_KINDS[0]].metrics.plain, p0s = r.all[DCASIM.SIGNAL_KINDS[0]].summary;
+  const row = (kind, name, m, sm) => {
+    const cells = [name, fmtPct(sm.boostShare), s.basis === 'extra' ? fmtPct(sm.extraRatio) : '0%',
+      _snMoney(sm.maxMonth), `<b>${_snMoney(m.final)}</b>`, xr(m.xirr), fmtPct(m.mdd), fmtPct(m.minPnl)];
+    const ratios = [sm.vsTilt, sm.vsSame, sm.vsPlain];
+    return `<tr${kind ? ` data-kind="${kind}" style="cursor:pointer"` : ''}${kind === s.kind ? ' class="active-row"' : ''}>` +
+      `<td data-label="${head[0]}" class="name">${cells[0]}</td>` +
+      ratios.map((v, i) => `<td data-label="${head[1 + i]}"${cls(v)}>${kind ? (i === 0 ? `<b>${_vxVs(v)}</b>` : _vxVs(v)) : '—'}</td>`).join('') +
+      cells.slice(1).map((c, i) => `<td data-label="${head[4 + i]}">${c}</td>`).join('') +
+      '</tr>';
+  };
+  const rows = DCASIM.SIGNAL_KINDS.map(k => row(k,
+    `${k === s.kind ? '▶ ' : ''}<b>${SN_KIND[k].label}</b><div class="muted" style="font-size:.75rem">${_snTierWords(k)}</div>`,
+    r.all[k].metrics.strat, r.all[k].summary)).join('') +
+    row(null, '단순 적립 <span class="muted">(배수 없음)</span>', p0,
+      { boostShare: 0, extraRatio: 0, maxMonth: p0s.plainMaxMonth });
+  document.getElementById('sn-board').innerHTML =
+    `<thead><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody>`;
+  const best = DCASIM.SIGNAL_KINDS.map(k => [k, r.all[k].summary.vsTilt]).filter(x => isFinite(x[1])).sort((a, b) => b[1] - a[1])[0];
+  document.getElementById('sn-board-note').innerHTML = best
+    ? `이 구간에서 시간대조군 대비 가장 나은 신호는 <b>${SN_KIND[best[0]].label}</b>(${_vxVs(best[1])})입니다. ` +
+      `'추가 투입' 대비 '÷ 시간대조군'이 작으면 효율이 낮은 신호입니다. 자주 켜지는 신호(예: 급락일 구간을 낮게 잡은 경우)는 돈만 더 들고 얻는 게 적습니다.`
+    : '';
+}
+
+function _snRenderEquity(r) {
+  const d = state.sn.d, c = r.cur, ccy = _snCcy();
+  const hov = ccy === 'usd' ? '$%{y:,.0f}' : '%{y:,.0f}원';
+  const n = r.hi - r.lo + 1, idx = DCASIM.downsampleIdx(n, 1200), x = idx.map(i => d.dates[r.lo + i]);
+  const L = { strat: `${SN_KIND[state.sn.kind].label} 연동`, plain: '단순 적립', same: '같은 총액 균등', tilt: '시간대조군(신호 안 봄)' };
+  const traces = [
+    { type: 'scatter', mode: 'lines', name: '납입 누계(전략)', x, y: idx.map(i => c.sims.strat.cost[i]),
+      line: { width: 1.2, color: SN_COL.cost, dash: 'dot' }, hovertemplate: hov + '<extra>납입 누계(전략)</extra>' },
+  ];
+  if (state.sn.basis === 'extra') traces.push({ type: 'scatter', mode: 'lines', name: '납입 누계(단순)', x,
+    y: idx.map(i => c.sims.plain.cost[i]), line: { width: 1, color: SN_COL.cost, dash: 'dash' },
+    hovertemplate: hov + '<extra>납입 누계(단순)</extra>' });
+  ['plain', 'same', 'tilt', 'strat'].forEach(k => {
+    if (k === 'same' && state.sn.basis === 'flex') return;   // flex 에선 same ≡ plain
+    traces.push({ type: 'scatter', mode: 'lines', name: L[k], x, y: idx.map(i => c.sims[k].equity[i]),
+      line: { width: k === 'strat' ? 2.2 : 1.5, color: SN_COL[k], dash: k === 'tilt' ? 'dot' : (k === 'same' ? 'dash' : 'solid') },
+      hovertemplate: hov + '<extra>' + L[k] + '</extra>' });
+  });
+  const layout = baseLayout('평가액 vs 납입 누계', ccy === 'usd' ? '금액 ($, 로그축)' : '금액 (원, 로그축)');
+  layout.yaxis.type = 'log';
+  const rg = _dcaLogRange([].concat(...traces.map(t => t.y)), ccy);
+  if (rg) {
+    layout.yaxis.range = [Math.log10(rg.lo), Math.log10(rg.hi * 1.3)];
+    const tk = _dcaMoneyTicks(rg.lo, rg.hi, ccy);
+    if (tk) Object.assign(layout.yaxis, tk);
+  }
+  Plotly.react('sn-equity', traces, layout, PLOTCFG);
+}
+
+function _snRenderSignal(r) {
+  const s = state.sn, d = s.d, meta = SN_KIND[s.kind], dep = _snDepth(s.kind), mult = _snMult(s.kind);
+  const n = r.hi - r.lo + 1, B = Math.max(1, Math.ceil(n / 1200));
+  // 구간별 최대값으로 줄인다 — 급락일처럼 하루짜리 신호가 다운샘플에 묻히지 않게
+  const x = [], yd = [], ym = [];
+  for (let b = 0; b < n; b += B) {
+    let md = -Infinity, mm = -Infinity;
+    for (let i = b; i < Math.min(n, b + B); i++) {
+      const v = dep[r.lo + i]; if (isFinite(v) && v > md) md = v;
+      if (mult[r.lo + i] > mm) mm = mult[r.lo + i];
+    }
+    x.push(d.dates[r.lo + b]); yd.push(isFinite(md) ? (meta.pct ? md * 100 : md) : null); ym.push(mm);
+  }
+  const muted = cssVar('--chart-muted');
+  const traces = [
+    { type: 'scatter', mode: 'lines', name: '그날 매수 배수(우축)', x, y: ym, yaxis: 'y2', line: { width: 0.8, color: muted, shape: 'hv' },
+      fill: 'tozeroy', fillcolor: 'rgba(37,99,235,0.12)', hovertemplate: '%{y:.2f}배<extra>배수</extra>' },
+    { type: 'scatter', mode: 'lines', name: `${meta.label}${meta.pct ? ' (%)' : ''}`, x, y: yd,
+      line: { width: 1.4, color: SN_COL.plain }, hovertemplate: (meta.pct ? '%{y:.1f}%' : '%{y:.1f}') + `<extra>${meta.label}</extra>` },
+  ];
+  const layout = baseLayout(`${meta.label} — 공포 깊이와 매수 배수`, meta.pct ? '공포 깊이 (%)' : 'VIX');
+  layout.yaxis2 = { overlaying: 'y', side: 'right', showgrid: false, rangemode: 'tozero', tickformat: '.1f', ticksuffix: '배', tickfont: { color: muted } };
+  layout.margin = Object.assign({}, layout.margin, { r: 56 });
+  layout.shapes = s.tiers[s.kind].edges.map(e => ({ type: 'line', xref: 'paper', x0: 0, x1: 1,
+    y0: meta.pct ? e * 100 : e, y1: meta.pct ? e * 100 : e, line: { color: muted, width: 1, dash: 'dash' } }));
+  layout.height = 320;
+  Plotly.react('sn-signal', traces, layout, PLOTCFG);
+}
+
+function _snRenderRoll() {
+  const s = state.sn; if (!s) return;
+  const d = s.d, sp = _snSpan(); if (!sp) return;
+  const lo = d.dates.indexOf(sp[0]), hi = d.dates.length - 1;
+  const monthly = _snMonthly(), years = s.rollYears, step = s.freq === 'D' ? 3 : 1;
+  const t = s.tiers[s.kind];
+  const key = JSON.stringify([s.asset, s.kind, s.ddref, t, s.source, s.price, s.ccy, s.freq, s.basis, years, monthly]);
+  let rows = s._roll.get(key);
+  if (!rows) {
+    const ret = DCASIM.assetReturns(d, _snAsset(), lo, hi, s.source).ret;
+    const o = _snOpts(lo); delete o.offset; o.step = step;
+    rows = DCASIM.rollingSignal(d.dates, ret, d.fx, lo, hi, _snMult(s.kind), years, monthly, o);
+    s._roll.set(key, rows);
+  }
+  const cards = document.getElementById('sn-roll-cards'), vb = document.getElementById('sn-roll-verdict');
+  if (!rows.length) {
+    cards.innerHTML = ''; Plotly.purge('sn-roll');
+    vb.className = 'lab-verdict verdict-tie';
+    vb.textContent = `가용 이력(${sp[0]}~)이 ${years}년 창을 하나도 채우지 못합니다. 창 길이를 줄이거나 '합성 확장 포함'을 켜 보세요.`;
+    return;
+  }
+  const sum = DCASIM.rollingSignalSummary(rows);
+  const med = arr => { const v = arr.filter(isFinite).sort((a, b) => a - b); return v.length ? v[Math.round(0.5 * (v.length - 1))] : NaN; };
+  const card = (l, v, sub) => `<div class="ext-card"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${sub || ''}</div></div>`;
+  const q = o => o ? `중앙값 ${_vxVs(o.p50)} · p10~p90 ${_vxVs(o.p10)} ~ ${_vxVs(o.p90)}` : '';
+  const pctInt = v => (isFinite(v) ? (v * 100).toFixed(0) + '%' : '—');
+  const dx = med(rows.map(x => x.dxirr)), dm = med(rows.map(x => x.dmdd)), ex = med(rows.map(x => x.extra_ratio));
+  cards.innerHTML =
+    card('창 수', `${sum.n}개`, `${years}년 창 · 시작 ${rows[0].start} ~ ${rows[rows.length - 1].start}${step > 1 ? ` · ${step}개월 간격` : ''}`) +
+    card('시간대조군을 이긴 창', pctInt(sum.vs_tilt && sum.vs_tilt.win_rate), q(sum.vs_tilt)) +
+    card('같은 총액 균등을 이긴 창', pctInt(sum.vs_same && sum.vs_same.win_rate), q(sum.vs_same)) +
+    card('XIRR 차이 (중앙값)', (isFinite(dx) ? (dx >= 0 ? '+' : '') + (dx * 100).toFixed(2) + '%p' : '—'),
+      `MDD 차이 중앙값 ${isFinite(dm) ? (dm >= 0 ? '+' : '') + (dm * 100).toFixed(1) + '%p' : '—'} · 추가 투입 중앙값 ${fmtPct(ex)}`);
+  const x = rows.map(rr => rr.start);
+  const traces = [
+    { type: 'scatter', mode: 'lines', name: '÷ 시간대조군', x, y: rows.map(rr => rr.vs_tilt),
+      line: { width: 2, color: SN_COL.tilt }, hovertemplate: '%{y:.3f}배<extra>÷ 시간대조군</extra>' },
+    { type: 'scatter', mode: 'lines', name: '÷ 같은 총액 균등', x, y: rows.map(rr => rr.vs_same),
+      line: { width: 1.5, color: SN_COL.same }, hovertemplate: '%{y:.3f}배<extra>÷ 같은 총액</extra>' },
+  ];
+  const layout = baseLayout(`시작 월별 성과비 (${years}년 적립 · 1.0 위 = 신호 승)`, '배 (로그축)');
+  layout.yaxis.type = 'log';
+  layout.xaxis.title = { text: '창 시작 월', font: { color: cssVar('--chart-muted') } };
+  layout.shapes = [{ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: 1, y1: 1, line: { color: cssVar('--chart-muted'), width: 1, dash: 'dash' } }];
+  Plotly.react('sn-roll', traces, layout, PLOTCFG);
+  const w = sum.vs_tilt ? sum.vs_tilt.win_rate : NaN;
+  vb.className = 'lab-verdict ' + (!isFinite(w) || Math.abs(w - 0.5) < 0.1 ? 'verdict-tie' : (w > 0.5 ? 'verdict-win' : 'verdict-lose'));
+  vb.innerHTML = `${years}년 창 ${sum.n}개 중 시간대조군을 이긴 창은 <b>${Math.round(w * sum.n)}개(${pctInt(w)})</b>, ` +
+    `중앙값 ${_vxVs(sum.vs_tilt.p50)}` +
+    `<div class="lab-verdict-sub">이기는 비율이 높아도 <b>폭</b>이 작으면(중앙값 +1~3%) 실익도 작습니다. ` +
+    `이긴 창이 특정 시기에 몰려 있으면 일반적인 우위가 아니라 <b>하락장 몇 번</b>(2008·2020·2022 등)에 달린 결과입니다.</div>`;
 }
 
 async function init() {
