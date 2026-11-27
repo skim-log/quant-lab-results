@@ -163,7 +163,12 @@ const STRAT_DESC = {
   '무한매수법 V3.0 (20분할)': '무한매수법 V3.0 — 20분할, 별% 15−1.5T(SOXL 20−2T), 익절 +15%(SOXL +20%), T>19 쿼터모드(¼ MOC), 반복리(수익 절반을 1회매수금에 반영).',
   '무한매수법 V4.0 (20분할)': '무한매수법 V4.0 — 1회매수금 = 잔금/(20−T), T 가산식. 소진 시 리버스모드(5일 평균 기준 ⅒ 매도·잔금/4 매수, 평단 −15% 회복 시 복귀).',
   '무한매수법 V4.0 (40분할)': '무한매수법 V4.0 40분할 — 별% 15−0.75T(SOXL 20−T), 1회매수금 = 잔금/(40−T), 리버스 매도 1/20.',
-  'VR 5.0 (거치식 G10 ±15%)': '밸류 리밸런싱 5.0(거치식) — 2주마다 V←V+Pool/10, 평가금이 V±15% 밴드를 벗어나면 밴드까지 매수(Pool 50% 한도)·매도.',
+  'VR 5.0 (거치식 G10)': '밸류 리밸런싱 5.0(거치식) — 2주마다 V←V+Pool/10, 평가금이 V±15% 밴드를 벗어나면 밴드까지 매수(Pool 50% 한도)·매도.',
+  'VR 5.0 (거치식 G10→연+1)': 'VR 5.0 거치식 + G 상향 — G를 /10에서 시작해 1년마다 /11, /12 …로 올림(V 상승 속도를 늦춰 Pool을 더 쌓음).',
+  'VR 5.0 (적립식 G10)': 'VR 5.0 적립식 — 2주마다 적립금을 Pool에 넣고 V←V+Pool/10+적립금. 매수 한도는 적립 후 Pool의 75%. 같은 입금의 "2주 적립 매수"와 XIRR로 비교.',
+  'VR 5.0 (적립식 G10→연+1)': 'VR 5.0 적립식 + G 상향(1년마다 G+1).',
+  'TQQQ 2주 적립 매수': 'VR 적립식과 같은 날·같은 금액을 입금해 TQQQ를 사서 보유(매도 없음) — 적립식 VR의 공정 비교군(XIRR로 비교).',
+  'SOXL 2주 적립 매수': 'VR 적립식과 같은 날·같은 금액을 입금해 SOXL을 사서 보유(매도 없음) — 적립식 VR의 공정 비교군(XIRR로 비교).',
   'SOXL 매수후보유': 'SOXL(반도체 3배 레버리지) 매수후보유 — 변동성·낙폭이 TQQQ보다도 큼.',
 };
 const CAT_BLURB = {
@@ -399,10 +404,13 @@ function renderLaoer(rows, s, e) {
       td('거래일/년', num(x.trade_days_per_year)) + '</tr>';
   }).join('');
   document.getElementById('laoer-table').innerHTML = ib.length ? H(ibCols) + '<tbody>' + ibBody + '</tbody>' : '';
-  const vrCols = ['전략', '사이클(2주)', '매수한 날', '매도한 날', '하단 이탈·한도 소진일', '평균 현금(Pool)비중', '거래일/년'];
+  const vrCols = ['전략', '유형', 'G (시작→끝)', '적립 누계', '사이클(2주)', '매수한 날', '매도한 날', '하단 이탈·한도 소진일', '평균 현금(Pool)비중', '거래일/년'];
   const vrBody = vrs.map(n => {
     const x = L.stats[n];
-    return `<tr><td class="name" data-label="전략">${sw(n)}${n}</td>` + td('사이클(2주)', x.cycles + '회') +
+    const g = x.G0 != null ? (x.G_final !== x.G0 ? `/${x.G0} → /${x.G_final}` : `/${x.G0}`) : '—';
+    const dep = x.deposits_total ? `$${Math.round(x.deposits_total).toLocaleString()} <span class="muted">(2주 $${Math.round(x.contribution).toLocaleString()})</span>` : '—';
+    return `<tr><td class="name" data-label="전략">${sw(n)}${n}</td>` + td('유형', x.mode || '—') + td('G (시작→끝)', g) +
+      td('적립 누계', dep) + td('사이클(2주)', x.cycles + '회') +
       td('매수한 날', x.buy_days + '일') + td('매도한 날', x.sell_days + '일') +
       td('하단 이탈·한도 소진일', x.pool_exhausted_days + '일') + td('평균 현금(Pool)비중', pct(x.cash_avg)) +
       td('거래일/년', num(x.trade_days_per_year)) + '</tr>';

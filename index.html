@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=9d829ece" />
+  <link rel="stylesheet" href="style.css?v=a879273f" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -1669,6 +1669,8 @@
         <span id="laoer-meta" class="muted"></span></p>
       <div class="table-wrap"><table id="laoer-table" class="diag-table"></table></div>
       <div class="table-wrap" style="margin-top:.5rem"><table id="laoer-vr-table" class="diag-table"></table></div>
+      <p class="period-note">VR <strong>적립식</strong>은 2주마다 돈을 더 넣으므로, 수익곡선(TWR)·CAGR보다 <strong>XIRR(금액가중)</strong>로 보세요.
+        같은 날 같은 금액을 그냥 사서 들고 있는 <strong>'2주 적립 매수'</strong>가 공정한 비교 대상입니다(위 성과표의 XIRR 열).</p>
       <div id="chart-laoer-cash" class="chart"></div>
       <details class="theory">
         <summary>📋 버전별 규칙 요약 (출처: quantstack.app 해설)</summary>
@@ -1681,7 +1683,9 @@
               <tr><td class="name">V2.2</td><td>40</td><td>10−T/2 / 12−0.6T</td><td>전반: ½ 평단 LOC + ½ 별 LOC / 후반: 1회 별 LOC</td><td>¼ 별 LOC + ¾ +10%(SOXL +12%) 지정가</td><td>T&gt;39: ¼ MOC → (잔금)/10로 −10% LOC 10회 → ¼ MOC, 회복 시 후반전 복귀</td></tr>
               <tr><td class="name">V3.0</td><td>20</td><td>15−1.5T / 20−2T</td><td>V2.2와 같은 구조</td><td>¼ 별 LOC + ¾ +15%(SOXL +20%) 지정가</td><td>T&gt;19: ¼ MOC(그날 매수 없음) 후 계속. 반복리 = 수익의 ½을 1회매수금에 분할 반영</td></tr>
               <tr><td class="name">V4.0</td><td>20 / 40</td><td>15−1.5T(40분할 15−0.75T) / 20−2T(20−T)</td><td>1회매수금 = 잔금/(분할−T), T는 가산식(+1, +0.5, 쿼터매도 ×0.75)</td><td>V3.0과 같음</td><td>리버스: 첫날 1/10(40분할 1/20) MOC → 5일 평균 위 LOC 매도·아래 잔금/4 LOC 매수, 종가가 평단 −15%(SOXL −20%) 위면 일반모드 복귀</td></tr>
-              <tr><td class="name">VR 5.0</td><td>2주</td><td>밴드 ±15%</td><td>평가금 &lt; 0.85V → 하단까지 매수(사이클당 Pool의 50% 한도)</td><td>평가금 &gt; 1.15V → 상단까지 매도</td><td>V ← V + Pool/G(10). 초기 주식 = 원금/1.15</td></tr>
+              <tr><td class="name">VR 5.0 거치식</td><td>2주</td><td>밴드 ±15%</td><td>평가금 &lt; 0.85V → 하단까지 매수(사이클당 Pool의 50% 한도)</td><td>평가금 &gt; 1.15V → 상단까지 매도</td><td>V ← V + Pool/G. 초기 주식 = 원금/1.15</td></tr>
+              <tr><td class="name">VR 5.0 적립식</td><td>2주</td><td>밴드 ±15%</td><td>매 사이클 적립금을 Pool에 입금, 매수 한도 = 적립 후 Pool의 75%</td><td>거치식과 같음</td><td>V ← V + Pool(입금 전)/G + 적립금</td></tr>
+              <tr><td class="name">G 상향</td><td colspan="5">G를 /10에서 시작해 1년마다 /11, /12, /13 …으로 올린다(원문 권장). V 상승 속도가 느려져 Pool이 더 쌓인다.</td></tr>
             </tbody>
           </table></div>
           <p class="muted">공통 가정: 체결 = LOC·MOC는 종가, 지정가는 장중 고가가 닿으면 체결(합성 구간은 기초지수 장중값×3으로 합성), 첫 매수는 MOC,
@@ -1848,13 +1852,13 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="explain.js?v=9d829ece" defer></script>
-  <script src="alloc.js?v=9d829ece" defer></script>
-  <script src="re_apt.js?v=9d829ece" defer></script>
-  <script src="analytics-live.js?v=9d829ece" defer></script>
-  <script src="leverage.js?v=9d829ece" defer></script>
-  <script src="dca.js?v=9d829ece" defer></script>
-  <script src="lab.js?v=9d829ece" defer></script>
-  <script src="app.js?v=9d829ece" defer></script>
+  <script src="explain.js?v=a879273f" defer></script>
+  <script src="alloc.js?v=a879273f" defer></script>
+  <script src="re_apt.js?v=a879273f" defer></script>
+  <script src="analytics-live.js?v=a879273f" defer></script>
+  <script src="leverage.js?v=a879273f" defer></script>
+  <script src="dca.js?v=a879273f" defer></script>
+  <script src="lab.js?v=a879273f" defer></script>
+  <script src="app.js?v=a879273f" defer></script>
 </body>
 </html>
