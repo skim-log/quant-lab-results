@@ -336,6 +336,7 @@ function render() {
   renderTable(rows, isFullPeriod(s, e));
   renderExtras(rows, s, e);   // 글로벌 자산배분 전용 패널(데이터셋에 해당 필드가 있을 때만)
   renderRolling(rows);        // 분석 강화(모든 백테스트 뷰): 롤링 수익률
+  state._lastRows = rows;     //   (곡선 선택 변경 시 낙폭표·히트맵만 다시 그리는 데 재사용)
   renderTopDD(rows);          //   최대 낙폭 Top-N
   renderMonthlyHeatmap(rows); //   월별 수익률 히트맵
   renderCryptoDca(rows);      //   코인 전용: 적립식(DCA) 납입 vs 평가액·XIRR (TWR 곡선이 겹치는 이유 해설)
@@ -863,18 +864,38 @@ function topDrawdowns(dates, nav, n) {
     underwater: months(e.peakI, e.rec ? e.recI : nav.length - 1),
   })).sort((a, b) => a.depth - b.depth).slice(0, n);
 }
-function renderTopDD(rows) {
-  if (!rows.length) { setHidden('topdd-section', true); return; }
-  setHidden('topdd-section', false);
-  const wrap = document.getElementById('topdd-curvewrap'), selEl = document.getElementById('topdd-curve');
+// 최대 낙폭 Top-5 · 월별 히트맵이 공유하는 '분석 곡선'(state.topddCurve). 선택 곡선이 체크 해제돼
+// 현재 rows 에 없으면 대표 곡선(primaryRow)으로 대체한다. 두 패널의 선택 상자는 같은 값을 가리킨다.
+function analysisRow(rows) {
+  return (rows.length > 1 && state.topddCurve && rows.find(r => r.name === state.topddCurve)) || primaryRow(rows);
+}
+function _syncCurveSelect(wrapId, selId, rows, chosen) {
+  const wrap = document.getElementById(wrapId), selEl = document.getElementById(selId);
+  if (!wrap || !selEl) return;
   if (rows.length > 1) {
     wrap.classList.remove('hidden');
     const sig = rows.map(r => r.name).join('|');
-    if (selEl.dataset.sig !== sig) { selEl.innerHTML = rows.map(r => `<option>${r.name}</option>`).join(''); selEl.dataset.sig = sig; }
-    if (state.topddCurve && rows.some(r => r.name === state.topddCurve)) selEl.value = state.topddCurve;
+    if (selEl.dataset.sig !== sig) {
+      selEl.innerHTML = '';
+      rows.forEach(r => { const o = document.createElement('option'); o.value = o.textContent = r.name; selEl.appendChild(o); });
+      selEl.dataset.sig = sig;
+    }
+    selEl.value = chosen.name;
   } else { wrap.classList.add('hidden'); }
-  const chosen = (rows.length > 1 && state.topddCurve && rows.some(r => r.name === state.topddCurve))
-    ? rows.find(r => r.name === state.topddCurve) : primaryRow(rows);
+}
+// 곡선 선택 변경 → 두 패널만 다시 그림(전체 render 불필요 — 마지막 rows 재사용)
+function onAnalysisCurveChange(name) {
+  state.topddCurve = name;
+  const rows = state._lastRows || [];
+  if (!rows.length) return render();
+  renderTopDD(rows);
+  renderMonthlyHeatmap(rows);
+}
+function renderTopDD(rows) {
+  if (!rows.length) { setHidden('topdd-section', true); return; }
+  setHidden('topdd-section', false);
+  const chosen = analysisRow(rows);
+  _syncCurveSelect('topdd-curvewrap', 'topdd-curve', rows, chosen);
   document.getElementById('topdd-for').textContent = `— ${chosen.name}`;
   const dd = topDrawdowns(chosen.dates, chosen.nav, 5);
   const head = '<thead><tr><th class="name">순위</th><th>고점</th><th>저점</th><th>낙폭</th><th>회복</th><th>수중(개월)</th></tr></thead>';
@@ -909,10 +930,11 @@ function annualReturnsFromMatrix(z) {
 }
 function renderMonthlyHeatmap(rows) {
   if (!rows.length) { setHidden('monthly-hm-section', true); return; }
-  const pr = primaryRow(rows);
+  const pr = analysisRow(rows);
   const { years, z } = monthlyReturnsMatrix(pr.dates, pr.nav);
   if (!years.length || z.flat().filter(v => v != null).length < 2) { setHidden('monthly-hm-section', true); return; }
   setHidden('monthly-hm-section', false);
+  _syncCurveSelect('monthly-hm-curvewrap', 'monthly-hm-curve', rows, pr);
   document.getElementById('monthly-hm-for').textContent = `— ${pr.name}`;
   const months = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
   const YEAR_COL = '연간';
@@ -1331,7 +1353,9 @@ function wireControls() {
   // 분석 강화: 롤링 창 길이 · 낙폭표 곡선 선택
   const rwin = document.getElementById('rolling-window'), tddc = document.getElementById('topdd-curve');
   if (rwin) rwin.addEventListener('change', () => { state.rolling = { years: Number(rwin.value) || 0 }; render(); });
-  if (tddc) tddc.addEventListener('change', () => { state.topddCurve = tddc.value; render(); });
+  if (tddc) tddc.addEventListener('change', () => onAnalysisCurveChange(tddc.value));
+  const hmc = document.getElementById('monthly-hm-curve');
+  if (hmc) hmc.addEventListener('change', () => onAnalysisCurveChange(hmc.value));
   // 리밸런싱 민감도 스윕: 실행 버튼 + 지표 토글
   const srun = document.getElementById('sweep-run');
   if (srun) srun.addEventListener('click', runRebalSweep);
