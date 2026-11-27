@@ -157,12 +157,21 @@ const STRAT_DESC = {
   '밸류 리밸런싱(VR)': '목표 밸류라인 대비 부족분 매수·초과분 매도(밸류 애버리징).',
   '라오어 무한매수법 V1': '40분할 정액 매수 + +10% 익절 사이클(라오어 무한매수법 V1).',
   '라오어 무한매수법 V2': '무한매수법 V2 — 상단 LOC 매수·후반 분할 익절.',
+  '무한매수법 V2.0 (40분할)': '무한매수법 V2.0 — 40분할. 전반전 ½ 평단 LOC + ½ 평단+5% LOC 매수, 전량 +10% 지정가 익절 / 후반전 평단 LOC 매수, ½ +5%·½ +10% 분할 익절.',
+  '무한매수법 V2.1 (40분할)': '무한매수법 V2.1 — V2.0 매수 그대로, 매도 2단(전반 ¼ +5% LOC·¾ +10%)·3단(후반 ½ +10%·¼ +5%·¼ 평단).',
+  '무한매수법 V2.2 (40분할)': '무한매수법 V2.2 — 별%(=10−T/2, SOXL 12−0.6T) 도입. ¼ 별지점 LOC + ¾ +10%(SOXL +12%) 지정가, T>39 쿼터손절.',
+  '무한매수법 V3.0 (20분할)': '무한매수법 V3.0 — 20분할, 별% 15−1.5T(SOXL 20−2T), 익절 +15%(SOXL +20%), T>19 쿼터모드(¼ MOC), 반복리(수익 절반을 1회매수금에 반영).',
+  '무한매수법 V4.0 (20분할)': '무한매수법 V4.0 — 1회매수금 = 잔금/(20−T), T 가산식. 소진 시 리버스모드(5일 평균 기준 ⅒ 매도·잔금/4 매수, 평단 −15% 회복 시 복귀).',
+  '무한매수법 V4.0 (40분할)': '무한매수법 V4.0 40분할 — 별% 15−0.75T(SOXL 20−T), 1회매수금 = 잔금/(40−T), 리버스 매도 1/20.',
+  'VR 5.0 (거치식 G10 ±15%)': '밸류 리밸런싱 5.0(거치식) — 2주마다 V←V+Pool/10, 평가금이 V±15% 밴드를 벗어나면 밴드까지 매수(Pool 50% 한도)·매도.',
+  'SOXL 매수후보유': 'SOXL(반도체 3배 레버리지) 매수후보유 — 변동성·낙폭이 TQQQ보다도 큼.',
 };
 const CAT_BLURB = {
   dynamic: '신호(모멘텀·추세)로 매달 비중을 바꾸는 동적 자산배분.',
   static: '고정 비중 정적 자산배분(주기 리밸런싱 + 표류 밴드).',
   momentum: '개별 시장 모멘텀·레버리지 전략 비교(위험=TWR, 수익=XIRR).',
   dca: '미국 ETF(QQQ·QLD·TQQQ·SPY·SCHD 등)에 매달 일정액을 넣었다면? 서브탭 5개 — ① 기본 적립(즉석 재계산 + 적립식 기준 최적 레버리지) ② VIX 연동 적립(금액 조절 — 공포에 더 사면?) ③ 이평 필터 전환(추세 필터 — 이평선 아래면 QQQ/현금으로) ④ 9-Sig(분기 리밸런싱 — 목표액 맞춰 사고팔기) ⑤ 신호 연동 적립(VIX·낙폭·200일선·급락일 × 매일/매월 — 무서울 때 더 넣기). ③·④는 수수료·양도세 반영 세후 비교.',
+  laoer: '라오어 전략 — 무한매수법 V2.0~V4.0(분할매수·평단 익절 사이클)과 VR 5.0(밸류 리밸런싱)을 TQQQ·SOXL에 적용해 S&P500·QQQ·TQQQ 매수후보유와 비교. 곡선=계좌 전체 TWR(현금 포함), XIRR(KRW)세후=원화·양도세 22% 반영.',
   crypto: '암호화폐 전략: 매수후보유·DCA·이동평균선 추세(20/60/120/200일 × 달러·원화 신호). 곡선=TWR(위험비교), 적립 수익=XIRR.',
   analytics: '8자산 월수익 기반 정량분석 — 상관·효율적 프론티어·리스크패리티·위험수익(무위험 2%).',
   compare: '여러 전략을 한 곡선에 오버레이 비교(통화 토글 + 지표 열 클릭 정렬 리더보드).',
@@ -224,6 +233,7 @@ function _explainTypeKey(d, cat, sel) {
   if (cat === 'static') return 'static';
   if (cat === 'dynamic') return 'dynamic';
   if (cat === 'crypto') return 'crypto';
+  if (cat === 'laoer') return 'laoer';
   if (cat === 'momentum') {
     const lev = /HFEA|UPRO|TMF|TQQQ|3[xX]|LRS|레버리지/;
     if ((d && d.kind === 'allocation') || sel.some(n => lev.test(n)) ||
@@ -276,7 +286,7 @@ function renderStrategyExplainer() {
   const tk = _explainTypeKey(d, cat, sel);                 // A. 유형
   if (tk && EX.type[tk]) parts.push(_explainBlock(EX.type[tk]));
   let spec = null;                                          // B. 개별 (복수곡선은 선택 곡선 우선)
-  const multi = !d.kind && (cat === 'momentum' || cat === 'crypto');
+  const multi = !d.kind && (cat === 'momentum' || cat === 'crypto' || cat === 'laoer');
   if (multi && sel.length === 1) {
     spec = EX.specific[sel[0]];
     if (!spec) { const sd = (typeof stratDesc === 'function') ? stratDesc(sel[0]) : ''; if (sd) spec = { title: sel[0], body: `<p>${sd}</p>` }; }
@@ -324,6 +334,7 @@ function render() {
   renderTopDD(rows);          //   최대 낙폭 Top-N
   renderMonthlyHeatmap(rows); //   월별 수익률 히트맵
   renderCryptoDca(rows);      //   코인 전용: 적립식(DCA) 납입 vs 평가액·XIRR (TWR 곡선이 겹치는 이유 해설)
+  renderLaoer(rows, s, e);    //   라오어 탭 전용: 사이클·소진모드·현금비중 진단
 
   const note = isFullPeriod(s, e)
     ? `전체 기간 (${state.globalStart} ~ ${state.globalEnd})`
@@ -354,6 +365,76 @@ function renderFreqNote() {
 
 // 코인 적립식(DCA) — 매월 동일액 적립 시 납입누계 vs 평가액 + XIRR(금액가중). 메인 곡선은 TWR(현금흐름
 // 중립)이라 매수후보유와 DCA가 겹쳐 보이는데, 적립의 실제 효과를 금액가중으로 보완 표시(순수 클라이언트).
+// 라오어 탭 전용 패널 — 데이터셋 extras.laoer(run_laoer.py)의 전략별 통계(전체기간) + 주간 현금비중 차트(구간 슬라이스).
+function renderLaoer(rows, s, e) {
+  const sec = document.getElementById('laoer-section');
+  if (!sec) return;
+  const L = state.data && state.data.laoer;
+  if (state.nav.category !== 'laoer' || !L || !L.stats) { sec.classList.add('hidden'); return; }
+  const sel = new Set(rows.map(r => r.name));
+  const names = Object.keys(L.stats).filter(n => sel.has(n));
+  const pct = v => (v == null || !isFinite(v)) ? '—' : (v * 100).toFixed(1) + '%';
+  const num = (v, d = 0) => (v == null || !isFinite(v)) ? '—' : Number(v).toFixed(d);
+  const sw = n => `<span style="display:inline-block;width:.7em;height:.7em;border-radius:2px;margin-right:.35em;background:${state.colorOf[n] || 'var(--muted)'}"></span>`;
+  const ib = names.filter(n => L.stats[n].kind === 'infinite');
+  const vrs = names.filter(n => L.stats[n].kind === 'vr');
+  const H = cols => '<thead><tr>' + cols.map((c, i) => `<th${i ? '' : ' class="name"'}>${c}</th>`).join('') + '</tr></thead>';
+  const td = (lab, v, cls) => `<td data-label="${lab}"${cls ? ` class="${cls}"` : ''}>${v}</td>`;
+  const ibCols = ['전략', '완료 사이클', '평균 사이클', '최장 사이클', '사이클 평균수익', '사이클 승률', '소진모드 진입', '소진모드 일수', '평균 현금비중', '거래일/년'];
+  const ibBody = ib.map(n => {
+    const x = L.stats[n];
+    return `<tr><td class="name" data-label="전략">${sw(n)}${n}</td>` +
+      td('완료 사이클', `${x.cycles_done}회` + (x.cycles_open ? ' <span class="muted">(+진행 1)</span>' : '')) +
+      td('평균 사이클', x.cycle_days_avg != null ? num(x.cycle_days_avg) + '일' : '—') +
+      (() => {   // 진행 중(미완료) 사이클이 완료 최장보다 길면 그걸 표시 — 잔금 소진 후 수년간 '물린' 상태
+        const mx = x.cycle_days_max || 0, op = x.cycle_open_days || 0;
+        const v = op > mx ? `${op.toLocaleString()}일 <span class="muted">(진행 중)</span>` : (mx ? mx.toLocaleString() + '일' : '—');
+        return td('최장 사이클', v, Math.max(mx, op) > 365 ? 'neg' : '');
+      })() +
+      td('사이클 평균수익', pct(x.cycle_ret_avg)) +
+      td('사이클 승률', pct(x.cycle_win)) +
+      td('소진모드 진입', `${x.exhaust_mode} ${x.exhaust_entries}회`) +
+      td('소진모드 일수', pct(x.exhaust_days_pct)) +
+      td('평균 현금비중', pct(x.cash_avg)) +
+      td('거래일/년', num(x.trade_days_per_year)) + '</tr>';
+  }).join('');
+  document.getElementById('laoer-table').innerHTML = ib.length ? H(ibCols) + '<tbody>' + ibBody + '</tbody>' : '';
+  const vrCols = ['전략', '사이클(2주)', '매수한 날', '매도한 날', '하단 이탈·한도 소진일', '평균 현금(Pool)비중', '거래일/년'];
+  const vrBody = vrs.map(n => {
+    const x = L.stats[n];
+    return `<tr><td class="name" data-label="전략">${sw(n)}${n}</td>` + td('사이클(2주)', x.cycles + '회') +
+      td('매수한 날', x.buy_days + '일') + td('매도한 날', x.sell_days + '일') +
+      td('하단 이탈·한도 소진일', x.pool_exhausted_days + '일') + td('평균 현금(Pool)비중', pct(x.cash_avg)) +
+      td('거래일/년', num(x.trade_days_per_year)) + '</tr>';
+  }).join('');
+  document.getElementById('laoer-vr-table').innerHTML = vrs.length ? H(vrCols) + '<tbody>' + vrBody + '</tbody>' : '';
+  const meta = document.getElementById('laoer-meta');
+  if (meta) meta.textContent = ` 시드 $${Number(L.seed_usd || 0).toLocaleString()} · 수수료+슬리피지 편도 ${((L.fee_side || 0) * 100).toFixed(2)}% · `
+    + `${L.kind === 'synth' ? '합성(기초지수×3, 1999~)' : '실제 ETF'} · 표는 전체 기간 기준.`;
+  // 현금비중 차트(선택 구간)
+  const C = L.cash || {};
+  const traces = [];
+  if (C.dates && C.series) {
+    const idx = [];
+    C.dates.forEach((d, i) => { if (d >= s && d <= e) idx.push(i); });
+    for (const n of names) {
+      const arr = C.series[n];
+      if (!arr) continue;
+      traces.push({ type: 'scatter', mode: 'lines', name: n, x: idx.map(i => C.dates[i]),
+        y: idx.map(i => arr[i] == null ? null : arr[i] * 100),
+        line: { width: 1.3, color: state.colorOf[n] }, hovertemplate: '%{y:.1f}%<extra>' + n + '</extra>' });
+    }
+  }
+  const show = ib.length || vrs.length;
+  sec.classList.toggle('hidden', !show);
+  if (traces.length) {
+    const lay = baseLayout('현금 비중 (계좌 중 현금 %, 주간)', '현금 비중 (%)');
+    lay.yaxis.range = [0, 100];
+    setHidden('chart-laoer-cash', false);
+    Plotly.react('chart-laoer-cash', traces, lay, PLOTCFG);
+  } else setHidden('chart-laoer-cash', true);
+}
+
 function renderCryptoDca(rows) {
   const sec = document.getElementById('cryptodca-section');
   if (!sec) return;
@@ -1265,17 +1346,17 @@ function clearPresetActive() {
 // ---------------------------------------------------------------------------
 // 3축 네비 (카테고리 → 그룹 → 통화 토글)
 // ---------------------------------------------------------------------------
-const CAT_ORDER = { reco: -2, guide: -1, dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, dca: 2.5, crypto: 3,
+const CAT_ORDER = { reco: -2, guide: -1, dynamic: 0, static: 1, analytics: 4, compare: 5, blend: 6, momentum: 2, dca: 2.5, laoer: 2.7, crypto: 3,
   realestate: 11, paradise: 7, sentiment: 8, trend: 9, reliability: 10, lab_rotation: 12, lab_rebal: 13, lab_blend: 14, lab_dailyrisk: 15 };
 const CAT_LABEL_NAV = { reco: '추천 전략', guide: '초보자 가이드', dynamic: '동적 자산배분', static: '정적 자산배분', momentum: '모멘텀',
-  dca: '적립식 시뮬레이터',
+  dca: '적립식 시뮬레이터', laoer: '라오어 전략',
   crypto: '코인', analytics: '정량분석', compare: '전략 비교', blend: '전략 블렌딩', realestate: '부동산',
   paradise: '낙원계산기', sentiment: '시장 심리', trend: '추세 경보', reliability: '데이터 정확도',
   lab_rotation: '전략 로테이션', lab_rebal: '리밸 주기 민감도', lab_blend: '고정 블렌드 최적화', lab_dailyrisk: '일별 vs 월별 위험' };
 // 4대분류: 자산배분(8자산) / 주식(한국 모멘텀·미국 TQQQ·지수 모멘텀) / 코인(BTC/ETH/XRP) /
 //          도구·지표(계산기·심리·경보·데이터정확도). 코인은 전통자산과 위험특성이 달라 독립 영역.
 const SUPER_OF = { reco: 'reco', guide: 'guide', dynamic: 'alloc', static: 'alloc', analytics: 'alloc', compare: 'alloc', blend: 'alloc',
-  momentum: 'strat', dca: 'strat', crypto: 'coin', realestate: 're',
+  momentum: 'strat', dca: 'strat', laoer: 'strat', crypto: 'coin', realestate: 're',
   paradise: 'tools', sentiment: 'tools', trend: 'tools', reliability: 'tools',
   lab_rotation: 'lab', lab_rebal: 'lab', lab_blend: 'lab', lab_dailyrisk: 'lab' };
 const SUPER_ORDER = { reco: -2, guide: -1, alloc: 0, strat: 1, coin: 2, re: 3, tools: 4, lab: 5 };

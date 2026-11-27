@@ -31,7 +31,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="stylesheet" as="style" crossorigin
         href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" />
-  <link rel="stylesheet" href="style.css?v=8e9c42d7" />
+  <link rel="stylesheet" href="style.css?v=9d829ece" />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -1660,6 +1660,38 @@
       <div id="chart-cryptodca" class="chart"></div>
     </section>
 
+    <!-- 라오어 전략 탭 전용: 무한매수법 사이클·소진모드·현금비중 + VR 진단 + 버전 규칙표 (scripts/us/run_laoer.py) -->
+    <section id="laoer-section" class="panel hidden">
+      <h2>라오어 전략 진단 <span class="muted">(사이클 · 소진모드 · 현금 비중 — 전체 기간)</span></h2>
+      <p class="period-note">위 수익곡선은 <strong>계좌 전체</strong>(주식+현금)의 시간가중 수익입니다. 무한매수법은 원금을 나눠 넣고
+        평단 위에서 익절하는 구조라 <strong>현금이 늘 크게 남아</strong> 있고(현금 이자는 미국 3개월 국채금리로 가정), 원금을 다 쓰면
+        <strong>소진모드</strong>(V2.x·V3.0 쿼터손절 / V4.0 리버스)로 들어갑니다. 아래 표·차트는 그 동작을 보여줍니다.
+        <span id="laoer-meta" class="muted"></span></p>
+      <div class="table-wrap"><table id="laoer-table" class="diag-table"></table></div>
+      <div class="table-wrap" style="margin-top:.5rem"><table id="laoer-vr-table" class="diag-table"></table></div>
+      <div id="chart-laoer-cash" class="chart"></div>
+      <details class="theory">
+        <summary>📋 버전별 규칙 요약 (출처: quantstack.app 해설)</summary>
+        <div class="theory-body">
+          <div class="table-wrap"><table class="diag-table">
+            <thead><tr><th class="name">버전</th><th>분할</th><th>별%(TQQQ / SOXL)</th><th>매수</th><th>매도</th><th>소진 시</th></tr></thead>
+            <tbody>
+              <tr><td class="name">V2.0</td><td>40</td><td>— (평단·평단+5%)</td><td>전반: ½ 평단 LOC + ½ 평단+5% LOC / 후반: 1회 평단 LOC</td><td>전반: 전량 +10% 지정가 / 후반: ½ +5%, ½ +10% 지정가</td><td>쿼터손절(V2.2 절차로 대체 적용)</td></tr>
+              <tr><td class="name">V2.1</td><td>40</td><td>— (V2.0과 동일)</td><td>V2.0과 동일</td><td>전반: ¼ +5% LOC, ¾ +10% 지정가 / 후반: ½ +10%, ¼ +5% 지정가, ¼ 평단 LOC</td><td>쿼터손절(V2.2 절차로 대체 적용)</td></tr>
+              <tr><td class="name">V2.2</td><td>40</td><td>10−T/2 / 12−0.6T</td><td>전반: ½ 평단 LOC + ½ 별 LOC / 후반: 1회 별 LOC</td><td>¼ 별 LOC + ¾ +10%(SOXL +12%) 지정가</td><td>T&gt;39: ¼ MOC → (잔금)/10로 −10% LOC 10회 → ¼ MOC, 회복 시 후반전 복귀</td></tr>
+              <tr><td class="name">V3.0</td><td>20</td><td>15−1.5T / 20−2T</td><td>V2.2와 같은 구조</td><td>¼ 별 LOC + ¾ +15%(SOXL +20%) 지정가</td><td>T&gt;19: ¼ MOC(그날 매수 없음) 후 계속. 반복리 = 수익의 ½을 1회매수금에 분할 반영</td></tr>
+              <tr><td class="name">V4.0</td><td>20 / 40</td><td>15−1.5T(40분할 15−0.75T) / 20−2T(20−T)</td><td>1회매수금 = 잔금/(분할−T), T는 가산식(+1, +0.5, 쿼터매도 ×0.75)</td><td>V3.0과 같음</td><td>리버스: 첫날 1/10(40분할 1/20) MOC → 5일 평균 위 LOC 매도·아래 잔금/4 LOC 매수, 종가가 평단 −15%(SOXL −20%) 위면 일반모드 복귀</td></tr>
+              <tr><td class="name">VR 5.0</td><td>2주</td><td>밴드 ±15%</td><td>평가금 &lt; 0.85V → 하단까지 매수(사이클당 Pool의 50% 한도)</td><td>평가금 &gt; 1.15V → 상단까지 매도</td><td>V ← V + Pool/G(10). 초기 주식 = 원금/1.15</td></tr>
+            </tbody>
+          </table></div>
+          <p class="muted">공통 가정: 체결 = LOC·MOC는 종가, 지정가는 장중 고가가 닿으면 체결(합성 구간은 기초지수 장중값×3으로 합성), 첫 매수는 MOC,
+            소수점 주식, 수수료+슬리피지 편도 0.12%, 사이클이 끝나면 다음 날 바로 새 사이클(V2.x·V4.0은 그때 잔고 기준으로 1회매수금 재설정).
+            원문 규칙: <a href="https://quantstack.app/infinite/v4-0-normal/" target="_blank" rel="noopener">quantstack.app 무한매수법</a> ·
+            <a href="https://quantstack.app/vr/overview/" target="_blank" rel="noopener">VR 5.0</a> (비공식 해설 — 원 방법론은 라오어 카페).</p>
+        </div>
+      </details>
+    </section>
+
     <!-- 분석 강화: 롤링 수익률 · 최대 낙폭 Top-N · 월별 수익률 히트맵 (모든 백테스트 데이터셋, 브라우저 계산) -->
     <section id="rolling-section" class="panel hidden" data-adv>
       <h2>롤링 수익률 <span class="muted">(N년 이동창 CAGR 분포)</span></h2>
@@ -1816,13 +1848,13 @@
       · <a href="https://docs.google.com/forms/d/e/1FAIpQLSeV4zN2kAXJwBTREoJ0vQ6SpVc2t2FrR8YRx34glPPokB538A/viewform" target="_blank" rel="noopener">문의·건의</a></span>
   </footer>
 
-  <script src="explain.js?v=8e9c42d7" defer></script>
-  <script src="alloc.js?v=8e9c42d7" defer></script>
-  <script src="re_apt.js?v=8e9c42d7" defer></script>
-  <script src="analytics-live.js?v=8e9c42d7" defer></script>
-  <script src="leverage.js?v=8e9c42d7" defer></script>
-  <script src="dca.js?v=8e9c42d7" defer></script>
-  <script src="lab.js?v=8e9c42d7" defer></script>
-  <script src="app.js?v=8e9c42d7" defer></script>
+  <script src="explain.js?v=9d829ece" defer></script>
+  <script src="alloc.js?v=9d829ece" defer></script>
+  <script src="re_apt.js?v=9d829ece" defer></script>
+  <script src="analytics-live.js?v=9d829ece" defer></script>
+  <script src="leverage.js?v=9d829ece" defer></script>
+  <script src="dca.js?v=9d829ece" defer></script>
+  <script src="lab.js?v=9d829ece" defer></script>
+  <script src="app.js?v=9d829ece" defer></script>
 </body>
 </html>

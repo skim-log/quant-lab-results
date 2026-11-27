@@ -600,6 +600,70 @@
     "file": "kr_index_trend.json"
   },
   {
+    "id": "us_laoer_tqqq_real_krw",
+    "category": "laoer",
+    "group": "TQQQ · 실제 (2010~)",
+    "currency": "krw",
+    "label": "라오어 전략 · TQQQ · 실제 (2010~) (KRW)",
+    "file": "us_laoer_tqqq_real_krw.json"
+  },
+  {
+    "id": "us_laoer_tqqq_real_usd",
+    "category": "laoer",
+    "group": "TQQQ · 실제 (2010~)",
+    "currency": "usd",
+    "label": "라오어 전략 · TQQQ · 실제 (2010~) (USD)",
+    "file": "us_laoer_tqqq_real_usd.json"
+  },
+  {
+    "id": "us_laoer_tqqq_synth_krw",
+    "category": "laoer",
+    "group": "TQQQ · 합성 (1999~)",
+    "currency": "krw",
+    "label": "라오어 전략 · TQQQ · 합성 (1999~) (KRW)",
+    "file": "us_laoer_tqqq_synth_krw.json"
+  },
+  {
+    "id": "us_laoer_tqqq_synth_usd",
+    "category": "laoer",
+    "group": "TQQQ · 합성 (1999~)",
+    "currency": "usd",
+    "label": "라오어 전략 · TQQQ · 합성 (1999~) (USD)",
+    "file": "us_laoer_tqqq_synth_usd.json"
+  },
+  {
+    "id": "us_laoer_soxl_real_krw",
+    "category": "laoer",
+    "group": "SOXL · 실제 (2010~)",
+    "currency": "krw",
+    "label": "라오어 전략 · SOXL · 실제 (2010~) (KRW)",
+    "file": "us_laoer_soxl_real_krw.json"
+  },
+  {
+    "id": "us_laoer_soxl_real_usd",
+    "category": "laoer",
+    "group": "SOXL · 실제 (2010~)",
+    "currency": "usd",
+    "label": "라오어 전략 · SOXL · 실제 (2010~) (USD)",
+    "file": "us_laoer_soxl_real_usd.json"
+  },
+  {
+    "id": "us_laoer_soxl_synth_krw",
+    "category": "laoer",
+    "group": "SOXL · 합성 (1999~)",
+    "currency": "krw",
+    "label": "라오어 전략 · SOXL · 합성 (1999~) (KRW)",
+    "file": "us_laoer_soxl_synth_krw.json"
+  },
+  {
+    "id": "us_laoer_soxl_synth_usd",
+    "category": "laoer",
+    "group": "SOXL · 합성 (1999~)",
+    "currency": "usd",
+    "label": "라오어 전략 · SOXL · 합성 (1999~) (USD)",
+    "file": "us_laoer_soxl_synth_usd.json"
+  },
+  {
     "id": "crypto_btc_krw",
     "category": "crypto",
     "group": "BTC · 비트코인",
